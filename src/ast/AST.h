@@ -72,7 +72,10 @@ namespace pgt
         return "?";
     }
 
-    inline const char *opText(UnOp op) { return op == UnOp::Neg ? "-" : "!"; }
+    inline const char *opText(UnOp op)
+    {
+        return op == UnOp::Neg ? "-" : "!";
+    }
 
     struct TypeExpr
     {
@@ -229,4 +232,4 @@ namespace pgt
         ExprPtr exitCode;
     };
 
-}
+} // namespace pgt

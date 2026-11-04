@@ -10,13 +10,18 @@ namespace pgt
     class Lexer
     {
     public:
-        explicit Lexer(std::string source) : src_(std::move(source)) {}
+        explicit Lexer(std::string source) : src_(std::move(source))
+        {
+        }
         std::vector<Token> tokenize();
 
     private:
         char peek(size_t ahead = 0) const;
         char advance();
-        bool atEnd() const { return pos_ >= src_.size(); }
+        bool atEnd() const
+        {
+            return pos_ >= src_.size();
+        }
         void skipTrivia();
         Token make(Tok kind, std::string text, int line, int col) const;
         Token lexNumber();

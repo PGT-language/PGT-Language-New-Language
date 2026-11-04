@@ -1,7 +1,7 @@
 #include "parser/Parser.h"
 
-#include "common/Error.h"
 #include "ast/Analysis.h"
+#include "common/Error.h"
 
 namespace pgt
 {
@@ -359,7 +359,10 @@ namespace pgt
         return loop;
     }
 
-    ExprPtr Parser::parseExpr() { return parseOr(); }
+    ExprPtr Parser::parseExpr()
+    {
+        return parseOr();
+    }
 
     ExprPtr Parser::parseOr()
     {

@@ -7,6 +7,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -27,9 +28,13 @@ namespace pgt
     private:
         enum class Ty
         {
+            Void,
             Int,
-            Bool,
-            String
+            Int64,
+            Float,
+            Char,
+            String,
+            Bool
         };
         struct Value
         {
@@ -46,9 +51,20 @@ namespace pgt
             llvm::BasicBlock *continueTo;
             llvm::BasicBlock *breakTo;
         };
+        struct FuncInfo
+        {
+            llvm::Function *fn;
+            std::vector<Ty> params;
+            Ty ret;
+        };
 
         llvm::Type *llvmType(Ty t);
         static const char *tyName(Ty t);
+        static bool isIntegral(Ty t);
+        static bool isNumeric(Ty t);
+        static std::optional<Ty> builtinType(const std::string &name);
+        Ty resolveType(const TypeExpr &type) const;
+        llvm::Value *zeroValue(Ty t);
         static bool isPublic(const std::string &name);
         static std::string mangle(const std::string &importPath, const std::string &name);
 
@@ -67,7 +83,9 @@ namespace pgt
 
         void genBlock(const Block &block);
         void genStmt(const Stmt &stmt);
+        void genVarDecl(const VarDecl &decl);
         void genAssign(const Assign &assign);
+        void genReturn(const Return &ret);
         void genIf(const If &node);
         void genLoop(const Loop &loop);
         void genRangeLoop(const RangeLoop &loop);
@@ -75,11 +93,16 @@ namespace pgt
         void genPrint(const Call &call, bool newline);
         void genInput(const Call &call, bool wholeLine);
 
-        Value genExpr(const Expr &expr);
+        Value genExpr(const Expr &expr, Ty hint = Ty::Void);
         Value genCond(const Expr &expr);
-        Value genBinary(const Binary &bin);
+        Value genCall(const Call &call);
+        Value genConversion(const Call &call, Ty target);
+        Value convert(Value v, Ty to, int line, int col);
+        Value genBinary(const Binary &bin, Ty hint);
         Value genLogical(const Binary &bin);
         Value genCompare(const Binary &bin);
+        Value genArith(BinOp op, Value l, Value r, int line, int col);
+        void genOperands(const Expr &lhs, const Expr &rhs, Ty hint, Value &l, Value &r);
 
         llvm::LLVMContext ctx_;
         std::unique_ptr<llvm::Module> module_;
@@ -88,7 +111,8 @@ namespace pgt
         const Workspace *ws_ = nullptr;
         const Package *pkg_ = nullptr;
         std::string currentFile_;
-        std::map<std::string, std::map<std::string, llvm::Function *>> functions_;
+        Ty currentRet_ = Ty::Void;
+        std::map<std::string, std::map<std::string, FuncInfo>> functions_;
         std::map<std::string, const Package *> fileImports_;
         std::vector<std::map<std::string, Var>> scopes_;
         std::vector<LoopTargets> loops_;

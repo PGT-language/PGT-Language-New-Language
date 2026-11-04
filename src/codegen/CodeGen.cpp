@@ -1,5 +1,6 @@
 #include "codegen/CodeGen.h"
 
+#include "ast/Analysis.h"
 #include "common/Error.h"
 
 #include <llvm/IR/Verifier.h>
@@ -10,6 +11,45 @@
 namespace pgt
 {
 
+    namespace
+    {
+
+        bool isConstExpr(const Expr &e)
+        {
+            if (dynamic_cast<const IntLit *>(&e) || dynamic_cast<const FloatLit *>(&e))
+                return true;
+            if (auto *un = dynamic_cast<const Unary *>(&e))
+                return un->op == UnOp::Neg && isConstExpr(*un->operand);
+            if (auto *bin = dynamic_cast<const Binary *>(&e))
+            {
+                switch (bin->op)
+                {
+                case BinOp::Add:
+                case BinOp::Sub:
+                case BinOp::Mul:
+                case BinOp::Div:
+                case BinOp::Mod:
+                    return isConstExpr(*bin->lhs) && isConstExpr(*bin->rhs);
+                default:
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        bool hasFloatLit(const Expr &e)
+        {
+            if (dynamic_cast<const FloatLit *>(&e))
+                return true;
+            if (auto *un = dynamic_cast<const Unary *>(&e))
+                return hasFloatLit(*un->operand);
+            if (auto *bin = dynamic_cast<const Binary *>(&e))
+                return hasFloatLit(*bin->lhs) || hasFloatLit(*bin->rhs);
+            return false;
+        }
+
+    } // namespace
+
     CodeGen::CodeGen(const std::string &moduleName)
         : module_(std::make_unique<llvm::Module>(moduleName, ctx_)), builder_(ctx_)
     {
@@ -19,8 +59,16 @@ namespace pgt
     {
         switch (t)
         {
+        case Ty::Void:
+            return builder_.getVoidTy();
         case Ty::Int:
             return builder_.getInt32Ty();
+        case Ty::Int64:
+            return builder_.getInt64Ty();
+        case Ty::Float:
+            return builder_.getDoubleTy();
+        case Ty::Char:
+            return builder_.getInt8Ty();
         case Ty::Bool:
             return builder_.getInt1Ty();
         case Ty::String:
@@ -33,14 +81,80 @@ namespace pgt
     {
         switch (t)
         {
+        case Ty::Void:
+            return "void";
         case Ty::Int:
             return "int";
+        case Ty::Int64:
+            return "int64";
+        case Ty::Float:
+            return "float";
+        case Ty::Char:
+            return "char";
         case Ty::Bool:
             return "bool";
         case Ty::String:
             return "string";
         }
         return "?";
+    }
+
+    bool CodeGen::isIntegral(Ty t)
+    {
+        return t == Ty::Int || t == Ty::Int64 || t == Ty::Char;
+    }
+
+    bool CodeGen::isNumeric(Ty t)
+    {
+        return isIntegral(t) || t == Ty::Float;
+    }
+
+    std::optional<CodeGen::Ty> CodeGen::builtinType(const std::string &name)
+    {
+        if (name == "int")
+            return Ty::Int;
+        if (name == "int64")
+            return Ty::Int64;
+        if (name == "float")
+            return Ty::Float;
+        if (name == "char")
+            return Ty::Char;
+        if (name == "string")
+            return Ty::String;
+        if (name == "bool")
+            return Ty::Bool;
+        if (name == "void")
+            return Ty::Void;
+        return std::nullopt;
+    }
+
+    CodeGen::Ty CodeGen::resolveType(const TypeExpr &type) const
+    {
+        if (auto t = builtinType(type.name))
+            return *t;
+        throw CompileError("unknown type '" + type.name + "'", type.line, type.col);
+    }
+
+    llvm::Value *CodeGen::zeroValue(Ty t)
+    {
+        switch (t)
+        {
+        case Ty::Int:
+            return builder_.getInt32(0);
+        case Ty::Int64:
+            return builder_.getInt64(0);
+        case Ty::Float:
+            return llvm::ConstantFP::get(builder_.getDoubleTy(), 0.0);
+        case Ty::Char:
+            return builder_.getInt8(0);
+        case Ty::Bool:
+            return builder_.getInt1(false);
+        case Ty::String:
+            return builder_.CreateGlobalString("", ".empty");
+        case Ty::Void:
+            break;
+        }
+        return nullptr;
     }
 
     bool CodeGen::isPublic(const std::string &name)
@@ -171,7 +285,6 @@ namespace pgt
 
     void CodeGen::declareFunctions(const Package &pkg)
     {
-        auto *fnTy = llvm::FunctionType::get(builder_.getVoidTy(), false);
         auto &table = functions_[pkg.importPath];
         for (const Program &p : pkg.programs)
         {
@@ -182,10 +295,26 @@ namespace pgt
                     throw CompileError("function '" + fn.name + "' is already defined in package '" +
                                            pkg.name + "'",
                                        fn.line, fn.col);
+
+                FuncInfo info;
+                std::vector<llvm::Type *> llvmParams;
+                for (const Param &param : fn.params)
+                {
+                    Ty t = resolveType(param.type);
+                    if (t == Ty::Void)
+                        throw CompileError("parameter '" + param.name + "' cannot have type void",
+                                           param.type.line, param.type.col);
+                    info.params.push_back(t);
+                    llvmParams.push_back(llvmType(t));
+                }
+                info.ret = fn.ret ? resolveType(*fn.ret) : Ty::Void;
+
+                auto *fnTy = llvm::FunctionType::get(llvmType(info.ret), llvmParams, false);
                 auto linkage = isPublic(fn.name) ? llvm::Function::ExternalLinkage
                                                  : llvm::Function::InternalLinkage;
-                table[fn.name] = llvm::Function::Create(fnTy, linkage, mangle(pkg.importPath, fn.name),
-                                                        module_.get());
+                info.fn = llvm::Function::Create(fnTy, linkage, mangle(pkg.importPath, fn.name),
+                                                 module_.get());
+                table[fn.name] = info;
             }
         }
     }
@@ -205,13 +334,35 @@ namespace pgt
 
     void CodeGen::genFunction(const Function &fn)
     {
-        llvm::Function *f = functions_.at(pkg_->importPath).at(fn.name);
-        builder_.SetInsertPoint(llvm::BasicBlock::Create(ctx_, "entry", f));
+        const FuncInfo &info = functions_.at(pkg_->importPath).at(fn.name);
+        builder_.SetInsertPoint(llvm::BasicBlock::Create(ctx_, "entry", info.fn));
         scopes_.clear();
         loops_.clear();
+        currentRet_ = info.ret;
+
+        pushScope();
+        size_t i = 0;
+        for (llvm::Argument &arg : info.fn->args())
+        {
+            const Param &param = fn.params[i];
+            arg.setName(param.name);
+            auto *slot = entryAlloca(llvmType(info.params[i]), param.name);
+            builder_.CreateStore(&arg, slot);
+            declare(param.name, Var{slot, info.params[i]}, param.line, param.col);
+            ++i;
+        }
+
+        if (info.ret != Ty::Void && !terminates(fn.body))
+            throw CompileError("missing return at the end of function '" + fn.name + "'", fn.line,
+                               fn.col);
 
         genBlock(fn.body);
-        builder_.CreateRetVoid();
+        popScope();
+
+        if (info.ret == Ty::Void)
+            builder_.CreateRetVoid();
+        else
+            builder_.CreateUnreachable();
     }
 
     void CodeGen::genEntryPoint(const Package &root, const Expr &exitCode)
@@ -220,6 +371,8 @@ namespace pgt
         auto it = table.find("main");
         if (it == table.end())
             throw CompileError("function 'main' is not defined", 1, 1);
+        if (!it->second.params.empty())
+            throw CompileError("function 'main' must not take parameters", 1, 1);
 
         auto *mainTy = llvm::FunctionType::get(builder_.getInt32Ty(), false);
         auto *mainFn =
@@ -229,9 +382,9 @@ namespace pgt
         pushScope();
         loops_.clear();
 
-        builder_.CreateCall(it->second);
+        builder_.CreateCall(it->second.fn);
 
-        Value code = genExpr(exitCode);
+        Value code = genExpr(exitCode, Ty::Int);
         if (code.type != Ty::Int)
             throw CompileError("the final 'return' must be an integer", exitCode.line, exitCode.col);
         builder_.CreateRet(code.value);
@@ -248,15 +401,11 @@ namespace pgt
     void CodeGen::genStmt(const Stmt &stmt)
     {
         if (auto *decl = dynamic_cast<const VarDecl *>(&stmt))
-        {
-            Value init = genExpr(*decl->init);
-            auto *slot = entryAlloca(llvmType(init.type), decl->name);
-            builder_.CreateStore(init.value, slot);
-            declare(decl->name, Var{slot, init.type}, decl->line, decl->col);
-            return;
-        }
+            return genVarDecl(*decl);
         if (auto *assign = dynamic_cast<const Assign *>(&stmt))
             return genAssign(*assign);
+        if (auto *ret = dynamic_cast<const Return *>(&stmt))
+            return genReturn(*ret);
         if (auto *es = dynamic_cast<const ExprStmt *>(&stmt))
         {
             genCallStmt(*static_cast<const Call *>(es->expr.get()));
@@ -287,13 +436,48 @@ namespace pgt
         throw CompileError("internal error: unknown statement", stmt.line, stmt.col);
     }
 
+    void CodeGen::genVarDecl(const VarDecl &decl)
+    {
+        Ty ty;
+        llvm::Value *init;
+        if (decl.type)
+        {
+            ty = resolveType(*decl.type);
+            if (ty == Ty::Void)
+                throw CompileError("a variable cannot have type void", decl.type->line,
+                                   decl.type->col);
+            if (decl.init)
+            {
+                Value v = genExpr(*decl.init, ty);
+                if (v.type != ty)
+                    throw CompileError(std::string("cannot initialize ") + tyName(ty) +
+                                           " variable '" + decl.name + "' with " + tyName(v.type),
+                                       decl.line, decl.col);
+                init = v.value;
+            }
+            else
+            {
+                init = zeroValue(ty);
+            }
+        }
+        else
+        {
+            Value v = genExpr(*decl.init);
+            ty = v.type;
+            init = v.value;
+        }
+        auto *slot = entryAlloca(llvmType(ty), decl.name);
+        builder_.CreateStore(init, slot);
+        declare(decl.name, Var{slot, ty}, decl.line, decl.col);
+    }
+
     void CodeGen::genAssign(const Assign &assign)
     {
         Var *var = lookup(assign.name);
         if (!var)
             throw CompileError("undefined variable '" + assign.name + "'", assign.line, assign.col);
 
-        Value rhs = genExpr(*assign.value);
+        Value rhs = genExpr(*assign.value, var->type);
 
         if (assign.op == AssignOp::Set)
         {
@@ -306,32 +490,53 @@ namespace pgt
             return;
         }
 
-        if (var->type != Ty::Int || rhs.type != Ty::Int)
-            throw CompileError("compound assignment and '++'/'--' need integer operands", assign.line,
-                               assign.col);
-        llvm::Value *cur = builder_.CreateLoad(llvmType(Ty::Int), var->slot, assign.name);
-        llvm::Value *res = nullptr;
+        BinOp op = BinOp::Add;
         switch (assign.op)
         {
         case AssignOp::Add:
-            res = builder_.CreateAdd(cur, rhs.value);
+            op = BinOp::Add;
             break;
         case AssignOp::Sub:
-            res = builder_.CreateSub(cur, rhs.value);
+            op = BinOp::Sub;
             break;
         case AssignOp::Mul:
-            res = builder_.CreateMul(cur, rhs.value);
+            op = BinOp::Mul;
             break;
         case AssignOp::Div:
-            res = builder_.CreateSDiv(cur, rhs.value);
+            op = BinOp::Div;
             break;
         case AssignOp::Mod:
-            res = builder_.CreateSRem(cur, rhs.value);
+            op = BinOp::Mod;
             break;
         case AssignOp::Set:
             break;
         }
-        builder_.CreateStore(res, var->slot);
+        Value cur{builder_.CreateLoad(llvmType(var->type), var->slot, assign.name), var->type};
+        Value res = genArith(op, cur, rhs, assign.line, assign.col);
+        builder_.CreateStore(res.value, var->slot);
+    }
+
+    void CodeGen::genReturn(const Return &ret)
+    {
+        if (currentRet_ == Ty::Void)
+        {
+            if (ret.value)
+                throw CompileError("this function does not return a value", ret.line, ret.col);
+            builder_.CreateRetVoid();
+        }
+        else
+        {
+            if (!ret.value)
+                throw CompileError(std::string("missing return value of type ") + tyName(currentRet_),
+                                   ret.line, ret.col);
+            Value v = genExpr(*ret.value, currentRet_);
+            if (v.type != currentRet_)
+                throw CompileError(std::string("cannot return ") + tyName(v.type) +
+                                       " from a function returning " + tyName(currentRet_),
+                                   ret.line, ret.col);
+            builder_.CreateRet(v.value);
+        }
+        startDeadBlock();
     }
 
     CodeGen::Value CodeGen::genCond(const Expr &expr)
@@ -411,15 +616,17 @@ namespace pgt
     {
         llvm::Function *f = builder_.GetInsertBlock()->getParent();
 
-        Value from = genExpr(*loop.from);
-        Value to = genExpr(*loop.to);
-        if (from.type != Ty::Int || to.type != Ty::Int)
-            throw CompileError("the bounds of a range must be integers", loop.line, loop.col);
+        Value from = genExpr(*loop.from, Ty::Int);
+        Value to = genExpr(*loop.to, from.type);
+        if (!isIntegral(from.type) || from.type == Ty::Char || to.type != from.type)
+            throw CompileError("the bounds of a range must be integers of the same type", loop.line,
+                               loop.col);
+        Ty ty = from.type;
 
         pushScope();
-        auto *slot = entryAlloca(llvmType(Ty::Int), loop.var);
+        auto *slot = entryAlloca(llvmType(ty), loop.var);
         builder_.CreateStore(from.value, slot);
-        declare(loop.var, Var{slot, Ty::Int}, loop.line, loop.col);
+        declare(loop.var, Var{slot, ty}, loop.line, loop.col);
 
         auto *condBB = llvm::BasicBlock::Create(ctx_, "range.cond", f);
         auto *bodyBB = llvm::BasicBlock::Create(ctx_, "range.body", f);
@@ -429,7 +636,7 @@ namespace pgt
         builder_.CreateBr(condBB);
 
         builder_.SetInsertPoint(condBB);
-        llvm::Value *i = builder_.CreateLoad(llvmType(Ty::Int), slot, loop.var);
+        llvm::Value *i = builder_.CreateLoad(llvmType(ty), slot, loop.var);
         builder_.CreateCondBr(builder_.CreateICmpSLT(i, to.value), bodyBB, endBB);
 
         builder_.SetInsertPoint(bodyBB);
@@ -439,8 +646,8 @@ namespace pgt
         builder_.CreateBr(postBB);
 
         builder_.SetInsertPoint(postBB);
-        llvm::Value *cur = builder_.CreateLoad(llvmType(Ty::Int), slot, loop.var);
-        builder_.CreateStore(builder_.CreateAdd(cur, builder_.getInt32(1)), slot);
+        llvm::Value *cur = builder_.CreateLoad(llvmType(ty), slot, loop.var);
+        builder_.CreateStore(builder_.CreateAdd(cur, llvm::ConstantInt::get(llvmType(ty), 1)), slot);
         builder_.CreateBr(condBB);
 
         builder_.SetInsertPoint(endBB);
@@ -449,8 +656,6 @@ namespace pgt
 
     void CodeGen::genCallStmt(const Call &call)
     {
-        llvm::Function *target = nullptr;
-
         if (call.qualifier.empty())
         {
             if (call.callee == "print")
@@ -461,13 +666,32 @@ namespace pgt
                 return genInput(call, false);
             if (call.callee == "inputln")
                 return genInput(call, true);
+            if (builtinType(call.callee))
+                throw CompileError("the result of the conversion '" + call.callee + "' is unused",
+                                   call.line, call.col);
+        }
+        genCall(call);
+    }
+
+    CodeGen::Value CodeGen::genCall(const Call &call)
+    {
+        const FuncInfo *info = nullptr;
+
+        if (call.qualifier.empty())
+        {
+            if (call.callee == "print" || call.callee == "println" || call.callee == "input" ||
+                call.callee == "inputln")
+                throw CompileError("'" + call.callee + "' does not return a value", call.line,
+                                   call.col);
+            if (auto t = builtinType(call.callee))
+                return genConversion(call, *t);
 
             const auto &table = functions_.at(pkg_->importPath);
             auto it = table.find(call.callee);
             if (it == table.end())
                 throw CompileError("call to undefined function '" + call.callee + "'", call.line,
                                    call.col);
-            target = it->second;
+            info = &it->second;
         }
         else
         {
@@ -484,13 +708,79 @@ namespace pgt
                 throw CompileError("package '" + call.qualifier + "' has no function '" +
                                        call.callee + "'",
                                    call.line, call.col);
-            target = it->second;
+            info = &it->second;
         }
 
-        if (!call.args.empty())
-            throw CompileError("function '" + call.callee + "' takes no arguments", call.line,
-                               call.col);
-        builder_.CreateCall(target);
+        const std::string name =
+            call.qualifier.empty() ? call.callee : call.qualifier + "." + call.callee;
+        if (call.args.size() != info->params.size())
+            throw CompileError("function '" + name + "' takes " + std::to_string(info->params.size()) +
+                                   " argument(s), got " + std::to_string(call.args.size()),
+                               call.line, call.col);
+
+        std::vector<llvm::Value *> args;
+        for (size_t i = 0; i < call.args.size(); ++i)
+        {
+            Value a = genExpr(*call.args[i], info->params[i]);
+            if (a.type != info->params[i])
+                throw CompileError("argument " + std::to_string(i + 1) + " of '" + name +
+                                       "': expected " + tyName(info->params[i]) + ", found " +
+                                       tyName(a.type),
+                                   call.args[i]->line, call.args[i]->col);
+            args.push_back(a.value);
+        }
+
+        llvm::Value *result = builder_.CreateCall(info->fn, args);
+        return {info->ret == Ty::Void ? nullptr : result, info->ret};
+    }
+
+    CodeGen::Value CodeGen::convert(Value v, Ty to, int line, int col)
+    {
+        if (v.type == to)
+            return v;
+
+        auto fail = [&]()
+        {
+            return CompileError(std::string("cannot convert ") + tyName(v.type) + " to " +
+                                    tyName(to),
+                                line, col);
+        };
+
+        if (isIntegral(v.type) && isIntegral(to))
+        {
+            bool isSigned = v.type != Ty::Char;
+            return {builder_.CreateIntCast(v.value, llvmType(to), isSigned), to};
+        }
+        if (isIntegral(v.type) && to == Ty::Float)
+        {
+            llvm::Value *r = v.type == Ty::Char ? builder_.CreateUIToFP(v.value, llvmType(to))
+                                                : builder_.CreateSIToFP(v.value, llvmType(to));
+            return {r, to};
+        }
+        if (v.type == Ty::Float && isIntegral(to))
+        {
+            llvm::Value *r = to == Ty::Char ? builder_.CreateFPToUI(v.value, llvmType(to))
+                                            : builder_.CreateFPToSI(v.value, llvmType(to));
+            return {r, to};
+        }
+        if (v.type == Ty::Bool && isIntegral(to))
+            return {builder_.CreateZExt(v.value, llvmType(to)), to};
+        if (isIntegral(v.type) && to == Ty::Bool)
+            return {builder_.CreateICmpNE(v.value, llvm::ConstantInt::get(llvmType(v.type), 0)), to};
+        if (v.type == Ty::Float && to == Ty::Bool)
+            return {builder_.CreateFCmpUNE(v.value, llvm::ConstantFP::get(llvmType(v.type), 0.0)), to};
+        throw fail();
+    }
+
+    CodeGen::Value CodeGen::genConversion(const Call &call, Ty target)
+    {
+        if (call.args.size() != 1)
+            throw CompileError("the conversion '" + call.callee + "' takes exactly one argument",
+                               call.line, call.col);
+        if (target == Ty::Void)
+            throw CompileError("cannot convert to void", call.line, call.col);
+        Value v = genExpr(*call.args[0], target);
+        return convert(v, target, call.line, call.col);
     }
 
     void CodeGen::genPrint(const Call &call, bool newline)
@@ -500,22 +790,36 @@ namespace pgt
         for (const ExprPtr &a : call.args)
         {
             Value v = genExpr(*a);
-            if (v.type == Ty::Int)
+            switch (v.type)
             {
+            case Ty::Int:
                 fmt += "%d";
                 args.push_back(v.value);
-            }
-            else if (v.type == Ty::Bool)
-            {
+                break;
+            case Ty::Int64:
+                fmt += "%lld";
+                args.push_back(v.value);
+                break;
+            case Ty::Float:
+                fmt += "%g";
+                args.push_back(v.value);
+                break;
+            case Ty::Char:
+                fmt += "%c";
+                args.push_back(builder_.CreateZExt(v.value, builder_.getInt32Ty()));
+                break;
+            case Ty::Bool:
                 fmt += "%s";
                 args.push_back(builder_.CreateSelect(v.value,
                                                      builder_.CreateGlobalString("true", ".true"),
                                                      builder_.CreateGlobalString("false", ".false")));
-            }
-            else
-            {
+                break;
+            case Ty::String:
                 fmt += "%s";
                 args.push_back(v.value);
+                break;
+            case Ty::Void:
+                break;
             }
         }
         if (newline)
@@ -564,9 +868,28 @@ namespace pgt
         if (wholeLine && var->type != Ty::String)
             throw CompileError("'inputln' needs a string variable", call.line, call.col);
 
-        if (var->type == Ty::Int)
+        const char *scalarFmt = nullptr;
+        switch (var->type)
         {
-            builder_.CreateCall(scanfFn, {builder_.CreateGlobalString("%d", ".fmt"), var->slot});
+        case Ty::Int:
+            scalarFmt = "%d";
+            break;
+        case Ty::Int64:
+            scalarFmt = "%lld";
+            break;
+        case Ty::Float:
+            scalarFmt = "%lf";
+            break;
+        case Ty::Char:
+            scalarFmt = " %c";
+            break;
+        default:
+            break;
+        }
+
+        if (scalarFmt)
+        {
+            builder_.CreateCall(scanfFn, {builder_.CreateGlobalString(scalarFmt, ".fmt"), var->slot});
         }
         else if (var->type == Ty::String)
         {
@@ -585,15 +908,34 @@ namespace pgt
         }
     }
 
-    CodeGen::Value CodeGen::genExpr(const Expr &expr)
+    CodeGen::Value CodeGen::genExpr(const Expr &expr, Ty hint)
     {
         if (auto *lit = dynamic_cast<const IntLit *>(&expr))
         {
-            if (lit->value > INT_MAX)
-                throw CompileError("integer literal does not fit into 'int' (32 bits)", lit->line,
-                                   lit->col);
-            return {builder_.getInt32(static_cast<uint32_t>(lit->value)), Ty::Int};
+            Ty t = (hint == Ty::Int64 || hint == Ty::Float || hint == Ty::Char) ? hint : Ty::Int;
+            switch (t)
+            {
+            case Ty::Int64:
+                return {builder_.getInt64(static_cast<uint64_t>(lit->value)), t};
+            case Ty::Float:
+                return {llvm::ConstantFP::get(builder_.getDoubleTy(), static_cast<double>(lit->value)),
+                        t};
+            case Ty::Char:
+                if (lit->value > 255)
+                    throw CompileError("constant " + std::to_string(lit->value) + " overflows char",
+                                       lit->line, lit->col);
+                return {builder_.getInt8(static_cast<uint8_t>(lit->value)), t};
+            default:
+                if (lit->value > INT_MAX)
+                    throw CompileError("integer literal does not fit into 'int' (32 bits)", lit->line,
+                                       lit->col);
+                return {builder_.getInt32(static_cast<uint32_t>(lit->value)), Ty::Int};
+            }
         }
+        if (auto *lit = dynamic_cast<const FloatLit *>(&expr))
+            return {llvm::ConstantFP::get(builder_.getDoubleTy(), lit->value), Ty::Float};
+        if (auto *lit = dynamic_cast<const CharLit *>(&expr))
+            return {builder_.getInt8(static_cast<uint8_t>(lit->value)), Ty::Char};
         if (auto *lit = dynamic_cast<const BoolLit *>(&expr))
             return {builder_.getInt1(lit->value), Ty::Bool};
         if (auto *lit = dynamic_cast<const StringLit *>(&expr))
@@ -608,25 +950,61 @@ namespace pgt
         }
         if (auto *un = dynamic_cast<const Unary *>(&expr))
         {
-            Value v = genExpr(*un->operand);
+            Value v = genExpr(*un->operand, un->op == UnOp::Neg ? hint : Ty::Void);
             if (un->op == UnOp::Neg)
             {
-                if (v.type != Ty::Int)
-                    throw CompileError("unary '-' needs an integer operand", un->line, un->col);
-                return {builder_.CreateNeg(v.value), Ty::Int};
+                if (v.type == Ty::Float)
+                    return {builder_.CreateFNeg(v.value), Ty::Float};
+                if (v.type != Ty::Int && v.type != Ty::Int64)
+                    throw CompileError(std::string("unary '-' is not defined for ") + tyName(v.type),
+                                       un->line, un->col);
+                return {builder_.CreateNeg(v.value), v.type};
             }
             if (v.type != Ty::Bool)
                 throw CompileError("'!' needs a bool operand", un->line, un->col);
             return {builder_.CreateNot(v.value), Ty::Bool};
         }
         if (auto *bin = dynamic_cast<const Binary *>(&expr))
-            return genBinary(*bin);
+            return genBinary(*bin, hint);
 
         if (auto *call = dynamic_cast<const Call *>(&expr))
-            throw CompileError("'" + call->callee + "' does not return a value", call->line,
-                               call->col);
+        {
+            Value v = genCall(*call);
+            if (v.type == Ty::Void)
+                throw CompileError("'" + call->callee + "' does not return a value", call->line,
+                                   call->col);
+            return v;
+        }
 
         throw CompileError("internal error: unknown expression", expr.line, expr.col);
+    }
+
+    void CodeGen::genOperands(const Expr &lhs, const Expr &rhs, Ty hint, Value &l, Value &r)
+    {
+        bool lc = isConstExpr(lhs), rc = isConstExpr(rhs);
+        if (lc && rc)
+        {
+            Ty h = hint;
+            if (h == Ty::Void && (hasFloatLit(lhs) || hasFloatLit(rhs)))
+                h = Ty::Float;
+            l = genExpr(lhs, h);
+            r = genExpr(rhs, h);
+        }
+        else if (lc)
+        {
+            r = genExpr(rhs);
+            l = genExpr(lhs, r.type);
+        }
+        else if (rc)
+        {
+            l = genExpr(lhs);
+            r = genExpr(rhs, l.type);
+        }
+        else
+        {
+            l = genExpr(lhs);
+            r = genExpr(rhs);
+        }
     }
 
     CodeGen::Value CodeGen::genLogical(const Binary &bin)
@@ -666,13 +1044,13 @@ namespace pgt
 
     CodeGen::Value CodeGen::genCompare(const Binary &bin)
     {
-        Value l = genExpr(*bin.lhs);
-        Value r = genExpr(*bin.rhs);
+        Value l, r;
+        genOperands(*bin.lhs, *bin.rhs, Ty::Void, l, r);
         bool equality = bin.op == BinOp::Eq || bin.op == BinOp::Ne;
 
         if (l.type != r.type)
             throw CompileError(std::string("cannot compare ") + tyName(l.type) + " with " +
-                                   tyName(r.type),
+                                   tyName(r.type) + " (use an explicit conversion)",
                                bin.line, bin.col);
         if (l.type == Ty::String)
             throw CompileError("comparing strings is not supported yet", bin.line, bin.col);
@@ -681,31 +1059,116 @@ namespace pgt
                                bin.line, bin.col);
 
         llvm::Value *res = nullptr;
-        switch (bin.op)
+        if (l.type == Ty::Float)
         {
-        case BinOp::Eq:
-            res = builder_.CreateICmpEQ(l.value, r.value);
-            break;
-        case BinOp::Ne:
-            res = builder_.CreateICmpNE(l.value, r.value);
-            break;
-        case BinOp::Lt:
-            res = builder_.CreateICmpSLT(l.value, r.value);
-            break;
-        case BinOp::Gt:
-            res = builder_.CreateICmpSGT(l.value, r.value);
-            break;
-        case BinOp::Le:
-            res = builder_.CreateICmpSLE(l.value, r.value);
-            break;
-        default:
-            res = builder_.CreateICmpSGE(l.value, r.value);
-            break;
+            switch (bin.op)
+            {
+            case BinOp::Eq:
+                res = builder_.CreateFCmpOEQ(l.value, r.value);
+                break;
+            case BinOp::Ne:
+                res = builder_.CreateFCmpUNE(l.value, r.value);
+                break;
+            case BinOp::Lt:
+                res = builder_.CreateFCmpOLT(l.value, r.value);
+                break;
+            case BinOp::Gt:
+                res = builder_.CreateFCmpOGT(l.value, r.value);
+                break;
+            case BinOp::Le:
+                res = builder_.CreateFCmpOLE(l.value, r.value);
+                break;
+            default:
+                res = builder_.CreateFCmpOGE(l.value, r.value);
+                break;
+            }
+        }
+        else
+        {
+            bool isSigned = l.type != Ty::Char;
+            switch (bin.op)
+            {
+            case BinOp::Eq:
+                res = builder_.CreateICmpEQ(l.value, r.value);
+                break;
+            case BinOp::Ne:
+                res = builder_.CreateICmpNE(l.value, r.value);
+                break;
+            case BinOp::Lt:
+                res = isSigned ? builder_.CreateICmpSLT(l.value, r.value)
+                               : builder_.CreateICmpULT(l.value, r.value);
+                break;
+            case BinOp::Gt:
+                res = isSigned ? builder_.CreateICmpSGT(l.value, r.value)
+                               : builder_.CreateICmpUGT(l.value, r.value);
+                break;
+            case BinOp::Le:
+                res = isSigned ? builder_.CreateICmpSLE(l.value, r.value)
+                               : builder_.CreateICmpULE(l.value, r.value);
+                break;
+            default:
+                res = isSigned ? builder_.CreateICmpSGE(l.value, r.value)
+                               : builder_.CreateICmpUGE(l.value, r.value);
+                break;
+            }
         }
         return {res, Ty::Bool};
     }
 
-    CodeGen::Value CodeGen::genBinary(const Binary &bin)
+    CodeGen::Value CodeGen::genArith(BinOp op, Value l, Value r, int line, int col)
+    {
+        if (l.type != r.type)
+            throw CompileError(std::string("mismatched types ") + tyName(l.type) + " and " +
+                                   tyName(r.type) + " for operator '" + opText(op) +
+                                   "' (use an explicit conversion)",
+                               line, col);
+        Ty t = l.type;
+        if (!isNumeric(t))
+            throw CompileError(std::string("operator '") + opText(op) + "' is not defined for " +
+                                   tyName(t),
+                               line, col);
+
+        if (t == Ty::Float)
+        {
+            switch (op)
+            {
+            case BinOp::Add:
+                return {builder_.CreateFAdd(l.value, r.value), t};
+            case BinOp::Sub:
+                return {builder_.CreateFSub(l.value, r.value), t};
+            case BinOp::Mul:
+                return {builder_.CreateFMul(l.value, r.value), t};
+            case BinOp::Div:
+                return {builder_.CreateFDiv(l.value, r.value), t};
+            default:
+                throw CompileError("operator '%' needs integer operands", line, col);
+            }
+        }
+
+        bool isSigned = t != Ty::Char;
+        switch (op)
+        {
+        case BinOp::Add:
+            return {builder_.CreateAdd(l.value, r.value), t};
+        case BinOp::Sub:
+            return {builder_.CreateSub(l.value, r.value), t};
+        case BinOp::Mul:
+            return {builder_.CreateMul(l.value, r.value), t};
+        case BinOp::Div:
+            return {isSigned ? builder_.CreateSDiv(l.value, r.value)
+                             : builder_.CreateUDiv(l.value, r.value),
+                    t};
+        case BinOp::Mod:
+            return {isSigned ? builder_.CreateSRem(l.value, r.value)
+                             : builder_.CreateURem(l.value, r.value),
+                    t};
+        default:
+            break;
+        }
+        throw CompileError("internal error: unknown operator", line, col);
+    }
+
+    CodeGen::Value CodeGen::genBinary(const Binary &bin, Ty hint)
     {
         switch (bin.op)
         {
@@ -723,27 +1186,9 @@ namespace pgt
             break;
         }
 
-        Value l = genExpr(*bin.lhs);
-        Value r = genExpr(*bin.rhs);
-        if (l.type != Ty::Int || r.type != Ty::Int)
-            throw CompileError(std::string("operator '") + opText(bin.op) + "' needs integer operands",
-                               bin.line, bin.col);
-        switch (bin.op)
-        {
-        case BinOp::Add:
-            return {builder_.CreateAdd(l.value, r.value), Ty::Int};
-        case BinOp::Sub:
-            return {builder_.CreateSub(l.value, r.value), Ty::Int};
-        case BinOp::Mul:
-            return {builder_.CreateMul(l.value, r.value), Ty::Int};
-        case BinOp::Div:
-            return {builder_.CreateSDiv(l.value, r.value), Ty::Int};
-        case BinOp::Mod:
-            return {builder_.CreateSRem(l.value, r.value), Ty::Int};
-        default:
-            break;
-        }
-        throw CompileError("internal error: unknown operator", bin.line, bin.col);
+        Value l, r;
+        genOperands(*bin.lhs, *bin.rhs, hint, l, r);
+        return genArith(bin.op, l, r, bin.line, bin.col);
     }
 
 } // namespace pgt
