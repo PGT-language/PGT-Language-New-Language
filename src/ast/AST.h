@@ -23,12 +23,12 @@ struct VarRef : Expr {
     std::string name;
 };
 
-struct Unary : Expr { // only unary minus for now
+struct Unary : Expr {
     ExprPtr operand;
 };
 
 struct Binary : Expr {
-    char op = '+'; // + - * /
+    char op = '+';
     ExprPtr lhs, rhs;
 };
 
@@ -61,7 +61,7 @@ struct Function {
 struct Program {
     std::string package;
     std::vector<Function> functions;
-    ExprPtr exitCode; // the file-level `return <expr>`
+    ExprPtr exitCode;
 };
 
-} // namespace pgt
+}

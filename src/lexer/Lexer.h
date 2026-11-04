@@ -27,4 +27,4 @@ private:
     int col_ = 1;
 };
 
-} // namespace pgt
+}

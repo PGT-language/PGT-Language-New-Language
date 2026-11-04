@@ -35,7 +35,7 @@ std::string shellQuote(const std::string& s) {
     return q + "'";
 }
 
-} // namespace
+}
 
 int build(const BuildOptions& opts) {
     std::string source;
@@ -89,4 +89,4 @@ int build(const BuildOptions& opts) {
     }
 }
 
-} // namespace pgt
+}

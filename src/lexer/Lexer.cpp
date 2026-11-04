@@ -71,7 +71,7 @@ Token Lexer::lexNumber() {
 
 Token Lexer::lexString() {
     int line = line_, col = col_;
-    advance(); // opening quote
+    advance();
     std::string out;
     while (true) {
         if (atEnd() || peek() == '\n')
@@ -105,7 +105,7 @@ Token Lexer::lexWord() {
     std::string word;
     while (std::isalnum(static_cast<unsigned char>(peek())) || peek() == '_') word += advance();
 
-    if (word == "var" && peek() == '*') { // `var*` is a single keyword
+    if (word == "var" && peek() == '*') {
         advance();
         return make(Tok::KwVar, "var*", line, col);
     }
@@ -154,4 +154,4 @@ std::vector<Token> Lexer::tokenize() {
     return out;
 }
 
-} // namespace pgt
+}

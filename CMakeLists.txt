@@ -24,5 +24,4 @@ add_executable(pgt
 target_include_directories(pgt PRIVATE src)
 target_compile_definitions(pgt PRIVATE PGT_VERSION="${PROJECT_VERSION}")
 target_compile_options(pgt PRIVATE -Wall -Wextra)
-# На Arch LLVM поставляется одной общей библиотекой libLLVM.so
 target_link_libraries(pgt PRIVATE LLVM)

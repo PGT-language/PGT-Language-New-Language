@@ -11,7 +11,6 @@
 
 namespace pgt {
 
-// Translates a Program (AST) into an LLVM module.
 class CodeGen {
 public:
     explicit CodeGen(const std::string& moduleName);
@@ -47,7 +46,7 @@ private:
     std::unique_ptr<llvm::Module> module_;
     llvm::IRBuilder<> builder_;
     std::map<std::string, llvm::Function*> functions_;
-    std::map<std::string, Var> locals_; // variables of the function being generated
+    std::map<std::string, Var> locals_;
 };
 
-} // namespace pgt
+}

@@ -30,7 +30,11 @@ const Token& Parser::expect(Tok k, const char* context) {
 Program Parser::parseProgram() {
     Program prog;
     expect(Tok::KwPackage, "at the start of the file");
-    prog.package = expect(Tok::Ident, "after 'package'").text;
+    const Token& name = expect(Tok::Ident, "after 'package'");
+    if (name.text != "main")
+        throw CompileError("the entry package must be named 'main', found '" + name.text + "'",
+                           name.line, name.col);
+    prog.package = name.text;
 
     while (check(Tok::KwFn)) prog.functions.push_back(parseFunction());
 
@@ -182,4 +186,4 @@ ExprPtr Parser::parsePrimary() {
     }
 }
 
-} // namespace pgt
+}

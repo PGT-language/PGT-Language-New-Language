@@ -5,22 +5,22 @@ namespace pgt {
 
 enum class Tok {
     Eof,
-    // literals / names
+
     Ident,
     Int,
     String,
-    // keywords
+
     KwPackage,
     KwFn,
-    KwVar, // `var*`
+    KwVar,
     KwReturn,
-    // punctuation
+
     LParen,
     RParen,
     LBrace,
     RBrace,
     Comma,
-    // operators
+
     Assign,
     Plus,
     Minus,
@@ -30,11 +30,11 @@ enum class Tok {
 
 struct Token {
     Tok kind = Tok::Eof;
-    std::string text; // identifier name, string contents (unescaped) or number digits
+    std::string text;
     int line = 1;
     int col = 1;
 };
 
 const char* tokName(Tok kind);
 
-} // namespace pgt
+}

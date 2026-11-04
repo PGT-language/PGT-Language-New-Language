@@ -30,4 +30,4 @@ private:
     size_t pos_ = 0;
 };
 
-} // namespace pgt
+}

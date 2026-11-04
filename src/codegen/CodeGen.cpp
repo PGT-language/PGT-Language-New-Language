@@ -31,7 +31,6 @@ void CodeGen::generate(const Program& program) {
         throw CompileError("internal error: generated invalid LLVM IR:\n" + err, 0, 0);
 }
 
-// Declare every function up front so calls do not depend on definition order.
 void CodeGen::declareFunctions(const Program& program) {
     auto* fnTy = llvm::FunctionType::get(builder_.getVoidTy(), false);
     for (const Function& fn : program.functions) {
@@ -51,7 +50,6 @@ void CodeGen::genFunction(const Function& fn) {
     builder_.CreateRetVoid();
 }
 
-// The real `main` calls the user's `main` and returns the file-level `return <expr>`.
 void CodeGen::genEntryPoint(const Program& program) {
     auto it = functions_.find("main");
     if (it == functions_.end())
@@ -102,10 +100,9 @@ void CodeGen::genCallStmt(const Call& call) {
     builder_.CreateCall(it->second);
 }
 
-// print/println: arguments are written one after another, without separators.
 void CodeGen::genPrint(const Call& call, bool newline) {
     std::string fmt;
-    std::vector<llvm::Value*> args{nullptr}; // slot 0 is the format string
+    std::vector<llvm::Value*> args{nullptr};
     for (const ExprPtr& a : call.args) {
         Value v = genExpr(*a);
         fmt += v.type == Ty::Int ? "%d" : "%s";
@@ -166,4 +163,4 @@ CodeGen::Value CodeGen::genBinary(const Binary& bin) {
     throw CompileError("internal error: unknown operator", bin.line, bin.col);
 }
 
-} // namespace pgt
+}

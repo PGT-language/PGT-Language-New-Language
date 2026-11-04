@@ -11,4 +11,4 @@ struct CompileError : std::runtime_error {
         : std::runtime_error(msg), line(line), col(col) {}
 };
 
-} // namespace pgt
+}

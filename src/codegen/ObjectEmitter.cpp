@@ -42,4 +42,4 @@ void emitObjectFile(llvm::Module& module, const std::string& path) {
     out.flush();
 }
 
-} // namespace pgt
+}
