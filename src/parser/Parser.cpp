@@ -32,6 +32,8 @@ Program Parser::parseProgram() {
     expect(Tok::KwPackage, "at the start of the file");
     prog.package = expect(Tok::Ident, "after 'package'").text;
 
+    while (check(Tok::KwUse)) parseImports(prog);
+
     while (check(Tok::KwFn)) prog.functions.push_back(parseFunction());
 
     if (check(Tok::KwReturn)) {
@@ -44,6 +46,25 @@ Program Parser::parseProgram() {
         errorHere(std::string("expected 'fn' or 'return', found ") + tokName(cur().kind));
     }
     return prog;
+}
+
+void Parser::parseImports(Program& prog) {
+    advance();
+    auto readOne = [&] {
+        const Token& t = expect(Tok::String, "as the package path");
+        if (t.text.empty()) throw CompileError("empty import path", t.line, t.col);
+        prog.imports.push_back(Import{t.text, t.line, t.col});
+    };
+    if (check(Tok::LParen)) {
+        advance();
+        while (!check(Tok::RParen)) {
+            if (check(Tok::Eof)) errorHere("unexpected end of file, expected ')'");
+            readOne();
+        }
+        advance();
+    } else {
+        readOne();
+    }
 }
 
 Function Parser::parseFunction() {
@@ -154,11 +175,19 @@ ExprPtr Parser::parsePrimary() {
     case Tok::Ident: {
         std::string name = t.text;
         advance();
+        std::string qualifier;
+        if (check(Tok::Dot)) {
+            advance();
+            qualifier = std::move(name);
+            name = expect(Tok::Ident, "after '.'").text;
+            if (!check(Tok::LParen)) errorHere("expected '(' after a qualified name");
+        }
         if (check(Tok::LParen)) {
             advance();
             auto call = std::make_unique<Call>();
             call->line = line;
             call->col = col;
+            call->qualifier = std::move(qualifier);
             call->callee = std::move(name);
             if (!check(Tok::RParen)) {
                 do {

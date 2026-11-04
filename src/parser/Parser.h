@@ -19,6 +19,7 @@ private:
     const Token& expect(Tok k, const char* context);
     [[noreturn]] void errorHere(const std::string& msg) const;
 
+    void parseImports(Program& prog);
     Function parseFunction();
     StmtPtr parseStatement();
     ExprPtr parseExpr();

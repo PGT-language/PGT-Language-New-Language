@@ -14,12 +14,14 @@ enum class Tok {
     KwFn,
     KwVar,
     KwReturn,
+    KwUse,
 
     LParen,
     RParen,
     LBrace,
     RBrace,
     Comma,
+    Dot,
 
     Assign,
     Plus,

@@ -1,4 +1,5 @@
 #include "driver/Driver.h"
+#include "scaffold/ProjectGenerator.h"
 
 #include <llvm/Config/llvm-config.h>
 
@@ -16,8 +17,9 @@ static void printVersion() {
 static void printUsage(std::ostream& os) {
     os << "Usage:\n"
           "  pgt --version                         print the compiler version\n"
-          "  pgt build <file.pgt> [-o <out>]       compile a program\n"
-          "  pgt build <file.pgt> --emit-ir        write LLVM IR (.ll) instead\n";
+          "  pgt new <name>                        create a Hello World project\n"
+          "  pgt build [dir|file.pgt] [-o <out>]   compile a package (default: .)\n"
+          "  pgt build [dir|file.pgt] --emit-ir    write LLVM IR (.ll) instead\n";
 }
 
 int main(int argc, char** argv) {
@@ -57,11 +59,25 @@ int main(int argc, char** argv) {
                 return 1;
             }
         }
-        if (opts.input.empty()) {
-            std::cerr << "pgt: error: no input file\n";
+        if (opts.input.empty()) opts.input = ".";
+        return pgt::build(opts);
+    }
+    if (cmd == "new") {
+        if (argc != 3) {
+            std::cerr << "pgt: error: usage: pgt new <name>\n";
             return 1;
         }
-        return pgt::build(opts);
+        try {
+            pgt::createHelloWorldProject(argv[2]);
+        } catch (const std::exception& e) {
+            std::cerr << "pgt: error: " << e.what() << "\n";
+            return 1;
+        }
+        std::cout << "Created project '" << argv[2] << "'\n"
+                  << "  cd " << argv[2] << "\n"
+                  << "  pgt build\n"
+                  << "  ./" << argv[2] << "\n";
+        return 0;
     }
 
     std::cerr << "pgt: error: unknown command '" << cmd << "'\n";

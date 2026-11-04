@@ -24,42 +24,55 @@ bool CodeGen::isPublic(const std::string& name) {
     return !name.empty() && name[0] >= 'A' && name[0] <= 'Z';
 }
 
-void CodeGen::checkExitCodes(const std::vector<Program>& programs) const {
+std::string CodeGen::mangle(const std::string& importPath, const std::string& name) {
+    return "pgt." + importPath + "." + name;
+}
+
+void CodeGen::checkExitCodes(const Package& pkg) const {
     const Program* withExit = nullptr;
-    for (const Program& p : programs) {
+    for (const Program& p : pkg.programs) {
         if (!p.exitCode) continue;
-        if (package_ != "main") {
-            CompileError e("only package 'main' may end with 'return'", p.exitCode->line,
-                           p.exitCode->col);
-            e.file = p.file;
-            throw e;
+        if (pkg.name != "main") {
+            CompileError err("only package 'main' may end with 'return'", p.exitCode->line,
+                             p.exitCode->col);
+            err.file = p.file;
+            throw err;
         }
         if (withExit) {
-            CompileError e("package 'main' has more than one final 'return'", p.exitCode->line,
-                           p.exitCode->col);
-            e.file = p.file;
-            throw e;
+            CompileError err("package 'main' has more than one final 'return'", p.exitCode->line,
+                             p.exitCode->col);
+            err.file = p.file;
+            throw err;
         }
         withExit = &p;
     }
-    if (package_ == "main" && !withExit)
+    if (pkg.name == "main" && !withExit)
         throw CompileError("package 'main' needs exactly one file ending with 'return'", 0, 0);
 }
 
-void CodeGen::generate(const std::vector<Program>& programs) {
-    package_ = programs.front().package;
+void CodeGen::generate(const Workspace& workspace) {
+    ws_ = &workspace;
     try {
-        checkExitCodes(programs);
-        declareFunctions(programs);
-        for (const Program& p : programs) {
-            currentFile_ = p.file;
-            for (const Function& fn : p.functions) genFunction(fn);
+        for (const auto& pkg : workspace.packages) {
+            checkExitCodes(*pkg);
+            declareFunctions(*pkg);
         }
-        if (package_ == "main") {
-            for (const Program& p : programs) {
+        for (const auto& pkg : workspace.packages) {
+            pkg_ = pkg.get();
+            for (const Program& p : pkg->programs) {
+                currentFile_ = p.file;
+                bindImports(p);
+                for (const Function& fn : p.functions) genFunction(fn);
+            }
+        }
+        const Package& root = *workspace.root;
+        pkg_ = &root;
+        fileImports_.clear();
+        if (root.name == "main") {
+            for (const Program& p : root.programs) {
                 if (!p.exitCode) continue;
                 currentFile_ = p.file;
-                genEntryPoint(*p.exitCode);
+                genEntryPoint(root, *p.exitCode);
             }
         }
     } catch (CompileError& e) {
@@ -73,25 +86,37 @@ void CodeGen::generate(const std::vector<Program>& programs) {
         throw CompileError("internal error: generated invalid LLVM IR:\n" + err, 0, 0);
 }
 
-void CodeGen::declareFunctions(const std::vector<Program>& programs) {
+void CodeGen::declareFunctions(const Package& pkg) {
     auto* fnTy = llvm::FunctionType::get(builder_.getVoidTy(), false);
-    for (const Program& p : programs) {
+    auto& table = functions_[pkg.importPath];
+    for (const Program& p : pkg.programs) {
         currentFile_ = p.file;
         for (const Function& fn : p.functions) {
-            if (functions_.count(fn.name))
+            if (table.count(fn.name))
                 throw CompileError("function '" + fn.name + "' is already defined in package '" +
-                                       package_ + "'",
+                                       pkg.name + "'",
                                    fn.line, fn.col);
             auto linkage = isPublic(fn.name) ? llvm::Function::ExternalLinkage
                                              : llvm::Function::InternalLinkage;
-            functions_[fn.name] =
-                llvm::Function::Create(fnTy, linkage, mangle(fn.name), module_.get());
+            table[fn.name] = llvm::Function::Create(fnTy, linkage,
+                                                    mangle(pkg.importPath, fn.name), module_.get());
         }
     }
 }
 
+void CodeGen::bindImports(const Program& program) {
+    fileImports_.clear();
+    for (const Import& imp : program.imports) {
+        const Package* target = ws_->byPath.at(imp.path);
+        if (fileImports_.count(target->name))
+            throw CompileError("package name '" + target->name + "' is imported more than once",
+                               imp.line, imp.col);
+        fileImports_[target->name] = target;
+    }
+}
+
 void CodeGen::genFunction(const Function& fn) {
-    llvm::Function* f = functions_.at(fn.name);
+    llvm::Function* f = functions_.at(pkg_->importPath).at(fn.name);
     builder_.SetInsertPoint(llvm::BasicBlock::Create(ctx_, "entry", f));
     locals_.clear();
 
@@ -99,10 +124,10 @@ void CodeGen::genFunction(const Function& fn) {
     builder_.CreateRetVoid();
 }
 
-void CodeGen::genEntryPoint(const Expr& exitCode) {
-    auto it = functions_.find("main");
-    if (it == functions_.end())
-        throw CompileError("function 'main' is not defined", 1, 1);
+void CodeGen::genEntryPoint(const Package& root, const Expr& exitCode) {
+    const auto& table = functions_.at(root.importPath);
+    auto it = table.find("main");
+    if (it == table.end()) throw CompileError("function 'main' is not defined", 1, 1);
 
     auto* mainTy = llvm::FunctionType::get(builder_.getInt32Ty(), false);
     auto* mainFn =
@@ -137,15 +162,39 @@ void CodeGen::genStmt(const Stmt& stmt) {
 }
 
 void CodeGen::genCallStmt(const Call& call) {
-    if (call.callee == "print") return genPrint(call, false);
-    if (call.callee == "println") return genPrint(call, true);
+    llvm::Function* target = nullptr;
 
-    auto it = functions_.find(call.callee);
-    if (it == functions_.end())
-        throw CompileError("call to undefined function '" + call.callee + "'", call.line, call.col);
+    if (call.qualifier.empty()) {
+        if (call.callee == "print") return genPrint(call, false);
+        if (call.callee == "println") return genPrint(call, true);
+
+        const auto& table = functions_.at(pkg_->importPath);
+        auto it = table.find(call.callee);
+        if (it == table.end())
+            throw CompileError("call to undefined function '" + call.callee + "'", call.line,
+                               call.col);
+        target = it->second;
+    } else {
+        auto imp = fileImports_.find(call.qualifier);
+        if (imp == fileImports_.end())
+            throw CompileError("undefined package '" + call.qualifier + "'", call.line, call.col);
+        std::string full = call.qualifier + "." + call.callee;
+        if (!isPublic(call.callee))
+            throw CompileError("'" + full + "' is not exported (lowercase names are private)",
+                               call.line, call.col);
+        const auto& table = functions_.at(imp->second->importPath);
+        auto it = table.find(call.callee);
+        if (it == table.end())
+            throw CompileError("package '" + call.qualifier + "' has no function '" +
+                                   call.callee + "'",
+                               call.line, call.col);
+        target = it->second;
+    }
+
     if (!call.args.empty())
-        throw CompileError("function '" + call.callee + "' takes no arguments", call.line, call.col);
-    builder_.CreateCall(it->second);
+        throw CompileError("function '" + call.callee + "' takes no arguments", call.line,
+                           call.col);
+    builder_.CreateCall(target);
 }
 
 void CodeGen::genPrint(const Call& call, bool newline) {

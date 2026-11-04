@@ -33,6 +33,7 @@ struct Binary : Expr {
 };
 
 struct Call : Expr {
+    std::string qualifier;
     std::string callee;
     std::vector<ExprPtr> args;
 };
@@ -58,9 +59,15 @@ struct Function {
     int line = 0, col = 0;
 };
 
+struct Import {
+    std::string path;
+    int line = 0, col = 0;
+};
+
 struct Program {
     std::string file;
     std::string package;
+    std::vector<Import> imports;
     std::vector<Function> functions;
     ExprPtr exitCode;
 };

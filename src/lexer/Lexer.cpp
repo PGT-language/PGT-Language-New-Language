@@ -16,11 +16,13 @@ const char* tokName(Tok kind) {
     case Tok::KwFn: return "'fn'";
     case Tok::KwVar: return "'var*'";
     case Tok::KwReturn: return "'return'";
+    case Tok::KwUse: return "'#use'";
     case Tok::LParen: return "'('";
     case Tok::RParen: return "')'";
     case Tok::LBrace: return "'{'";
     case Tok::RBrace: return "'}'";
     case Tok::Comma: return "','";
+    case Tok::Dot: return "'.'";
     case Tok::Assign: return "'='";
     case Tok::Plus: return "'+'";
     case Tok::Minus: return "'-'";
@@ -130,6 +132,12 @@ std::vector<Token> Lexer::tokenize() {
             out.push_back(lexWord());
         } else if (c == '"') {
             out.push_back(lexString());
+        } else if (c == '#') {
+            advance();
+            std::string word;
+            while (std::isalpha(static_cast<unsigned char>(peek()))) word += advance();
+            if (word != "use") throw CompileError("unknown directive '#" + word + "'", line, col);
+            out.push_back(make(Tok::KwUse, "#use", line, col));
         } else {
             advance();
             Tok kind;
@@ -139,6 +147,7 @@ std::vector<Token> Lexer::tokenize() {
             case '{': kind = Tok::LBrace; break;
             case '}': kind = Tok::RBrace; break;
             case ',': kind = Tok::Comma; break;
+            case '.': kind = Tok::Dot; break;
             case '=': kind = Tok::Assign; break;
             case '+': kind = Tok::Plus; break;
             case '-': kind = Tok::Minus; break;

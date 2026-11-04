@@ -17,6 +17,9 @@ add_executable(pgt
     src/main.cpp
     src/lexer/Lexer.cpp
     src/parser/Parser.cpp
+    src/modfile/ModFile.cpp
+    src/loader/Loader.cpp
+    src/scaffold/ProjectGenerator.cpp
     src/codegen/CodeGen.cpp
     src/codegen/ObjectEmitter.cpp
     src/driver/Driver.cpp
