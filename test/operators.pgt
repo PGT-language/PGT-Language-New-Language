@@ -1,0 +1,41 @@
+package main
+
+fn noisy() bool {
+    println("  noisy() was called")
+    return true
+}
+
+fn demoOperators() {
+    var* a = 17
+    var* b = 5
+    println(a, " + ", b, " = ", a + b)
+    println(a, " - ", b, " = ", a - b)
+    println(a, " * ", b, " = ", a * b)
+    println(a, " / ", b, " = ", a / b)
+    println(a, " % ", b, " = ", a % b)
+    println("precedence: 2 + 3 * 4 = ", 2 + 3 * 4, ", (2 + 3) * 4 = ", (2 + 3) * 4, ", -a + b = ", -a + b)
+
+    println("compare: ", a > b, " ", a == b, " ", a != b, " ", a <= b)
+    println("logic  : ", a > 10 && b < 10, " ", a < 10 || b < 10, " ", !(a > b))
+
+    println("short-circuit:")
+    println("  false && noisy() = ", false && noisy())
+    println("  true  || noisy() = ", true || noisy())
+    println("  true  && noisy() = ", true && noisy())
+
+    var* x = 10
+    x += 5
+    x -= 3
+    x *= 2
+    x /= 4
+    x %= 4
+    x++
+    x++
+    x--
+    println("compound assignment result: x = ", x)
+
+    var* f = 1.5
+    f *= 4
+    f -= 0.5
+    println("float compound: f = ", f)
+}

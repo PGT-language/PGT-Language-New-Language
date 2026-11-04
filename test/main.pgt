@@ -1,21 +1,49 @@
 package main
 
+#use (
+    "test/greet"
+    "test/mathx"
+)
+
 fn main() {
-    var* a = 0
-    var* b = 0
-    input("First number: ", a)
-    input("Second number: ", b)
+    greet.Hello()
 
-    println(a, " + ", b, " = ", a + b)
-    println(a, " - ", b, " = ", a - b)
-    println(a, " * ", b, " = ", a * b)
+    greet.Banner("Types")
+    demoTypes()
 
-    if b == 0 {
-        println("Division by zero is not allowed")
-    } else {
-        println(a, " / ", b, " = ", a / b)
-        println(a, " % ", b, " = ", a % b)
+    greet.Banner("Operators")
+    demoOperators()
+
+    greet.Banner("Control flow")
+    demoControl()
+
+    greet.Banner("Functions")
+    demoFunctions()
+
+    greet.Banner("Packages")
+    println("mathx.Max(3, 9)      = ", mathx.Max(3, 9))
+    println("mathx.Abs(-12)       = ", mathx.Abs(-12))
+    println("mathx.Gcd(84, 36)    = ", mathx.Gcd(84, 36))
+    println("mathx.Clamp(150, 0, 100) = ", mathx.Clamp(150, 0, 100))
+    println("mathx.Factorial(15)  = ", mathx.Factorial(15))
+    println("mathx.Average(1.5, 4) = ", mathx.Average(1.5, 4))
+    for i in 1..16 {
+        if mathx.IsPrime(i) {
+            print(i, " ")
+        }
     }
+    println("<- primes below 16")
+
+    greet.Banner("Input")
+    var* answer char
+    input("Run the interactive demo? (y/n): ", answer)
+    if answer == 'y' {
+        demoInput()
+    } else {
+        println("Skipped")
+    }
+
+    greet.Goodbye()
 }
 
 return 0

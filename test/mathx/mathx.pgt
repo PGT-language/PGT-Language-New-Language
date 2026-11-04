@@ -1,0 +1,62 @@
+package mathx
+
+fn Max(a int, b int) int {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+fn Abs(x int) int {
+    if x < 0 {
+        return -x
+    }
+    return x
+}
+
+fn Clamp(x int, lo int, hi int) int {
+    return Max(lo, min(x, hi))
+}
+
+fn min(a int, b int) int {
+    if a < b {
+        return a
+    }
+    return b
+}
+
+fn Gcd(a int, b int) int {
+    var* x = Abs(a)
+    var* y = Abs(b)
+    while y != 0 {
+        var* t = y
+        y = x % y
+        x = t
+    }
+    return x
+}
+
+fn Factorial(n int64) int64 {
+    if n <= 1 {
+        return 1
+    }
+    return n * Factorial(n - 1)
+}
+
+fn Average(a float, b float) float {
+    return (a + b) / 2
+}
+
+fn IsPrime(n int) bool {
+    if n < 2 {
+        return false
+    }
+    var* i = 2
+    while i * i <= n {
+        if n % i == 0 {
+            return false
+        }
+        i++
+    }
+    return true
+}

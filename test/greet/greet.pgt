@@ -1,0 +1,23 @@
+package greet
+
+fn line() {
+    println("----------------------------------------")
+}
+
+fn Hello() {
+    line()
+    println(" PGT showcase: everything the compiler can do")
+    line()
+}
+
+fn Banner(title string) {
+    println("")
+    println("=== ", title, " ===")
+}
+
+fn Goodbye() {
+    println("")
+    line()
+    println(" Done.")
+    line()
+}

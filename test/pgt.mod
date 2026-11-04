@@ -1,4 +1,4 @@
-module test2
+module test
 
 version 0.1
 
