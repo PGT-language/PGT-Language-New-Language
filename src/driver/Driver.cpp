@@ -8,12 +8,14 @@
 
 #include <llvm/Support/raw_ostream.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <vector>
 
 namespace pgt {
 namespace {
@@ -35,25 +37,73 @@ std::string shellQuote(const std::string& s) {
     return q + "'";
 }
 
+std::vector<std::string> collectSources(const fs::path& input, std::string& name) {
+    std::vector<std::string> files;
+    if (fs::is_directory(input)) {
+        for (const auto& entry : fs::directory_iterator(input)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".pgt")
+                files.push_back(entry.path().string());
+        }
+        std::sort(files.begin(), files.end());
+        name = fs::weakly_canonical(input).filename().string();
+    } else {
+        files.push_back(input.string());
+        name = input.stem().string();
+    }
+    return files;
 }
 
-int build(const BuildOptions& opts) {
+Program parseFile(const std::string& path) {
     std::string source;
-    if (!readFile(opts.input, source)) {
-        std::cerr << "pgt: error: cannot read '" << opts.input << "'\n";
-        return 1;
+    if (!readFile(path, source)) {
+        CompileError e("cannot read the file", 0, 0);
+        e.file = path;
+        throw e;
     }
-
-    std::string stem = fs::path(opts.input).stem().string();
-    std::string output = !opts.output.empty() ? opts.output : (opts.emitIr ? stem + ".ll" : stem);
-
     try {
         Lexer lexer(source);
         Parser parser(lexer.tokenize());
         Program program = parser.parseProgram();
+        program.file = path;
+        return program;
+    } catch (CompileError& e) {
+        e.file = path;
+        throw;
+    }
+}
 
-        CodeGen codegen(stem);
-        codegen.generate(program);
+}
+
+int build(const BuildOptions& opts) {
+    try {
+        std::string name;
+        std::vector<std::string> files = collectSources(opts.input, name);
+        if (files.empty()) {
+            std::cerr << "pgt: error: no .pgt files in '" << opts.input << "'\n";
+            return 1;
+        }
+
+        std::vector<Program> programs;
+        for (const std::string& f : files) programs.push_back(parseFile(f));
+
+        for (const Program& p : programs) {
+            if (p.package != programs.front().package) {
+                CompileError e("package '" + p.package + "' conflicts with package '" +
+                                   programs.front().package + "' of the same directory",
+                               0, 0);
+                e.file = p.file;
+                throw e;
+            }
+        }
+
+        const std::string& package = programs.front().package;
+        bool isMain = package == "main";
+
+        std::string output = opts.output;
+        if (output.empty()) output = opts.emitIr ? name + ".ll" : (isMain ? name : name + ".o");
+
+        CodeGen codegen(name);
+        codegen.generate(programs);
 
         if (opts.emitIr) {
             std::error_code ec;
@@ -64,6 +114,11 @@ int build(const BuildOptions& opts) {
                 return 1;
             }
             codegen.module().print(out, nullptr);
+            return 0;
+        }
+
+        if (!isMain) {
+            emitObjectFile(codegen.module(), output);
             return 0;
         }
 
@@ -79,7 +134,7 @@ int build(const BuildOptions& opts) {
         }
         return 0;
     } catch (const CompileError& e) {
-        std::cerr << opts.input;
+        std::cerr << (e.file.empty() ? opts.input : e.file);
         if (e.line > 0) std::cerr << ":" << e.line << ":" << e.col;
         std::cerr << ": error: " << e.what() << "\n";
         return 1;

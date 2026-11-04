@@ -30,20 +30,19 @@ const Token& Parser::expect(Tok k, const char* context) {
 Program Parser::parseProgram() {
     Program prog;
     expect(Tok::KwPackage, "at the start of the file");
-    const Token& name = expect(Tok::Ident, "after 'package'");
-    if (name.text != "main")
-        throw CompileError("the entry package must be named 'main', found '" + name.text + "'",
-                           name.line, name.col);
-    prog.package = name.text;
+    prog.package = expect(Tok::Ident, "after 'package'").text;
 
     while (check(Tok::KwFn)) prog.functions.push_back(parseFunction());
 
-    if (!check(Tok::KwReturn))
-        errorHere(std::string("expected 'fn' or the final 'return', found ") + tokName(cur().kind));
-    advance();
-    prog.exitCode = parseExpr();
+    if (check(Tok::KwReturn)) {
+        advance();
+        prog.exitCode = parseExpr();
+    }
 
-    if (!check(Tok::Eof)) errorHere("unexpected code after the final 'return'");
+    if (!check(Tok::Eof)) {
+        if (prog.exitCode) errorHere("unexpected code after the final 'return'");
+        errorHere(std::string("expected 'fn' or 'return', found ") + tokName(cur().kind));
+    }
     return prog;
 }
 

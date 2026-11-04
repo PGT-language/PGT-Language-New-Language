@@ -20,10 +20,52 @@ llvm::Type* CodeGen::llvmType(Ty t) {
     return nullptr;
 }
 
-void CodeGen::generate(const Program& program) {
-    declareFunctions(program);
-    for (const Function& fn : program.functions) genFunction(fn);
-    genEntryPoint(program);
+bool CodeGen::isPublic(const std::string& name) {
+    return !name.empty() && name[0] >= 'A' && name[0] <= 'Z';
+}
+
+void CodeGen::checkExitCodes(const std::vector<Program>& programs) const {
+    const Program* withExit = nullptr;
+    for (const Program& p : programs) {
+        if (!p.exitCode) continue;
+        if (package_ != "main") {
+            CompileError e("only package 'main' may end with 'return'", p.exitCode->line,
+                           p.exitCode->col);
+            e.file = p.file;
+            throw e;
+        }
+        if (withExit) {
+            CompileError e("package 'main' has more than one final 'return'", p.exitCode->line,
+                           p.exitCode->col);
+            e.file = p.file;
+            throw e;
+        }
+        withExit = &p;
+    }
+    if (package_ == "main" && !withExit)
+        throw CompileError("package 'main' needs exactly one file ending with 'return'", 0, 0);
+}
+
+void CodeGen::generate(const std::vector<Program>& programs) {
+    package_ = programs.front().package;
+    try {
+        checkExitCodes(programs);
+        declareFunctions(programs);
+        for (const Program& p : programs) {
+            currentFile_ = p.file;
+            for (const Function& fn : p.functions) genFunction(fn);
+        }
+        if (package_ == "main") {
+            for (const Program& p : programs) {
+                if (!p.exitCode) continue;
+                currentFile_ = p.file;
+                genEntryPoint(*p.exitCode);
+            }
+        }
+    } catch (CompileError& e) {
+        if (e.file.empty()) e.file = currentFile_;
+        throw;
+    }
 
     std::string err;
     llvm::raw_string_ostream os(err);
@@ -31,13 +73,20 @@ void CodeGen::generate(const Program& program) {
         throw CompileError("internal error: generated invalid LLVM IR:\n" + err, 0, 0);
 }
 
-void CodeGen::declareFunctions(const Program& program) {
+void CodeGen::declareFunctions(const std::vector<Program>& programs) {
     auto* fnTy = llvm::FunctionType::get(builder_.getVoidTy(), false);
-    for (const Function& fn : program.functions) {
-        if (functions_.count(fn.name))
-            throw CompileError("function '" + fn.name + "' is already defined", fn.line, fn.col);
-        functions_[fn.name] = llvm::Function::Create(fnTy, llvm::Function::InternalLinkage,
-                                                     mangle(fn.name), module_.get());
+    for (const Program& p : programs) {
+        currentFile_ = p.file;
+        for (const Function& fn : p.functions) {
+            if (functions_.count(fn.name))
+                throw CompileError("function '" + fn.name + "' is already defined in package '" +
+                                       package_ + "'",
+                                   fn.line, fn.col);
+            auto linkage = isPublic(fn.name) ? llvm::Function::ExternalLinkage
+                                             : llvm::Function::InternalLinkage;
+            functions_[fn.name] =
+                llvm::Function::Create(fnTy, linkage, mangle(fn.name), module_.get());
+        }
     }
 }
 
@@ -50,7 +99,7 @@ void CodeGen::genFunction(const Function& fn) {
     builder_.CreateRetVoid();
 }
 
-void CodeGen::genEntryPoint(const Program& program) {
+void CodeGen::genEntryPoint(const Expr& exitCode) {
     auto it = functions_.find("main");
     if (it == functions_.end())
         throw CompileError("function 'main' is not defined", 1, 1);
@@ -63,10 +112,9 @@ void CodeGen::genEntryPoint(const Program& program) {
 
     builder_.CreateCall(it->second);
 
-    Value code = genExpr(*program.exitCode);
+    Value code = genExpr(exitCode);
     if (code.type != Ty::Int)
-        throw CompileError("the final 'return' must be an integer", program.exitCode->line,
-                           program.exitCode->col);
+        throw CompileError("the final 'return' must be an integer", exitCode.line, exitCode.col);
     builder_.CreateRet(code.value);
 }
 

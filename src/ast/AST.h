@@ -59,6 +59,7 @@ struct Function {
 };
 
 struct Program {
+    std::string file;
     std::string package;
     std::vector<Function> functions;
     ExprPtr exitCode;
