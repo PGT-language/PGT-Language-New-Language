@@ -1,5 +1,6 @@
 #pragma once
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -73,6 +74,12 @@ namespace pgt
 
     inline const char *opText(UnOp op) { return op == UnOp::Neg ? "-" : "!"; }
 
+    struct TypeExpr
+    {
+        std::string name;
+        int line = 0, col = 0;
+    };
+
     struct Expr
     {
         int line = 0, col = 0;
@@ -83,6 +90,16 @@ namespace pgt
     struct IntLit : Expr
     {
         long long value = 0;
+    };
+
+    struct FloatLit : Expr
+    {
+        double value = 0;
+    };
+
+    struct CharLit : Expr
+    {
+        char value = 0;
     };
 
     struct BoolLit : Expr
@@ -130,6 +147,7 @@ namespace pgt
     struct VarDecl : Stmt
     {
         std::string name;
+        std::optional<TypeExpr> type;
         ExprPtr init;
     };
 
@@ -175,9 +193,23 @@ namespace pgt
     {
     };
 
+    struct Return : Stmt
+    {
+        ExprPtr value;
+    };
+
+    struct Param
+    {
+        std::string name;
+        TypeExpr type;
+        int line = 0, col = 0;
+    };
+
     struct Function
     {
         std::string name;
+        std::vector<Param> params;
+        std::optional<TypeExpr> ret;
         Block body;
         int line = 0, col = 0;
     };

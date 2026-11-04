@@ -21,6 +21,7 @@ namespace pgt
         Token make(Tok kind, std::string text, int line, int col) const;
         Token lexNumber();
         Token lexString();
+        Token lexChar();
         Token lexWord();
 
         std::string src_;

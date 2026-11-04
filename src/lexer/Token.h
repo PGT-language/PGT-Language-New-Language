@@ -9,6 +9,8 @@ namespace pgt
         Eof,
         Ident,
         Int,
+        Float,
+        Char,
         String,
         KwPackage,
         KwFn,

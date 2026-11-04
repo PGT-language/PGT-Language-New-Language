@@ -17,6 +17,10 @@ namespace pgt
             return "identifier";
         case Tok::Int:
             return "integer literal";
+        case Tok::Float:
+            return "floating-point literal";
+        case Tok::Char:
+            return "char literal";
         case Tok::String:
             return "string literal";
         case Tok::KwPackage:
@@ -163,7 +167,63 @@ namespace pgt
         std::string digits;
         while (std::isdigit(static_cast<unsigned char>(peek())))
             digits += advance();
+        if (peek() == '.' && std::isdigit(static_cast<unsigned char>(peek(1))))
+        {
+            digits += advance();
+            while (std::isdigit(static_cast<unsigned char>(peek())))
+                digits += advance();
+            return make(Tok::Float, std::move(digits), line, col);
+        }
         return make(Tok::Int, std::move(digits), line, col);
+    }
+
+    Token Lexer::lexChar()
+    {
+        int line = line_, col = col_;
+        advance();
+        if (atEnd() || peek() == '\n')
+            throw CompileError("unterminated char literal", line, col);
+        char c = advance();
+        if (c == '\'')
+            throw CompileError("empty char literal", line, col);
+        if (c == '\\')
+        {
+            if (atEnd())
+                throw CompileError("unterminated char literal", line, col);
+            char e = advance();
+            switch (e)
+            {
+            case 'n':
+                c = '\n';
+                break;
+            case 't':
+                c = '\t';
+                break;
+            case 'r':
+                c = '\r';
+                break;
+            case '0':
+                c = '\0';
+                break;
+            case '\\':
+                c = '\\';
+                break;
+            case '\'':
+                c = '\'';
+                break;
+            default:
+                throw CompileError(std::string("unknown escape sequence '\\") + e + "'", line, col);
+            }
+        }
+        else if (static_cast<unsigned char>(c) >= 0x80)
+        {
+            throw CompileError("non-ASCII char literals are not supported (char is one byte)", line,
+                               col);
+        }
+        if (peek() != '\'')
+            throw CompileError("a char literal must contain exactly one character", line, col);
+        advance();
+        return make(Tok::Char, std::string(1, c), line, col);
     }
 
     Token Lexer::lexString()
@@ -273,6 +333,10 @@ namespace pgt
             else if (std::isalpha(static_cast<unsigned char>(c)) || c == '_')
             {
                 out.push_back(lexWord());
+            }
+            else if (c == '\'')
+            {
+                out.push_back(lexChar());
             }
             else if (c == '"')
             {

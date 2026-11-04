@@ -1,6 +1,7 @@
 #include "parser/Parser.h"
 
 #include "common/Error.h"
+#include "ast/Analysis.h"
 
 namespace pgt
 {
@@ -88,6 +89,12 @@ namespace pgt
         }
     }
 
+    TypeExpr Parser::parseTypeName(const char *context)
+    {
+        const Token &t = expect(Tok::Ident, context);
+        return TypeExpr{t.text, t.line, t.col};
+    }
+
     Function Parser::parseFunction()
     {
         Function fn;
@@ -96,8 +103,27 @@ namespace pgt
         expect(Tok::KwFn, "");
         fn.name = expect(Tok::Ident, "after 'fn'").text;
         expect(Tok::LParen, "after the function name");
-        expect(Tok::RParen, "(parameters are not supported yet)");
+        if (!check(Tok::RParen))
+        {
+            do
+            {
+                Param param;
+                param.line = cur().line;
+                param.col = cur().col;
+                param.name = expect(Tok::Ident, "as a parameter name").text;
+                if (check(Tok::Ident))
+                    param.type = parseTypeName("as a parameter type");
+                else
+                    param.type = TypeExpr{"int", param.line, param.col};
+                fn.params.push_back(std::move(param));
+            } while (check(Tok::Comma) && (advance(), true));
+        }
+        expect(Tok::RParen, "after the parameters");
+        if (check(Tok::Ident))
+            fn.ret = parseTypeName("as the result type");
         fn.body = parseBlock("before the function body");
+        if (!fn.ret && hasValueReturn(fn.body))
+            fn.ret = TypeExpr{"int", fn.line, fn.col};
         return fn;
     }
 
@@ -109,8 +135,7 @@ namespace pgt
         {
             if (check(Tok::Eof))
                 errorHere("unexpected end of file, expected '}'");
-            if (check(Tok::KwReturn))
-                errorHere("expected '}' before the final 'return'");
+
             body.push_back(parseStatement());
         }
         advance();
@@ -142,8 +167,26 @@ namespace pgt
         auto decl = make<VarDecl>(cur());
         advance();
         decl->name = expect(Tok::Ident, "after 'var*'").text;
-        expect(Tok::Assign, "after the variable name");
-        decl->init = parseExpr();
+        if (check(Tok::Plus) && peekTok().kind == Tok::LBrace)
+        {
+            advance();
+            advance();
+            decl->type = parseTypeName("inside '{ }'");
+            expect(Tok::RBrace, "after the type");
+        }
+        else if (check(Tok::Ident))
+        {
+            decl->type = parseTypeName("after the variable name");
+        }
+        if (check(Tok::Assign))
+        {
+            advance();
+            decl->init = parseExpr();
+        }
+        else if (!decl->type)
+        {
+            errorHere("expected '=' or a type after the variable name");
+        }
         return decl;
     }
 
@@ -212,6 +255,14 @@ namespace pgt
             return parseWhile();
         case Tok::KwFor:
             return parseFor();
+        case Tok::KwReturn:
+        {
+            auto stmt = make<Return>(cur());
+            advance();
+            if (!check(Tok::RBrace))
+                stmt->value = parseExpr();
+            return stmt;
+        }
         case Tok::KwBreak:
         {
             auto stmt = make<Break>(cur());
@@ -450,6 +501,20 @@ namespace pgt
             {
                 errorHere("integer literal is too large");
             }
+            advance();
+            return lit;
+        }
+        case Tok::Float:
+        {
+            auto lit = make<FloatLit>(t);
+            lit->value = std::stod(t.text);
+            advance();
+            return lit;
+        }
+        case Tok::Char:
+        {
+            auto lit = make<CharLit>(t);
+            lit->value = t.text[0];
             advance();
             return lit;
         }
