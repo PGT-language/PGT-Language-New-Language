@@ -75,45 +75,234 @@ Function Parser::parseFunction() {
     fn.name = expect(Tok::Ident, "after 'fn'").text;
     expect(Tok::LParen, "after the function name");
     expect(Tok::RParen, "(parameters are not supported yet)");
-    expect(Tok::LBrace, "before the function body");
-    while (!check(Tok::RBrace)) {
-        if (check(Tok::Eof)) errorHere("unexpected end of file, expected '}'");
-        fn.body.push_back(parseStatement());
-    }
-    expect(Tok::RBrace, "after the function body");
+    fn.body = parseBlock("before the function body");
     return fn;
 }
 
-StmtPtr Parser::parseStatement() {
-    int line = cur().line, col = cur().col;
+Block Parser::parseBlock(const char* context) {
+    expect(Tok::LBrace, context);
+    Block body;
+    while (!check(Tok::RBrace)) {
+        if (check(Tok::Eof)) errorHere("unexpected end of file, expected '}'");
+        body.push_back(parseStatement());
+    }
+    advance();
+    return body;
+}
 
-    if (check(Tok::KwVar)) {
+bool Parser::atAssignment() const {
+    if (!check(Tok::Ident)) return false;
+    switch (peekTok().kind) {
+    case Tok::Assign:
+    case Tok::PlusAssign:
+    case Tok::MinusAssign:
+    case Tok::StarAssign:
+    case Tok::SlashAssign:
+    case Tok::PercentAssign:
+    case Tok::PlusPlus:
+    case Tok::MinusMinus:
+        return true;
+    default:
+        return false;
+    }
+}
+
+StmtPtr Parser::parseVarDecl() {
+    auto decl = make<VarDecl>(cur());
+    advance();
+    decl->name = expect(Tok::Ident, "after 'var*'").text;
+    expect(Tok::Assign, "after the variable name");
+    decl->init = parseExpr();
+    return decl;
+}
+
+StmtPtr Parser::parseSimpleStatement() {
+    if (check(Tok::KwVar)) return parseVarDecl();
+    if (!atAssignment()) errorHere("expected a variable declaration or an assignment");
+
+    auto assign = make<Assign>(cur());
+    assign->name = advance().text;
+    const Token& opTok = advance();
+
+    auto one = [&] {
+        auto lit = make<IntLit>(opTok);
+        lit->value = 1;
+        return lit;
+    };
+
+    switch (opTok.kind) {
+    case Tok::Assign: assign->op = AssignOp::Set; break;
+    case Tok::PlusAssign: assign->op = AssignOp::Add; break;
+    case Tok::MinusAssign: assign->op = AssignOp::Sub; break;
+    case Tok::StarAssign: assign->op = AssignOp::Mul; break;
+    case Tok::SlashAssign: assign->op = AssignOp::Div; break;
+    case Tok::PercentAssign: assign->op = AssignOp::Mod; break;
+    case Tok::PlusPlus:
+        assign->op = AssignOp::Add;
+        assign->value = one();
+        return assign;
+    case Tok::MinusMinus:
+        assign->op = AssignOp::Sub;
+        assign->value = one();
+        return assign;
+    default: break;
+    }
+    assign->value = parseExpr();
+    return assign;
+}
+
+StmtPtr Parser::parseStatement() {
+    switch (cur().kind) {
+    case Tok::KwVar: return parseVarDecl();
+    case Tok::KwIf: return parseIf();
+    case Tok::KwWhile: return parseWhile();
+    case Tok::KwFor: return parseFor();
+    case Tok::KwBreak: {
+        auto stmt = make<Break>(cur());
         advance();
-        auto decl = std::make_unique<VarDecl>();
-        decl->line = line;
-        decl->col = col;
-        decl->name = expect(Tok::Ident, "after 'var*'").text;
-        expect(Tok::Assign, "after the variable name");
-        decl->init = parseExpr();
-        return decl;
+        return stmt;
+    }
+    case Tok::KwContinue: {
+        auto stmt = make<Continue>(cur());
+        advance();
+        return stmt;
+    }
+    default: break;
     }
 
-    auto stmt = std::make_unique<ExprStmt>();
-    stmt->line = line;
-    stmt->col = col;
+    if (atAssignment()) return parseSimpleStatement();
+
+    auto stmt = make<ExprStmt>(cur());
     stmt->expr = parseExpr();
     if (!dynamic_cast<Call*>(stmt->expr.get()))
-        throw CompileError("expression result is unused; only calls can be statements", line, col);
+        throw CompileError("expression result is unused; only calls can be statements",
+                           stmt->line, stmt->col);
     return stmt;
 }
 
-ExprPtr Parser::parseExpr() {
+StmtPtr Parser::parseIf() {
+    auto node = make<If>(cur());
+    advance();
+    node->cond = parseExpr();
+    node->thenBody = parseBlock("after the 'if' condition");
+    if (check(Tok::KwElse)) {
+        advance();
+        node->hasElse = true;
+        if (check(Tok::KwIf))
+            node->elseBody.push_back(parseIf());
+        else
+            node->elseBody = parseBlock("after 'else'");
+    }
+    return node;
+}
+
+StmtPtr Parser::parseWhile() {
+    auto loop = make<Loop>(cur());
+    advance();
+    loop->cond = parseExpr();
+    loop->body = parseBlock("after the 'while' condition");
+    return loop;
+}
+
+StmtPtr Parser::parseFor() {
+    const Token& forTok = cur();
+    advance();
+
+    if (check(Tok::Ident) && peekTok().kind == Tok::KwIn) {
+        auto range = make<RangeLoop>(forTok);
+        range->var = advance().text;
+        advance();
+        range->from = parseExpr();
+        expect(Tok::DotDot, "in the range of 'for'");
+        range->to = parseExpr();
+        range->body = parseBlock("after the 'for' range");
+        return range;
+    }
+
+    auto loop = make<Loop>(forTok);
+
+    if (check(Tok::LBrace)) {
+        loop->body = parseBlock("");
+        return loop;
+    }
+
+    if (check(Tok::KwVar) || atAssignment()) {
+        loop->init = parseSimpleStatement();
+        expect(Tok::Semi, "after the 'for' initializer");
+        loop->cond = parseExpr();
+        expect(Tok::Semi, "after the 'for' condition");
+        if (!check(Tok::LBrace)) loop->post = parseSimpleStatement();
+        loop->body = parseBlock("after the 'for' header");
+        return loop;
+    }
+
+    loop->cond = parseExpr();
+    loop->body = parseBlock("after the 'for' condition");
+    return loop;
+}
+
+ExprPtr Parser::parseExpr() { return parseOr(); }
+
+ExprPtr Parser::parseOr() {
+    ExprPtr lhs = parseAnd();
+    while (check(Tok::OrOr)) {
+        auto bin = make<Binary>(cur());
+        advance();
+        bin->op = BinOp::Or;
+        bin->lhs = std::move(lhs);
+        bin->rhs = parseAnd();
+        lhs = std::move(bin);
+    }
+    return lhs;
+}
+
+ExprPtr Parser::parseAnd() {
+    ExprPtr lhs = parseEquality();
+    while (check(Tok::AndAnd)) {
+        auto bin = make<Binary>(cur());
+        advance();
+        bin->op = BinOp::And;
+        bin->lhs = std::move(lhs);
+        bin->rhs = parseEquality();
+        lhs = std::move(bin);
+    }
+    return lhs;
+}
+
+ExprPtr Parser::parseEquality() {
+    ExprPtr lhs = parseRelational();
+    while (check(Tok::Eq) || check(Tok::Ne)) {
+        auto bin = make<Binary>(cur());
+        bin->op = advance().kind == Tok::Eq ? BinOp::Eq : BinOp::Ne;
+        bin->lhs = std::move(lhs);
+        bin->rhs = parseRelational();
+        lhs = std::move(bin);
+    }
+    return lhs;
+}
+
+ExprPtr Parser::parseRelational() {
+    ExprPtr lhs = parseAdditive();
+    while (check(Tok::Lt) || check(Tok::Gt) || check(Tok::Le) || check(Tok::Ge)) {
+        auto bin = make<Binary>(cur());
+        switch (advance().kind) {
+        case Tok::Lt: bin->op = BinOp::Lt; break;
+        case Tok::Gt: bin->op = BinOp::Gt; break;
+        case Tok::Le: bin->op = BinOp::Le; break;
+        default: bin->op = BinOp::Ge; break;
+        }
+        bin->lhs = std::move(lhs);
+        bin->rhs = parseAdditive();
+        lhs = std::move(bin);
+    }
+    return lhs;
+}
+
+ExprPtr Parser::parseAdditive() {
     ExprPtr lhs = parseTerm();
     while (check(Tok::Plus) || check(Tok::Minus)) {
-        auto bin = std::make_unique<Binary>();
-        bin->line = cur().line;
-        bin->col = cur().col;
-        bin->op = advance().text[0];
+        auto bin = make<Binary>(cur());
+        bin->op = advance().kind == Tok::Plus ? BinOp::Add : BinOp::Sub;
         bin->lhs = std::move(lhs);
         bin->rhs = parseTerm();
         lhs = std::move(bin);
@@ -122,26 +311,26 @@ ExprPtr Parser::parseExpr() {
 }
 
 ExprPtr Parser::parseTerm() {
-    ExprPtr lhs = parseFactor();
-    while (check(Tok::Star) || check(Tok::Slash)) {
-        auto bin = std::make_unique<Binary>();
-        bin->line = cur().line;
-        bin->col = cur().col;
-        bin->op = advance().text[0];
+    ExprPtr lhs = parseUnary();
+    while (check(Tok::Star) || check(Tok::Slash) || check(Tok::Percent)) {
+        auto bin = make<Binary>(cur());
+        switch (advance().kind) {
+        case Tok::Star: bin->op = BinOp::Mul; break;
+        case Tok::Slash: bin->op = BinOp::Div; break;
+        default: bin->op = BinOp::Mod; break;
+        }
         bin->lhs = std::move(lhs);
-        bin->rhs = parseFactor();
+        bin->rhs = parseUnary();
         lhs = std::move(bin);
     }
     return lhs;
 }
 
-ExprPtr Parser::parseFactor() {
-    if (check(Tok::Minus)) {
-        auto un = std::make_unique<Unary>();
-        un->line = cur().line;
-        un->col = cur().col;
-        advance();
-        un->operand = parseFactor();
+ExprPtr Parser::parseUnary() {
+    if (check(Tok::Minus) || check(Tok::Bang)) {
+        auto un = make<Unary>(cur());
+        un->op = advance().kind == Tok::Minus ? UnOp::Neg : UnOp::Not;
+        un->operand = parseUnary();
         return un;
     }
     return parsePrimary();
@@ -149,13 +338,10 @@ ExprPtr Parser::parseFactor() {
 
 ExprPtr Parser::parsePrimary() {
     const Token& t = cur();
-    int line = t.line, col = t.col;
 
     switch (t.kind) {
     case Tok::Int: {
-        auto lit = std::make_unique<IntLit>();
-        lit->line = line;
-        lit->col = col;
+        auto lit = make<IntLit>(t);
         try {
             lit->value = std::stoll(t.text);
         } catch (const std::out_of_range&) {
@@ -164,10 +350,15 @@ ExprPtr Parser::parsePrimary() {
         advance();
         return lit;
     }
+    case Tok::KwTrue:
+    case Tok::KwFalse: {
+        auto lit = make<BoolLit>(t);
+        lit->value = t.kind == Tok::KwTrue;
+        advance();
+        return lit;
+    }
     case Tok::String: {
-        auto lit = std::make_unique<StringLit>();
-        lit->line = line;
-        lit->col = col;
+        auto lit = make<StringLit>(t);
         lit->value = t.text;
         advance();
         return lit;
@@ -184,9 +375,7 @@ ExprPtr Parser::parsePrimary() {
         }
         if (check(Tok::LParen)) {
             advance();
-            auto call = std::make_unique<Call>();
-            call->line = line;
-            call->col = col;
+            auto call = make<Call>(t);
             call->qualifier = std::move(qualifier);
             call->callee = std::move(name);
             if (!check(Tok::RParen)) {
@@ -197,9 +386,7 @@ ExprPtr Parser::parsePrimary() {
             expect(Tok::RParen, "after call arguments");
             return call;
         }
-        auto ref = std::make_unique<VarRef>();
-        ref->line = line;
-        ref->col = col;
+        auto ref = make<VarRef>(t);
         ref->name = std::move(name);
         return ref;
     }

@@ -3,8 +3,9 @@
 
 #include <string>
 
-namespace pgt {
+namespace pgt
+{
 
-void emitObjectFile(llvm::Module& module, const std::string& path);
+    void emitObjectFile(llvm::Module &module, const std::string &path);
 
 }

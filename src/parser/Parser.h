@@ -21,11 +21,32 @@ private:
 
     void parseImports(Program& prog);
     Function parseFunction();
+    Block parseBlock(const char* context);
     StmtPtr parseStatement();
+    StmtPtr parseVarDecl();
+    StmtPtr parseSimpleStatement();
+    bool atAssignment() const;
+    StmtPtr parseIf();
+    StmtPtr parseWhile();
+    StmtPtr parseFor();
+
     ExprPtr parseExpr();
+    ExprPtr parseOr();
+    ExprPtr parseAnd();
+    ExprPtr parseEquality();
+    ExprPtr parseRelational();
+    ExprPtr parseAdditive();
     ExprPtr parseTerm();
-    ExprPtr parseFactor();
+    ExprPtr parseUnary();
     ExprPtr parsePrimary();
+
+    template <typename T>
+    std::unique_ptr<T> make(const Token& at) const {
+        auto node = std::make_unique<T>();
+        node->line = at.line;
+        node->col = at.col;
+        return node;
+    }
 
     std::vector<Token> toks_;
     size_t pos_ = 0;

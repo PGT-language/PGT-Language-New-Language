@@ -17,17 +17,45 @@ const char* tokName(Tok kind) {
     case Tok::KwVar: return "'var*'";
     case Tok::KwReturn: return "'return'";
     case Tok::KwUse: return "'#use'";
+    case Tok::KwIf: return "'if'";
+    case Tok::KwElse: return "'else'";
+    case Tok::KwWhile: return "'while'";
+    case Tok::KwFor: return "'for'";
+    case Tok::KwIn: return "'in'";
+    case Tok::KwBreak: return "'break'";
+    case Tok::KwContinue: return "'continue'";
+    case Tok::KwTrue: return "'true'";
+    case Tok::KwFalse: return "'false'";
     case Tok::LParen: return "'('";
     case Tok::RParen: return "')'";
     case Tok::LBrace: return "'{'";
     case Tok::RBrace: return "'}'";
     case Tok::Comma: return "','";
+    case Tok::Semi: return "';'";
     case Tok::Dot: return "'.'";
+    case Tok::DotDot: return "'..'";
     case Tok::Assign: return "'='";
+    case Tok::PlusAssign: return "'+='";
+    case Tok::MinusAssign: return "'-='";
+    case Tok::StarAssign: return "'*='";
+    case Tok::SlashAssign: return "'/='";
+    case Tok::PercentAssign: return "'%='";
+    case Tok::PlusPlus: return "'++'";
+    case Tok::MinusMinus: return "'--'";
     case Tok::Plus: return "'+'";
     case Tok::Minus: return "'-'";
     case Tok::Star: return "'*'";
     case Tok::Slash: return "'/'";
+    case Tok::Percent: return "'%'";
+    case Tok::Eq: return "'=='";
+    case Tok::Ne: return "'!='";
+    case Tok::Lt: return "'<'";
+    case Tok::Gt: return "'>'";
+    case Tok::Le: return "'<='";
+    case Tok::Ge: return "'>='";
+    case Tok::AndAnd: return "'&&'";
+    case Tok::OrOr: return "'||'";
+    case Tok::Bang: return "'!'";
     }
     return "?";
 }
@@ -114,6 +142,15 @@ Token Lexer::lexWord() {
     if (word == "package") return make(Tok::KwPackage, word, line, col);
     if (word == "fn") return make(Tok::KwFn, word, line, col);
     if (word == "return") return make(Tok::KwReturn, word, line, col);
+    if (word == "if") return make(Tok::KwIf, word, line, col);
+    if (word == "else") return make(Tok::KwElse, word, line, col);
+    if (word == "while") return make(Tok::KwWhile, word, line, col);
+    if (word == "for") return make(Tok::KwFor, word, line, col);
+    if (word == "in") return make(Tok::KwIn, word, line, col);
+    if (word == "break") return make(Tok::KwBreak, word, line, col);
+    if (word == "continue") return make(Tok::KwContinue, word, line, col);
+    if (word == "true") return make(Tok::KwTrue, word, line, col);
+    if (word == "false") return make(Tok::KwFalse, word, line, col);
     return make(Tok::Ident, std::move(word), line, col);
 }
 
@@ -139,7 +176,13 @@ std::vector<Token> Lexer::tokenize() {
             if (word != "use") throw CompileError("unknown directive '#" + word + "'", line, col);
             out.push_back(make(Tok::KwUse, "#use", line, col));
         } else {
+            size_t start = pos_;
             advance();
+            auto match = [&](char next) {
+                if (peek() != next) return false;
+                advance();
+                return true;
+            };
             Tok kind;
             switch (c) {
             case '(': kind = Tok::LParen; break;
@@ -147,16 +190,29 @@ std::vector<Token> Lexer::tokenize() {
             case '{': kind = Tok::LBrace; break;
             case '}': kind = Tok::RBrace; break;
             case ',': kind = Tok::Comma; break;
-            case '.': kind = Tok::Dot; break;
-            case '=': kind = Tok::Assign; break;
-            case '+': kind = Tok::Plus; break;
-            case '-': kind = Tok::Minus; break;
-            case '*': kind = Tok::Star; break;
-            case '/': kind = Tok::Slash; break;
+            case ';': kind = Tok::Semi; break;
+            case '.': kind = match('.') ? Tok::DotDot : Tok::Dot; break;
+            case '=': kind = match('=') ? Tok::Eq : Tok::Assign; break;
+            case '!': kind = match('=') ? Tok::Ne : Tok::Bang; break;
+            case '<': kind = match('=') ? Tok::Le : Tok::Lt; break;
+            case '>': kind = match('=') ? Tok::Ge : Tok::Gt; break;
+            case '&':
+                if (!match('&')) throw CompileError("unexpected character '&' (did you mean '&&'?)", line, col);
+                kind = Tok::AndAnd;
+                break;
+            case '|':
+                if (!match('|')) throw CompileError("unexpected character '|' (did you mean '||'?)", line, col);
+                kind = Tok::OrOr;
+                break;
+            case '+': kind = match('+') ? Tok::PlusPlus : match('=') ? Tok::PlusAssign : Tok::Plus; break;
+            case '-': kind = match('-') ? Tok::MinusMinus : match('=') ? Tok::MinusAssign : Tok::Minus; break;
+            case '*': kind = match('=') ? Tok::StarAssign : Tok::Star; break;
+            case '/': kind = match('=') ? Tok::SlashAssign : Tok::Slash; break;
+            case '%': kind = match('=') ? Tok::PercentAssign : Tok::Percent; break;
             default:
                 throw CompileError(std::string("unexpected character '") + c + "'", line, col);
             }
-            out.push_back(make(kind, std::string(1, c), line, col));
+            out.push_back(make(kind, src_.substr(start, pos_ - start), line, col));
         }
     }
     out.push_back(make(Tok::Eof, "", line_, col_));
