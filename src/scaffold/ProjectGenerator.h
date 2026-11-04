@@ -3,6 +3,6 @@
 
 namespace pgt {
 
-void createHelloWorldProject(const std::string& name);
+void createProject(const std::string& name, const std::string& templateName);
 
 }

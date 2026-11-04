@@ -20,6 +20,7 @@ add_executable(pgt
     src/modfile/ModFile.cpp
     src/loader/Loader.cpp
     src/scaffold/ProjectGenerator.cpp
+    src/scaffold/Templates.cpp
     src/codegen/CodeGen.cpp
     src/codegen/ObjectEmitter.cpp
     src/driver/Driver.cpp

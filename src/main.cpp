@@ -1,8 +1,10 @@
 #include "driver/Driver.h"
 #include "scaffold/ProjectGenerator.h"
+#include "scaffold/Templates.h"
 
 #include <llvm/Config/llvm-config.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <iostream>
 #include <string>
@@ -18,7 +20,8 @@ static void printVersion() {
 static void printUsage(std::ostream& os) {
     os << "Usage:\n"
           "  pgt --version                         print the compiler version\n"
-          "  pgt new <name>                        create a Hello World project\n"
+          "  pgt new <name> [-t <template>]        create a project (default template: hello)\n"
+          "  pgt new --list                        list project templates\n"
           "  pgt build [dir|file.pgt] [-o <out>]   compile a package (default: .)\n"
           "  pgt <dir|file.pgt>                    same as pgt build\n"
           "  pgt build [dir|file.pgt] --emit-ir    write LLVM IR (.ll) instead\n";
@@ -50,6 +53,50 @@ static int runBuild(int argc, char** argv, int first) {
     return pgt::build(opts);
 }
 
+static int runNew(int argc, char** argv) {
+    std::string name;
+    std::string templateName = "hello";
+    for (int i = 2; i < argc; ++i) {
+        std::string_view a = argv[i];
+        if (a == "--list") {
+            for (const pgt::ProjectTemplate& t : pgt::projectTemplates())
+                std::cout << "  " << t.name << std::string(12 - std::min<size_t>(t.name.size(), 11), ' ')
+                          << t.description << "\n";
+            return 0;
+        }
+        if (a == "-t" || a == "--template") {
+            if (++i >= argc) {
+                std::cerr << "pgt: error: '" << a << "' needs a template name\n";
+                return 1;
+            }
+            templateName = argv[i];
+        } else if (!a.empty() && a[0] == '-') {
+            std::cerr << "pgt: error: unknown option '" << a << "'\n";
+            return 1;
+        } else if (name.empty()) {
+            name = a;
+        } else {
+            std::cerr << "pgt: error: more than one project name\n";
+            return 1;
+        }
+    }
+    if (name.empty()) {
+        std::cerr << "pgt: error: usage: pgt new <name> [-t <template>]\n";
+        return 1;
+    }
+    try {
+        pgt::createProject(name, templateName);
+    } catch (const std::exception& e) {
+        std::cerr << "pgt: error: " << e.what() << "\n";
+        return 1;
+    }
+    std::cout << "Created project '" << name << "' (template: " << templateName << ")\n"
+              << "  cd " << name << "\n"
+              << "  pgt build\n"
+              << "  ./" << name << "\n";
+    return 0;
+}
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         printUsage(std::cerr);
@@ -66,23 +113,7 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (cmd == "build") return runBuild(argc, argv, 2);
-    if (cmd == "new") {
-        if (argc != 3) {
-            std::cerr << "pgt: error: usage: pgt new <name>\n";
-            return 1;
-        }
-        try {
-            pgt::createHelloWorldProject(argv[2]);
-        } catch (const std::exception& e) {
-            std::cerr << "pgt: error: " << e.what() << "\n";
-            return 1;
-        }
-        std::cout << "Created project '" << argv[2] << "'\n"
-                  << "  cd " << argv[2] << "\n"
-                  << "  pgt build\n"
-                  << "  ./" << argv[2] << "\n";
-        return 0;
-    }
+    if (cmd == "new") return runNew(argc, argv);
 
     if (cmd[0] != '-' && std::filesystem::exists(cmd)) return runBuild(argc, argv, 1);
 
