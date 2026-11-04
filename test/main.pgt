@@ -1,0 +1,21 @@
+package main
+
+fn main() {
+    var* a = 0
+    var* b = 0
+    input("First number: ", a)
+    input("Second number: ", b)
+
+    println(a, " + ", b, " = ", a + b)
+    println(a, " - ", b, " = ", a - b)
+    println(a, " * ", b, " = ", a * b)
+
+    if b == 0 {
+        println("Division by zero is not allowed")
+    } else {
+        println(a, " / ", b, " = ", a / b)
+        println(a, " % ", b, " = ", a % b)
+    }
+}
+
+return 0
