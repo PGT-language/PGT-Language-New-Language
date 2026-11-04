@@ -8,23 +8,25 @@
 #include <string>
 #include <vector>
 
-namespace pgt {
+namespace pgt
+{
 
-class Loader {
-public:
-    Workspace load(const std::string& input);
+    class Loader
+    {
+    public:
+        Workspace load(const std::string &input);
 
-private:
-    Package* loadPackage(const std::filesystem::path& dir, std::vector<std::string> files,
-                         bool isRoot);
-    std::string importPathFor(const std::filesystem::path& dir, const std::string& packageName) const;
-    std::filesystem::path resolveImport(const Import& imp, const std::string& file) const;
+    private:
+        Package *loadPackage(const std::filesystem::path &dir, std::vector<std::string> files,
+                             bool isRoot);
+        std::string importPathFor(const std::filesystem::path &dir, const std::string &packageName) const;
+        std::filesystem::path resolveImport(const Import &imp, const std::string &file) const;
 
-    Workspace ws_;
-    std::optional<ModFile> mod_;
-    std::vector<std::string> stack_;
-};
+        Workspace ws_;
+        std::optional<ModFile> mod_;
+        std::vector<std::string> stack_;
+    };
 
-std::vector<std::string> listSources(const std::filesystem::path& dir);
+    std::vector<std::string> listSources(const std::filesystem::path &dir);
 
 }

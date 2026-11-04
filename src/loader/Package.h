@@ -6,19 +6,22 @@
 #include <string>
 #include <vector>
 
-namespace pgt {
+namespace pgt
+{
 
-struct Package {
-    std::string importPath;
-    std::string name;
-    std::string dir;
-    std::vector<Program> programs;
-};
+    struct Package
+    {
+        std::string importPath;
+        std::string name;
+        std::string dir;
+        std::vector<Program> programs;
+    };
 
-struct Workspace {
-    std::vector<std::unique_ptr<Package>> packages;
-    std::map<std::string, Package*> byPath;
-    Package* root = nullptr;
-};
+    struct Workspace
+    {
+        std::vector<std::unique_ptr<Package>> packages;
+        std::map<std::string, Package *> byPath;
+        Package *root = nullptr;
+    };
 
 }
