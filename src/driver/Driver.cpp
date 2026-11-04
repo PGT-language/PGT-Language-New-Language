@@ -39,7 +39,12 @@ int build(const BuildOptions& opts) {
         bool isMain = workspace.root->name == "main";
 
         std::string output = opts.output;
-        if (output.empty()) output = opts.emitIr ? name + ".ll" : (isMain ? name : name + ".o");
+        if (output.empty()) {
+            std::string file = opts.emitIr ? name + ".ll" : (isMain ? name : name + ".o");
+            fs::path base = fs::is_directory(opts.input) ? fs::path(opts.input)
+                                                         : fs::path(opts.input).parent_path();
+            output = (base / file).string();
+        }
 
         CodeGen codegen(workspace.root->importPath);
         codegen.generate(workspace);
