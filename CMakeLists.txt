@@ -15,7 +15,13 @@ add_definitions(${LLVM_DEFINITIONS_LIST})
 
 add_executable(pgt
     src/main.cpp
+    src/lexer/Lexer.cpp
+    src/parser/Parser.cpp
+    src/codegen/CodeGen.cpp
+    src/codegen/ObjectEmitter.cpp
+    src/driver/Driver.cpp
 )
+target_include_directories(pgt PRIVATE src)
 target_compile_definitions(pgt PRIVATE PGT_VERSION="${PROJECT_VERSION}")
 target_compile_options(pgt PRIVATE -Wall -Wextra)
 # На Arch LLVM поставляется одной общей библиотекой libLLVM.so
