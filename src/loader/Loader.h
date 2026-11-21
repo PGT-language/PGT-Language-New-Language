@@ -29,5 +29,8 @@ namespace pgt
     };
 
     std::vector<std::string> listSources(const std::filesystem::path &dir);
+    std::optional<std::filesystem::path> resolveImportDir(const std::string &importPath,
+                                                          const std::optional<ModFile> &mod,
+                                                          const std::optional<std::filesystem::path> &stdDir);
 
 }

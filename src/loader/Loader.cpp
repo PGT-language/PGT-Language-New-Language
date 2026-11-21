@@ -102,26 +102,34 @@ namespace pgt
         return mod_->name + "/" + relStr;
     }
 
-    fs::path Loader::resolveImport(const Import &imp, const std::string &file) const
+    std::optional<fs::path> resolveImportDir(const std::string &importPath, const std::optional<ModFile> &mod,
+                                             const std::optional<fs::path> &stdDir)
     {
-        if (mod_)
+        if (mod)
         {
-            const std::string &name = mod_->name;
-            if (imp.path == name)
-                return mod_->root;
-            if (imp.path.size() > name.size() && imp.path.compare(0, name.size(), name) == 0 &&
-                imp.path[name.size()] == '/')
-                return mod_->root / imp.path.substr(name.size() + 1);
+            const std::string &name = mod->name;
+            if (importPath == name)
+                return mod->root;
+            if (importPath.size() > name.size() && importPath.compare(0, name.size(), name) == 0 &&
+                importPath[name.size()] == '/')
+                return mod->root / importPath.substr(name.size() + 1);
         }
 
         // Anything else comes from the standard library: #use "strings", #use "math".
-        if (stdDir_ && imp.path.find("..") == std::string::npos)
+        if (stdDir && importPath.find("..") == std::string::npos)
         {
-            fs::path dir = *stdDir_ / imp.path;
+            fs::path dir = *stdDir / importPath;
             std::error_code ec;
             if (fs::is_directory(dir, ec))
                 return dir;
         }
+        return std::nullopt;
+    }
+
+    fs::path Loader::resolveImport(const Import &imp, const std::string &file) const
+    {
+        if (auto dir = resolveImportDir(imp.path, mod_, stdDir_))
+            return *dir;
 
         std::string where = mod_ ? "in module '" + mod_->name + "' or " : "";
         std::string hint = mod_ ? "" : " (to import your own packages, create a pgt.mod)";

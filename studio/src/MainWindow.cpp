@@ -477,11 +477,11 @@ void MainWindow::deleteEntry(const QModelIndex &index)
     if (!QFile::moveToTrash(path))
     {
         // Never delete for good without a second, explicit confirmation.
-        auto forever = QMessageBox::warning(this, "Удалить",
+        auto permanently = QMessageBox::warning(this, "Удалить",
                                             "Не удалось переместить в корзину.\nУдалить «" +
                                                 QFileInfo(path).fileName() + "» навсегда?",
                                             QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
-        if (forever == QMessageBox::Yes && !(isDir ? QDir(path).removeRecursively() : QFile::remove(path)))
+        if (permanently == QMessageBox::Yes && !(isDir ? QDir(path).removeRecursively() : QFile::remove(path)))
             QMessageBox::warning(this, "Удалить", "Не удалось удалить " + path);
     }
     updateActions();
