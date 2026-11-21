@@ -13,6 +13,7 @@ qt_add_executable(pgt-studio
     src/Theme.cpp
     src/MainWindow.cpp
     src/OutputPanel.cpp
+    src/CompilerPanel.cpp
     src/editor/CodeEditor.cpp
     src/editor/PgtHighlighter.cpp
     src/project/NewProjectDialog.cpp

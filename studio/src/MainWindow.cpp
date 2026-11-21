@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 
+#include "CompilerPanel.h"
 #include "OutputPanel.h"
 #include "Theme.h"
 #include "editor/CodeEditor.h"
@@ -9,7 +10,9 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QCloseEvent>
+#include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
 #include <QFileDialog>
@@ -27,6 +30,7 @@
 #include <QTabWidget>
 #include <QToolBar>
 #include <QTreeView>
+#include <QUrl>
 #include <QVBoxLayout>
 
 MainWindow::MainWindow()
@@ -52,17 +56,35 @@ MainWindow::MainWindow()
 
     // ---- project tree
     fsModel_ = new QFileSystemModel(this);
+    // Renaming happens only when asked for (context menu or F2), never on a click.
     fsModel_->setReadOnly(false);
+    connect(fsModel_, &QFileSystemModel::fileRenamed, this, &MainWindow::onEntryRenamed);
     tree_ = new QTreeView;
     tree_->setModel(fsModel_);
     tree_->setHeaderHidden(true);
     tree_->setFrameShape(QFrame::NoFrame);
+    tree_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    tree_->setContextMenuPolicy(Qt::CustomContextMenu);
     for (int c = 1; c < fsModel_->columnCount(); ++c)
         tree_->hideColumn(c);
-    connect(tree_, &QTreeView::activated, this, [this](const QModelIndex &index) {
-        if (!fsModel_->isDir(index))
+    connect(tree_, &QTreeView::customContextMenuRequested, this, &MainWindow::showTreeMenu);
+    auto openIndex = [this](const QModelIndex &index) {
+        if (index.isValid() && !fsModel_->isDir(index))
             openFile(fsModel_->filePath(index));
-    });
+    };
+    connect(tree_, &QTreeView::clicked, this, openIndex);
+    connect(tree_, &QTreeView::activated, this, openIndex);
+
+    // Keyboard shortcuts of the tree, active only while it has focus.
+    auto treeShortcut = [this](const QKeySequence &key, auto handler) {
+        auto *a = new QAction(tree_);
+        a->setShortcut(key);
+        a->setShortcutContext(Qt::WidgetShortcut);
+        connect(a, &QAction::triggered, this, handler);
+        tree_->addAction(a);
+    };
+    treeShortcut(QKeySequence(Qt::Key_F2), [this] { renameEntry(tree_->currentIndex()); });
+    treeShortcut(QKeySequence::Delete, [this] { deleteEntry(tree_->currentIndex()); });
     auto *treeDock = new QDockWidget("ПРОЕКТ");
     treeDock->setObjectName("projectDock");
     treeDock->setWidget(tree_);
@@ -93,7 +115,15 @@ MainWindow::MainWindow()
     outDock->setWidget(output_);
     outDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable);
     addDockWidget(Qt::BottomDockWidgetArea, outDock);
-    resizeDocks({treeDock}, {240}, Qt::Horizontal);
+    compilerPanel_ = new CompilerPanel;
+    auto *compilerDock = new QDockWidget("КОМПИЛЯТОР");
+    compilerDock->setObjectName("compilerDock");
+    compilerDock->setWidget(compilerPanel_);
+    compilerDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable);
+    addDockWidget(Qt::RightDockWidgetArea, compilerDock);
+    connect(tabs_, &QTabWidget::currentChanged, this, [this] { compilerPanel_->setEditor(currentEditor()); });
+
+    resizeDocks({treeDock, compilerDock}, {240, 360}, Qt::Horizontal);
     resizeDocks({outDock}, {220}, Qt::Vertical);
 
     // ---- status bar
@@ -105,9 +135,11 @@ MainWindow::MainWindow()
     createActions();
     treeDock->toggleViewAction()->setText("Панель проекта");
     outDock->toggleViewAction()->setText("Панель вывода");
+    compilerDock->toggleViewAction()->setText("Токены и дерево разбора");
     QMenu *view = menuBar()->addMenu("&Вид");
     view->addAction(treeDock->toggleViewAction());
     view->addAction(outDock->toggleViewAction());
+    view->addAction(compilerDock->toggleViewAction());
     menuBar()->addMenu("&Справка")->addAction("О программе", this, &MainWindow::about);
 
     QSettings s;
@@ -315,15 +347,37 @@ void MainWindow::openFileDialog()
 
 void MainWindow::newFile()
 {
+    createEntry(selectedDir(), false);
+}
+
+QString MainWindow::selectedDir() const
+{
+    QModelIndex index = tree_->currentIndex();
+    if (!index.isValid() || projectDir_.isEmpty())
+        return projectDir_;
+    QString path = fsModel_->filePath(index);
+    return fsModel_->isDir(index) ? path : QFileInfo(path).absolutePath();
+}
+
+void MainWindow::createEntry(const QString &dir, bool folder)
+{
     bool ok = false;
-    QString name = QInputDialog::getText(this, "Новый файл", "Имя файла (относительно проекта):", QLineEdit::Normal,
-                                         "file.pgt", &ok);
-    if (!ok || name.trimmed().isEmpty())
+    QString name = QInputDialog::getText(this, folder ? "Новая папка" : "Новый файл",
+                                         folder ? "Имя папки:" : "Имя файла:", QLineEdit::Normal,
+                                         folder ? "" : "file.pgt", &ok)
+                       .trimmed();
+    if (!ok || name.isEmpty())
         return;
-    QString path = QDir(projectDir_).filePath(name.trimmed());
+    QString path = QDir(dir).filePath(name);
     if (QFileInfo::exists(path))
     {
-        openFile(path);
+        QMessageBox::warning(this, "Создать", "Уже существует: " + name);
+        return;
+    }
+    if (folder)
+    {
+        if (!QDir().mkpath(path))
+            QMessageBox::warning(this, "Новая папка", "Не удалось создать папку " + path);
         return;
     }
     QDir().mkpath(QFileInfo(path).absolutePath());
@@ -342,6 +396,90 @@ void MainWindow::newFile()
     }
     f.close();
     openFile(path);
+}
+
+void MainWindow::showTreeMenu(const QPoint &pos)
+{
+    if (projectDir_.isEmpty())
+        return;
+    QModelIndex index = tree_->indexAt(pos);
+    tree_->setCurrentIndex(index);
+    QString path = index.isValid() ? fsModel_->filePath(index) : projectDir_;
+    bool isDir = !index.isValid() || fsModel_->isDir(index);
+    QString dir = isDir ? path : QFileInfo(path).absolutePath();
+
+    QMenu menu(this);
+    if (index.isValid() && !isDir)
+        menu.addAction("Открыть", this, [this, path] { openFile(path); });
+    menu.addAction("Новый файл…", this, [this, dir] { createEntry(dir, false); });
+    menu.addAction("Новая папка…", this, [this, dir] { createEntry(dir, true); });
+    if (index.isValid())
+    {
+        menu.addSeparator();
+        QAction *rename = menu.addAction("Переименовать", this, [this, index] { renameEntry(index); });
+        rename->setShortcut(QKeySequence(Qt::Key_F2));
+        QAction *del = menu.addAction("Удалить", this, [this, index] { deleteEntry(index); });
+        del->setShortcut(QKeySequence::Delete);
+    }
+    menu.addSeparator();
+    menu.addAction("Копировать путь", this, [path] { QApplication::clipboard()->setText(path); });
+    menu.addAction("Копировать относительный путь", this, [this, path] {
+        QApplication::clipboard()->setText(QDir(projectDir_).relativeFilePath(path));
+    });
+    menu.addAction("Показать в файловом менеджере", this,
+                   [dir] { QDesktopServices::openUrl(QUrl::fromLocalFile(dir)); });
+    menu.exec(tree_->viewport()->mapToGlobal(pos));
+}
+
+void MainWindow::renameEntry(const QModelIndex &index)
+{
+    if (index.isValid())
+        tree_->edit(index); // inline editing; the model reports the result through fileRenamed
+}
+
+void MainWindow::onEntryRenamed(const QString &dir, const QString &oldName, const QString &newName)
+{
+    QString oldPath = QDir(dir).filePath(oldName);
+    QString newPath = QDir(dir).filePath(newName);
+    for (int i = 0; i < tabs_->count(); ++i)
+    {
+        CodeEditor *e = editorAt(i);
+        QString p = e->filePath();
+        if (p == oldPath || p.startsWith(oldPath + "/"))
+        {
+            e->setFilePath(newPath + p.mid(oldPath.size()));
+            refreshTabTitle(e);
+            tabs_->setTabToolTip(i, e->filePath());
+        }
+    }
+}
+
+void MainWindow::deleteEntry(const QModelIndex &index)
+{
+    if (!index.isValid())
+        return;
+    QString path = fsModel_->filePath(index);
+    bool isDir = fsModel_->isDir(index);
+    auto answer = QMessageBox::question(
+        this, "Удалить", QString("Удалить %1 «%2»?\nОн будет перемещён в корзину.")
+                             .arg(isDir ? "папку" : "файл", QFileInfo(path).fileName()),
+        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+    if (answer != QMessageBox::Yes)
+        return;
+
+    // Tabs of the deleted files are closed without asking: the files are gone.
+    for (int i = tabs_->count() - 1; i >= 0; --i)
+    {
+        QString p = editorAt(i)->filePath();
+        if (p == path || p.startsWith(path + "/"))
+            delete tabs_->widget(i);
+    }
+    bool ok = QFile::moveToTrash(path);
+    if (!ok)
+        ok = isDir ? QDir(path).removeRecursively() : QFile::remove(path);
+    if (!ok)
+        QMessageBox::warning(this, "Удалить", "Не удалось удалить " + path);
+    updateActions();
 }
 
 CodeEditor *MainWindow::openFile(const QString &path)

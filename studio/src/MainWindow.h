@@ -2,6 +2,7 @@
 #include <QMainWindow>
 
 class CodeEditor;
+class CompilerPanel;
 class OutputPanel;
 class QAction;
 class QFileSystemModel;
@@ -37,6 +38,12 @@ private:
     void openProjectDialog();
     void openFileDialog();
     void newFile();
+    void createEntry(const QString &dir, bool folder);
+    void showTreeMenu(const QPoint &pos);
+    void renameEntry(const QModelIndex &index);
+    void deleteEntry(const QModelIndex &index);
+    void onEntryRenamed(const QString &dir, const QString &oldName, const QString &newName);
+    QString selectedDir() const;
     bool saveEditor(CodeEditor *editor);
     bool saveAll();
     bool closeTab(int index);
@@ -63,6 +70,7 @@ private:
     QTreeView *tree_;
     QFileSystemModel *fsModel_;
     OutputPanel *output_;
+    CompilerPanel *compilerPanel_;
     QLabel *cursorInfo_;
     QLabel *compilerInfo_;
     QMenu *recentMenu_;

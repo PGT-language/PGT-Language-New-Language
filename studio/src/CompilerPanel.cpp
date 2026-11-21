@@ -64,7 +64,12 @@ CompilerPanel::CompilerPanel(QWidget *parent)
     status_ = new QLabel;
     status_->setWordWrap(true);
     status_->setContentsMargins(8, 4, 8, 4);
-    status_->setCursor(Qt::PointingHandCursor);
+    status_->setTextFormat(Qt::RichText);
+    connect(status_, &QLabel::linkActivated, this, [this](const QString &link) {
+        QStringList pos = link.split(':');
+        if (editor_ && pos.size() == 2)
+            editor_->goToLine(pos[0].toInt(), pos[1].toInt());
+    });
 
     tokens_ = makeTree({"Текст", "Вид", "Позиция"});
     tokens_->setRootIsDecorated(false);
@@ -153,8 +158,7 @@ void CompilerPanel::showMessage(const QString &text, bool isError)
     QPalette p = status_->palette();
     p.setColor(QPalette::WindowText, isError ? Theme::error : Theme::textDim);
     status_->setPalette(p);
-    status_->setText(text);
-    status_->setProperty("line", 0);
+    status_->setText(text.toHtmlEscaped());
 }
 
 void CompilerPanel::showResult(const QByteArray &json)
@@ -205,9 +209,10 @@ void CompilerPanel::showResult(const QByteArray &json)
     {
         QJsonObject e = file["error"].toObject();
         int line = e["line"].toInt(), col = e["col"].toInt();
-        showMessage(QString("✖ %1:%2: %3").arg(line).arg(col).arg(e["message"].toString()), true);
-        status_->setProperty("line", line);
-        status_->setProperty("col", col);
+        status_->setText(QString("<a href='%1:%2' style='color:%3; text-decoration:none'>✖ %1:%2: %4</a>")
+                             .arg(line)
+                             .arg(col)
+                             .arg(Theme::hex(Theme::error), e["message"].toString().toHtmlEscaped()));
     }
     else
     {

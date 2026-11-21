@@ -15,6 +15,7 @@ public:
     bool save(QString *error);
 
     QString filePath() const { return path_; }
+    void setFilePath(const QString &path) { path_ = path; }
     QString displayName() const;
     void applySettings();
     void goToLine(int line, int column = 1);
