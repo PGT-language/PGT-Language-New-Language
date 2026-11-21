@@ -25,7 +25,10 @@ static void printUsage(std::ostream& os) {
           "  pgt build [dir|file.pgt] [-o <out>]   compile a package (default: .)\n"
           "  pgt run [dir|file.pgt] [-- args...]   build, run and delete the program\n"
           "  pgt <dir|file.pgt>                    same as pgt build\n"
-          "  pgt build [dir|file.pgt] --emit-ir    write LLVM IR (.ll) instead\n";
+          "  pgt build [dir|file.pgt] --emit-ir    write LLVM IR (.ll) instead\n"
+          "  pgt build [dir|file.pgt|-] --debug    print the tokens and the syntax tree of every file,\n"
+          "                                        then build (--debug=json: print JSON and stop;\n"
+          "                                        '-' reads one file from stdin)\n";
 }
 
 static int runBuild(int argc, char** argv, int first, bool run = false) {
@@ -49,6 +52,12 @@ static int runBuild(int argc, char** argv, int first, bool run = false) {
             opts.output = argv[i];
         } else if (a == "--emit-ir") {
             opts.emitIr = true;
+        } else if (a == "--debug" || a == "--debug=text") {
+            opts.debug = pgt::DebugMode::Text;
+        } else if (a == "--debug=json") {
+            opts.debug = pgt::DebugMode::Json;
+        } else if (a == "-" && opts.input.empty()) {
+            opts.input = "-";
         } else if (!a.empty() && a[0] == '-') {
             std::cerr << "pgt: error: unknown option '" << a << "'\n";
             return 1;

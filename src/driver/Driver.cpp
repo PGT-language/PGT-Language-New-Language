@@ -4,6 +4,7 @@
 #include "codegen/ObjectEmitter.h"
 #include "common/Error.h"
 #include "common/Paths.h"
+#include "debug/Dump.h"
 #include "loader/Loader.h"
 
 #include <llvm/Support/raw_ostream.h>
@@ -11,6 +12,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <iostream>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -39,10 +42,57 @@ namespace pgt
 
     }
 
+    namespace
+    {
+
+        // The files `--debug` shows: the given file, every .pgt file of the given directory, or stdin.
+        std::vector<DebugSource> debugSources(const std::string &input)
+        {
+            std::vector<DebugSource> out;
+            auto read = [&](const std::string &path, std::istream &in) {
+                std::ostringstream ss;
+                ss << in.rdbuf();
+                out.push_back({path, ss.str()});
+            };
+            if (input == "-")
+            {
+                read("<stdin>", std::cin);
+                return out;
+            }
+            std::vector<std::string> files =
+                fs::is_directory(input) ? listSources(input) : std::vector<std::string>{input};
+            for (const std::string &f : files)
+            {
+                std::ifstream in(f, std::ios::binary);
+                if (!in)
+                    throw CompileError("cannot read the file", 0, 0);
+                read(f, in);
+            }
+            return out;
+        }
+
+    }
+
     int build(const BuildOptions &opts)
     {
         try
         {
+            if (opts.debug != DebugMode::Off)
+            {
+                bool json = opts.debug == DebugMode::Json;
+                if (opts.input != "-" && !fs::exists(opts.input))
+                {
+                    std::cerr << opts.input << ": error: no such file or directory\n";
+                    return 1;
+                }
+                bool ok = dumpSources(debugSources(opts.input), json, std::cout);
+                std::cout.flush();
+                if (json || opts.input == "-")
+                    return ok ? 0 : 1;
+                if (!ok)
+                    return 1;
+            }
+
             Loader loader;
             Workspace workspace = loader.load(opts.input);
 

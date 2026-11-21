@@ -33,6 +33,7 @@ add_executable(pgt
     src/codegen/CodeGenBuiltins.cpp
     src/codegen/ObjectEmitter.cpp
     src/driver/Driver.cpp
+    src/debug/Dump.cpp
 )
 target_include_directories(pgt PRIVATE src)
 target_compile_definitions(pgt PRIVATE
