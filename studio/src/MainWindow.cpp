@@ -474,11 +474,16 @@ void MainWindow::deleteEntry(const QModelIndex &index)
         if (p == path || p.startsWith(path + "/"))
             delete tabs_->widget(i);
     }
-    bool ok = QFile::moveToTrash(path);
-    if (!ok)
-        ok = isDir ? QDir(path).removeRecursively() : QFile::remove(path);
-    if (!ok)
-        QMessageBox::warning(this, "Удалить", "Не удалось удалить " + path);
+    if (!QFile::moveToTrash(path))
+    {
+        // Never delete for good without a second, explicit confirmation.
+        auto forever = QMessageBox::warning(this, "Удалить",
+                                            "Не удалось переместить в корзину.\nУдалить «" +
+                                                QFileInfo(path).fileName() + "» навсегда?",
+                                            QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+        if (forever == QMessageBox::Yes && !(isDir ? QDir(path).removeRecursively() : QFile::remove(path)))
+            QMessageBox::warning(this, "Удалить", "Не удалось удалить " + path);
+    }
     updateActions();
 }
 

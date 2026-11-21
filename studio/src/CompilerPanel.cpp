@@ -264,7 +264,8 @@ void CompilerPanel::syncWithCursor()
         return;
     QTextCursor c = editor_->textCursor();
     int line = c.blockNumber() + 1, col = c.positionInBlock() + 1;
-    // The last token that starts at or before the cursor on the same line.
+    // The last token that starts at or before the cursor on the same line,
+    // or the first token of the line when the cursor is in its indentation.
     QTreeWidgetItem *best = nullptr;
     for (int i = 0; i < tokens_->topLevelItemCount(); ++i)
     {
@@ -272,7 +273,7 @@ void CompilerPanel::syncWithCursor()
         int l = it->data(0, LineRole).toInt();
         if (l > line)
             break;
-        if (l == line && it->data(0, ColRole).toInt() <= col)
+        if (l == line && (!best || it->data(0, ColRole).toInt() <= col))
             best = it;
     }
     if (best)
