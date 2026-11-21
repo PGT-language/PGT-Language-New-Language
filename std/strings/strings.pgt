@@ -1,0 +1,334 @@
+package strings
+
+// Работа со строками. Строки неизменяемы: каждая функция возвращает новую строку.
+
+extern fn pgt_join(parts []string, sep string) string
+extern fn pgt_replace(s string, old string, with string, limit int) string
+extern fn pgt_repeat(s string, n int) string
+extern fn pgt_index_from(s string, sub string, from int) int
+extern fn pgt_last_index_of(s string, sub string) int
+
+// ---- поиск
+
+fn Contains(s string, sub string) bool {
+    return contains(s, sub)
+}
+
+fn ContainsChar(s string, c char) bool {
+    return IndexChar(s, c) >= 0
+}
+
+fn HasPrefix(s string, prefix string) bool {
+    return startsWith(s, prefix)
+}
+
+fn HasSuffix(s string, suffix string) bool {
+    return endsWith(s, suffix)
+}
+
+fn Index(s string, sub string) int {
+    return indexOf(s, sub)
+}
+
+// Index ищет sub, начиная с позиции from.
+fn IndexFrom(s string, sub string, from int) int {
+    return pgt_index_from(s, sub, from)
+}
+
+fn LastIndex(s string, sub string) int {
+    return pgt_last_index_of(s, sub)
+}
+
+fn IndexChar(s string, c char) int {
+    for i, ch in s {
+        if ch == c {
+            return i
+        }
+    }
+    return -1
+}
+
+// Count возвращает число непересекающихся вхождений sub в s.
+fn Count(s string, sub string) int {
+    if len(sub) == 0 {
+        return len(s) + 1
+    }
+    var* n = 0
+    var* at = pgt_index_from(s, sub, 0)
+    while at >= 0 {
+        n++
+        at = pgt_index_from(s, sub, at + len(sub))
+    }
+    return n
+}
+
+// ---- преобразование
+
+fn Upper(s string) string {
+    return upper(s)
+}
+
+fn Lower(s string) string {
+    return lower(s)
+}
+
+// Title делает заглавной первую букву каждого слова.
+fn Title(s string) string {
+    var* out = chars(s)
+    var* start = true
+    for i, ch in s {
+        if IsSpace(ch) {
+            start = true
+        } else {
+            if start && IsLower(ch) {
+                out[i] = ch - 32
+            }
+            start = false
+        }
+    }
+    return string(out)
+}
+
+fn Repeat(s string, n int) string {
+    return pgt_repeat(s, n)
+}
+
+fn Replace(s string, old string, with string) string {
+    return pgt_replace(s, old, with, -1)
+}
+
+// ReplaceN заменяет не больше n первых вхождений.
+fn ReplaceN(s string, old string, with string, n int) string {
+    return pgt_replace(s, old, with, n)
+}
+
+fn Reverse(s string) string {
+    var* out = chars(s)
+    var* n = len(out)
+    for i in 0..n / 2 {
+        var* t = out[i]
+        out[i] = out[n - 1 - i]
+        out[n - 1 - i] = t
+    }
+    return string(out)
+}
+
+// EqualFold сравнивает строки без учёта регистра.
+fn EqualFold(a string, b string) bool {
+    return lower(a) == lower(b)
+}
+
+// ---- обрезка
+
+fn TrimSpace(s string) string {
+    var* from = 0
+    var* to = len(s)
+    while from < to && IsSpace(s[from]) {
+        from++
+    }
+    while to > from && IsSpace(s[to - 1]) {
+        to--
+    }
+    return substr(s, from, to - from)
+}
+
+fn TrimLeft(s string) string {
+    var* from = 0
+    while from < len(s) && IsSpace(s[from]) {
+        from++
+    }
+    return substr(s, from, len(s) - from)
+}
+
+fn TrimRight(s string) string {
+    var* to = len(s)
+    while to > 0 && IsSpace(s[to - 1]) {
+        to--
+    }
+    return substr(s, 0, to)
+}
+
+// Trim убирает с обоих концов все символы, входящие в cutset.
+fn Trim(s string, cutset string) string {
+    var* from = 0
+    var* to = len(s)
+    while from < to && ContainsChar(cutset, s[from]) {
+        from++
+    }
+    while to > from && ContainsChar(cutset, s[to - 1]) {
+        to--
+    }
+    return substr(s, from, to - from)
+}
+
+fn TrimPrefix(s string, prefix string) string {
+    if startsWith(s, prefix) {
+        return substr(s, len(prefix), len(s) - len(prefix))
+    }
+    return s
+}
+
+fn TrimSuffix(s string, suffix string) string {
+    if endsWith(s, suffix) {
+        return substr(s, 0, len(s) - len(suffix))
+    }
+    return s
+}
+
+// ---- выравнивание
+
+fn PadLeft(s string, width int, fill char) string {
+    var* n = width - len(s)
+    if n <= 0 {
+        return s
+    }
+    return pgt_repeat(str(fill), n) + s
+}
+
+fn PadRight(s string, width int, fill char) string {
+    var* n = width - len(s)
+    if n <= 0 {
+        return s
+    }
+    return s + pgt_repeat(str(fill), n)
+}
+
+fn Center(s string, width int, fill char) string {
+    var* n = width - len(s)
+    if n <= 0 {
+        return s
+    }
+    var* left = n / 2
+    return pgt_repeat(str(fill), left) + s + pgt_repeat(str(fill), n - left)
+}
+
+// ---- разбиение и склейка
+
+// Split делит s по разделителю sep. Пустой sep делит строку на отдельные символы.
+fn Split(s string, sep string) []string {
+    var* out + {[]string} = []
+    if len(sep) == 0 {
+        for ch in s {
+            out = append(out, str(ch))
+        }
+        return out
+    }
+    var* start = 0
+    var* at = pgt_index_from(s, sep, 0)
+    while at >= 0 {
+        out = append(out, substr(s, start, at - start))
+        start = at + len(sep)
+        at = pgt_index_from(s, sep, start)
+    }
+    return append(out, substr(s, start, len(s) - start))
+}
+
+// Fields делит строку по пробельным символам, пропуская пустые части.
+fn Fields(s string) []string {
+    var* out + {[]string} = []
+    var* start = -1
+    for i, ch in s {
+        if IsSpace(ch) {
+            if start >= 0 {
+                out = append(out, substr(s, start, i - start))
+                start = -1
+            }
+        } else if start < 0 {
+            start = i
+        }
+    }
+    if start >= 0 {
+        out = append(out, substr(s, start, len(s) - start))
+    }
+    return out
+}
+
+fn Lines(s string) []string {
+    var* lines = Split(Replace(s, "\r\n", "\n"), "\n")
+    if len(lines) > 0 && lines[len(lines) - 1] == "" {
+        var* trimmed + {[]string} = []
+        for i in 0..len(lines) - 1 {
+            trimmed = append(trimmed, lines[i])
+        }
+        return trimmed
+    }
+    return lines
+}
+
+fn Join(parts []string, sep string) string {
+    return pgt_join(parts, sep)
+}
+
+// ---- символы
+
+fn IsDigit(c char) bool {
+    return c >= '0' && c <= '9'
+}
+
+fn IsLetter(c char) bool {
+    return IsUpper(c) || IsLower(c)
+}
+
+fn IsUpper(c char) bool {
+    return c >= 'A' && c <= 'Z'
+}
+
+fn IsLower(c char) bool {
+    return c >= 'a' && c <= 'z'
+}
+
+fn IsAlnum(c char) bool {
+    return IsLetter(c) || IsDigit(c)
+}
+
+fn IsSpace(c char) bool {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r'
+}
+
+fn ToUpper(c char) char {
+    if IsLower(c) {
+        return c - 32
+    }
+    return c
+}
+
+fn ToLower(c char) char {
+    if IsUpper(c) {
+        return c + 32
+    }
+    return c
+}
+
+// ---- Builder собирает строку по частям без лишнего копирования.
+
+struct Builder {
+    parts []string
+    size int
+}
+
+fn (b *Builder) Write(s string) {
+    b.parts = append(b.parts, s)
+    b.size += len(s)
+}
+
+fn (b *Builder) WriteChar(c char) {
+    b.Write(str(c))
+}
+
+fn (b *Builder) WriteLine(s string) {
+    b.Write(s)
+    b.Write("\n")
+}
+
+fn (b *Builder) Len() int {
+    return b.size
+}
+
+fn (b *Builder) Reset() {
+    b.parts = nil
+    b.size = 0
+}
+
+fn (b *Builder) String() string {
+    return pgt_join(b.parts, "")
+}

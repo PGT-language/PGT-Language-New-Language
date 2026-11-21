@@ -1,0 +1,191 @@
+package math
+
+// Математика. Базовые abs, min, max, sqrt, pow, floor, ceil, round, sin, cos, tan,
+// log, exp встроены в язык; здесь всё остальное.
+
+const (
+    Pi = 3.141592653589793
+    E = 2.718281828459045
+    Sqrt2 = 1.4142135623730951
+    Ln2 = 0.6931471805599453
+    Ln10 = 2.302585092994046
+    MaxInt = 2147483647
+    MinInt = -2147483647 - 1
+    MaxInt64 int64 = 9223372036854775807
+    MinInt64 int64 = -9223372036854775807 - 1
+)
+
+extern fn cbrt(x float) float
+extern fn hypot(x float, y float) float
+extern fn asin(x float) float
+extern fn acos(x float) float
+extern fn atan(x float) float
+extern fn atan2(y float, x float) float
+extern fn sinh(x float) float
+extern fn cosh(x float) float
+extern fn tanh(x float) float
+extern fn log2(x float) float
+extern fn log10(x float) float
+extern fn fmod(x float, y float) float
+
+// ---- вещественные функции
+
+fn Sqrt(x float) float { return sqrt(x) }
+fn Cbrt(x float) float { return cbrt(x) }
+fn Pow(x float, y float) float { return pow(x, y) }
+fn Exp(x float) float { return exp(x) }
+fn Log(x float) float { return log(x) }
+fn Log2(x float) float { return log2(x) }
+fn Log10(x float) float { return log10(x) }
+fn Hypot(x float, y float) float { return hypot(x, y) }
+
+fn Sin(x float) float { return sin(x) }
+fn Cos(x float) float { return cos(x) }
+fn Tan(x float) float { return tan(x) }
+fn Asin(x float) float { return asin(x) }
+fn Acos(x float) float { return acos(x) }
+fn Atan(x float) float { return atan(x) }
+fn Atan2(y float, x float) float { return atan2(y, x) }
+fn Sinh(x float) float { return sinh(x) }
+fn Cosh(x float) float { return cosh(x) }
+fn Tanh(x float) float { return tanh(x) }
+
+fn Floor(x float) float { return floor(x) }
+fn Ceil(x float) float { return ceil(x) }
+fn Round(x float) float { return round(x) }
+fn Trunc(x float) float { return trunc(x) }
+fn Abs(x float) float { return abs(x) }
+
+// Mod — остаток от деления вещественных чисел (знак как у x).
+fn Mod(x float, y float) float { return fmod(x, y) }
+
+fn Min(a float, b float) float { return min(a, b) }
+fn Max(a float, b float) float { return max(a, b) }
+
+fn Clamp(x float, lo float, hi float) float {
+    return max(lo, min(x, hi))
+}
+
+fn Lerp(a float, b float, t float) float {
+    return a + (b - a) * t
+}
+
+fn Radians(deg float) float { return deg * Pi / 180 }
+fn Degrees(rad float) float { return rad * 180 / Pi }
+
+fn Inf() float { return 1.0 / 0.0 }
+fn NaN() float { return 0.0 / 0.0 }
+
+fn IsNaN(x float) bool { return x != x }
+
+fn IsInf(x float) bool {
+    return !IsNaN(x) && IsNaN(x - x)
+}
+
+// Sign возвращает -1, 0 или 1.
+fn Sign(x float) int {
+    if x > 0 {
+        return 1
+    }
+    if x < 0 {
+        return -1
+    }
+    return 0
+}
+
+// ---- целые числа
+
+fn ClampInt(x int, lo int, hi int) int {
+    return max(lo, min(x, hi))
+}
+
+fn SignInt(x int) int {
+    if x > 0 {
+        return 1
+    }
+    if x < 0 {
+        return -1
+    }
+    return 0
+}
+
+// PowInt возводит целое в неотрицательную степень (быстрое возведение).
+fn PowInt(base int64, exp int) int64 {
+    var* result int64 = 1
+    var* b = base
+    var* e = exp
+    while e > 0 {
+        if e & 1 == 1 {
+            result *= b
+        }
+        b *= b
+        e = e >> 1
+    }
+    return result
+}
+
+fn Gcd(a int, b int) int {
+    var* x = abs(a)
+    var* y = abs(b)
+    while y != 0 {
+        var* t = y
+        y = x % y
+        x = t
+    }
+    return x
+}
+
+fn Lcm(a int, b int) int {
+    if a == 0 || b == 0 {
+        return 0
+    }
+    return abs(a / Gcd(a, b) * b)
+}
+
+fn IsPrime(n int) bool {
+    if n < 2 {
+        return false
+    }
+    if n % 2 == 0 {
+        return n == 2
+    }
+    for var* i = 3; i * i <= n; i += 2 {
+        if n % i == 0 {
+            return false
+        }
+    }
+    return true
+}
+
+fn Factorial(n int) int64 {
+    var* r int64 = 1
+    for i in 2..n + 1 {
+        r *= int64(i)
+    }
+    return r
+}
+
+fn Fib(n int) int64 {
+    var* a int64 = 0
+    var* b int64 = 1
+    for i in 0..n {
+        var* t = a + b
+        a = b
+        b = t
+    }
+    return a
+}
+
+fn IsEven(n int) bool { return n % 2 == 0 }
+fn IsOdd(n int) bool { return n % 2 != 0 }
+
+// Digits возвращает сумму цифр числа.
+fn DigitSum(n int) int {
+    var* x = abs(n)
+    var* s = 0
+    while x > 0 {
+        s += x % 10
+        x /= 10
+    }
+    return s
+}
