@@ -1,0 +1,128 @@
+package main
+
+struct Point {
+    X int
+    Y int
+}
+
+fn (p Point) Sum() int { return p.X + p.Y }
+fn (p *Point) Move(d int) { p.X += d }
+fn (p Point) String() string { return "(" + p.X + "," + p.Y + ")" }
+
+interface Any {
+}
+
+interface Stringer {
+    String() string
+}
+
+struct Team {
+    Name string
+    Members []string
+    Lead *Point
+    Tag Any
+}
+
+const Origin = Point{X: 0, Y: 0}
+
+fn makePoint(x int) Point {
+    return Point{X: x, Y: x * 10}
+}
+
+fn escape() *int {
+    var* local = 41
+    var* p = &local
+    *p++
+    return p
+}
+
+fn counterPtrs() []*int {
+    var* out + {[]*int} = []
+    for i in 0..3 {
+        var* v = i * 100
+        out = append(out, &v)
+    }
+    return out
+}
+
+fn show(s Stringer) {
+    println("stringer: ", s.String())
+}
+
+fn fact(n int64) int64 {
+    if n <= 1 { return 1 }
+    return n * fact(n - 1)
+}
+
+fn main() {
+    var* e = escape()
+    println("escaped: ", *e)
+    var* ps = counterPtrs()
+    println("fresh cells: ", *ps[0], " ", *ps[1], " ", *ps[2])
+
+    println("temp value method: ", makePoint(2).Sum(), ", temp field: ", makePoint(3).Y)
+    makePoint(1).Move(5)
+    println("const: ", Origin, " ", Origin.Sum(), " ", Origin.String())
+
+    var* arr = [1, 2, 3]
+    var* second = &arr[1]
+    *second = 20
+    var* alias = arr
+    alias[2] = 30
+    println("shared data: ", arr, " ", alias)
+
+    var* t = Team{Name: "core", Members: ["ann", "bob"], Lead: &Point{X: 1, Y: 2}}
+    t.Members = append(t.Members, "cid")
+    t.Lead.Move(10)
+    t.Tag = 7
+    println(t.Name, " ", t.Members, " ", t.Lead, " lead sum=", t.Lead.Sum(), " tag=", t.Tag)
+
+    var* things + {[]Any} = [1, "two", 3.5, 'c', true, Point{X: 1, Y: 1}, nil]
+    println("any: ", things, " ", len(things))
+
+    show(Point{X: 4, Y: 5})
+    var* sp = &Point{X: 6, Y: 7}
+    show(sp)
+
+    var* grid + {[][]int} = []
+    for r in 0..3 {
+        var* row + {[]int} = []
+        for c in 0..3 {
+            row = append(row, r * 3 + c)
+        }
+        grid = append(grid, row)
+    }
+    grid[1][1] = -1
+    println("grid: ", grid, " ", grid[2][0])
+
+    var* pts = [Point{X: 1}, Point{X: 2}]
+    pts[0].Y = 5
+    pts[1].Move(3)
+    println("struct array: ", pts)
+
+    var* letter = 'b'
+    switch letter {
+        case 'a' { println("a") }
+        case 'b', 'c' { println("b or c") }
+    }
+
+    var* q = Point{}
+    input("", q.X)
+    input("", arr[0])
+    var* flag = false
+    input("", flag)
+    var* word = ""
+    input("", word)
+    println("read: ", q, " ", arr, " ", flag, " ", word)
+
+    println("int64 math: ", fact(20), " ", int64(1) << 40, " ", 7 % -3, " ", -7 / 2)
+    var* s = "x"
+    s += "y" + 1
+    println("string +=: ", s, " ", "a" + 'b' + "c", " cmp: ", "apple" < "banana", " ", "b" >= "a")
+    var* multi = 1 +
+        2 +
+        3
+    println("multiline expr: ", multi)
+}
+
+return 0
