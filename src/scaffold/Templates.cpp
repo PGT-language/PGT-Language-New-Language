@@ -62,6 +62,42 @@ return 0
 )PGT"},
           }},
 
+        {"stdlib",
+         "word statistics with structs, arrays and the standard library",
+         {{"main.pgt", R"PGT(package main
+
+#use (
+    "strings"
+    "arrays"
+    "io"
+)
+
+struct Stats {
+    Lines int
+    Words []string
+}
+
+fn (s *Stats) Add(line string) {
+    s.Lines++
+    for w in strings.Fields(strings.Lower(line)) {
+        s.Words = append(s.Words, strings.Trim(w, ".,!?;:"))
+    }
+}
+
+fn main() {
+    println("Type some text, finish with Ctrl+D:")
+    var* stats Stats
+    for line in io.ReadLines() {
+        stats.Add(line)
+    }
+    arrays.SortStrings(stats.Words)
+    println("lines: ", stats.Lines, ", words: ", len(stats.Words))
+    println("sorted: ", strings.Join(stats.Words, " "))
+}
+
+return 0
+)PGT"}}},
+
         {"packages",
          "a module with its own package imported through #use",
          {{"main.pgt", R"PGT(package main

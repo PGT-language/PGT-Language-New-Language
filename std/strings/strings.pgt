@@ -30,7 +30,7 @@ fn Index(s string, sub string) int {
     return indexOf(s, sub)
 }
 
-// Index ищет sub, начиная с позиции from.
+// IndexFrom ищет sub, начиная с позиции from.
 fn IndexFrom(s string, sub string, from int) int {
     return pgt_index_from(s, sub, from)
 }

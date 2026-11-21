@@ -179,7 +179,7 @@ fn Fib(n int) int64 {
 fn IsEven(n int) bool { return n % 2 == 0 }
 fn IsOdd(n int) bool { return n % 2 != 0 }
 
-// Digits возвращает сумму цифр числа.
+// DigitSum возвращает сумму цифр числа.
 fn DigitSum(n int) int {
     var* x = abs(n)
     var* s = 0
