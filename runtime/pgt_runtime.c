@@ -620,9 +620,9 @@ void pgt_sleep_ms(int32_t ms)
     }
 }
 
-const char *pgt_format_time(int64_t unix, const char *layout)
+const char *pgt_format_time(int64_t seconds, const char *layout)
 {
-    time_t t = (time_t)unix;
+    time_t t = (time_t)seconds;
     struct tm tm;
     localtime_r(&t, &tm);
     char buf[512];

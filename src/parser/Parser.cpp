@@ -683,6 +683,8 @@ namespace pgt
         while (true)
         {
             const BinOp *found = nullptr;
+            if (atLineStart())
+                return lhs;
             for (const auto &[tok, op] : levels[level].ops)
                 if (check(tok))
                     found = &op;
@@ -740,7 +742,7 @@ namespace pgt
                 sel->base = std::move(e);
                 e = std::move(sel);
             }
-            else if (check(Tok::LBracket))
+            else if (check(Tok::LBracket) && !atLineStart())
             {
                 auto idx = make<Index>(cur());
                 advance();
@@ -750,7 +752,7 @@ namespace pgt
                 idx->base = std::move(e);
                 e = std::move(idx);
             }
-            else if (check(Tok::LParen))
+            else if (check(Tok::LParen) && !atLineStart())
             {
                 auto call = make<Call>(cur());
                 call->line = e->line;

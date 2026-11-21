@@ -340,11 +340,11 @@ namespace pgt
 
     void CodeGen::genPrint(const Call &call, bool newline)
     {
+        std::vector<Value> values;
         for (const ExprPtr &a : call.args)
-        {
-            Value v = genExpr(*a);
+            values.push_back(genExpr(*a));
+        for (const Value &v : values)
             printValue(v, true);
-        }
         if (newline)
             rt("pgt_print_char", builder_.getVoidTy(), {builder_.getInt8('\n')});
     }

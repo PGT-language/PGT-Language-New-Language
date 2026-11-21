@@ -33,6 +33,11 @@ namespace pgt
             return true;
         }
         const Token &advance();
+        // True when the current token starts a new line: it cannot continue the expression.
+        bool atLineStart() const
+        {
+            return pos_ > 0 && toks_[pos_ - 1].line < cur().line;
+        }
         const Token &expect(Tok k, const char *context);
         [[noreturn]] void errorHere(const std::string &msg) const;
 

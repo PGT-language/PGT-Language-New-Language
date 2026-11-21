@@ -1,0 +1,190 @@
+package main
+
+const PI = 3.14
+const (
+    Answer = 42
+    Name = "PGT"
+)
+var* counter = 0
+var* squares = makeSquares(5)
+
+struct Point {
+    X int
+    Y int
+}
+
+fn (p Point) Sum() int {
+    return p.X + p.Y
+}
+
+fn (p *Point) Move(dx int) {
+    p.X += dx
+}
+
+interface Shape {
+    Area() float
+    Name() string
+}
+
+struct Rect {
+    W, H float
+}
+
+struct Circle {
+    R float
+}
+
+fn (r Rect) Area() float { return r.W * r.H }
+fn (r Rect) Name() string { return "rect" }
+fn (c *Circle) Area() float { return PI * c.R * c.R }
+fn (c *Circle) Name() string { return "circle" }
+
+fn describe(s Shape) {
+    println(s.Name(), " area=", s.Area())
+}
+
+fn makeSquares(n int) []int {
+    var* out + {[]int} = []
+    for i in 0..n {
+        out = append(out, i * i)
+    }
+    return out
+}
+
+struct Node {
+    Val int
+    Next *Node
+}
+
+fn push(head *Node, v int) *Node {
+    return &Node{Val: v, Next: head}
+}
+
+fn bump() {
+    counter++
+}
+
+fn main() {
+    println("consts: ", PI, " ", Answer, " ", Name)
+    bump()
+    bump()
+    println("global counter = ", counter, ", squares = ", squares)
+
+    var* a = 1
+    var* b int64 = 3000000000
+    var* c = 'x'
+    var* d + {float} = 2
+    var* e int
+    println(a, " ", b, " ", c, " ", d, " ", e)
+
+    println("bits: ", 6 & 3, " ", 6 | 3, " ", 6 ^ 3, " ", 1 << 10, " ", -16 >> 2, " ", ~0, " ", 0xFF, " ", 0b101)
+    println("concat: " + 5 + " " + true + " " + 'c' + " " + 2.5)
+    println("strings: ", "abc" == "abc", " ", "abc" < "abd", " ", len("hello"), " ", "hey"[1])
+
+    var* arr = [1, 2, 3]
+    arr[0] = 10
+    arr = append(arr, 4, 5)
+    arr[1]++
+    println(len(arr), " ", arr)
+    var* grid = make([]int, 3)
+    println("make: ", grid)
+    var* names + {[]string} = []
+    names = append(names, "ann", "bob")
+    println(names, " nil? ", names == nil)
+
+    for x in arr {
+        print(x, ";")
+    }
+    println("")
+    for i, x in names {
+        print(i, "=", x, " ")
+    }
+    println("")
+    for ch in "hi!" {
+        print("[", ch, "]")
+    }
+    println("")
+    for var* i = 0; i < 3; i++ {
+        print(i)
+    }
+    println("")
+
+    switch a {
+        case 1, 2 { println("one or two") }
+        case 3 { println("three") }
+        default { println("other") }
+    }
+    switch Name {
+        case "Go" { println("go") }
+        case "PGT" { println("it's PGT") }
+    }
+    switch {
+        case a > 5 { println("big") }
+        default { println("small") }
+    }
+    for i in 0..10 {
+        switch i {
+            case 2 { continue }
+            case 4 { break }
+        }
+        if i == 5 { break }
+        print(i)
+    }
+    println("")
+
+    var* p = Point{X: 1, Y: 2}
+    p.Move(5)
+    p.Y--
+    println(p, " sum=", p.Sum())
+    var* pp = &p
+    pp.Move(1)
+    pp.X *= 2
+    println(p, " ", pp, " ", pp.Sum())
+
+    var* x = 1
+    var* px = &x
+    *px = 5
+    println("x = ", x, ", *px = ", *px)
+    var* q = &Point{X: 1}
+    var* h = new(Point)
+    h.Y = 9
+    println(q, " ", h, " ", *h)
+    free(h)
+    var* none *Point = nil
+    println("nil ptr: ", none, " ", none == nil, " ", q != nil)
+
+    describe(Rect{W: 2, H: 3})
+    describe(&Circle{R: 1})
+    var* shapes + {[]Shape} = []
+    shapes = append(shapes, Rect{W: 1, H: 1}, &Circle{R: 2})
+    var* total = 0.0
+    for s in shapes {
+        total += s.Area()
+    }
+    println("shapes: ", shapes, " total=", total)
+    var* empty Shape
+    println("nil iface: ", empty, " ", empty == nil)
+
+    var* list *Node = nil
+    for i in 1..4 {
+        list = push(list, i)
+    }
+    var* sum = 0
+    for var* n = list; n != nil; n = n.Next {
+        sum += n.Val
+    }
+    print("list:")
+    var* cur = list
+    while cur != nil {
+        print(" ", cur.Val)
+        cur = cur.Next
+    }
+    println(" sum=", sum)
+
+    println("conv: ", int(3.9), " ", float(7) / 2, " ", string(42), " ", str(1.5), " ", char(65), " ", string(chars("abc")))
+    println("builtins: ", substr("hello world", 6, 5), " ", contains("abc", "b"), " ", indexOf("abc", "c"), " ", upper("abc"), " ", lower("ABC"))
+    println("math: ", abs(-3), " ", min(2, 7), " ", max(2.5, 1.0), " ", sqrt(16), " ", pow(2, 10), " ", floor(2.7), " ", ceil(2.1))
+    println("parse: ", parseInt("123") + 1, " ", parseFloat("2.5") * 2, " ", startsWith("hello", "he"), " ", endsWith("hello", "lo"))
+}
+
+return 0
