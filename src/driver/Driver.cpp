@@ -3,6 +3,7 @@
 #include "codegen/CodeGen.h"
 #include "codegen/ObjectEmitter.h"
 #include "common/Error.h"
+#include "common/Paths.h"
 #include "loader/Loader.h"
 
 #include <llvm/Support/raw_ostream.h>
@@ -11,6 +12,8 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <sys/wait.h>
+#include <unistd.h>
 
 namespace pgt
 {
@@ -45,9 +48,20 @@ namespace pgt
 
             std::string name = outputName(opts.input);
             bool isMain = workspace.root->name == "main";
+            if (opts.run && !isMain)
+            {
+                std::cerr << "pgt: error: 'pgt run' needs package main\n";
+                return 1;
+            }
 
             std::string output = opts.output;
-            if (output.empty())
+            if (opts.run)
+            {
+                output = (fs::temp_directory_path() /
+                          ("pgt-run-" + std::to_string(getpid()) + "-" + name))
+                             .string();
+            }
+            else if (output.empty())
             {
                 std::string file = opts.emitIr ? name + ".ll" : (isMain ? name : name + ".o");
                 fs::path base = fs::is_directory(opts.input) ? fs::path(opts.input)
@@ -78,10 +92,18 @@ namespace pgt
                 return 0;
             }
 
+            auto runtime = findRuntimeLib();
+            if (!runtime)
+            {
+                std::cerr << "pgt: error: cannot find the runtime library libpgtrt.a (set PGT_RUNTIME)\n";
+                return 1;
+            }
+
             std::string objPath = output + ".o";
             emitObjectFile(codegen.module(), objPath);
 
-            std::string cmd = "cc " + shellQuote(objPath) + " -o " + shellQuote(output);
+            std::string cmd = "cc " + shellQuote(objPath) + " " + shellQuote(runtime->string()) +
+                              " -lm -o " + shellQuote(output);
             int rc = std::system(cmd.c_str());
             std::remove(objPath.c_str());
             if (rc != 0)
@@ -89,7 +111,19 @@ namespace pgt
                 std::cerr << "pgt: error: linking failed\n";
                 return 1;
             }
-            return 0;
+            if (!opts.run)
+                return 0;
+
+            std::string runCmd = shellQuote(output);
+            for (const std::string &a : opts.runArgs)
+                runCmd += " " + shellQuote(a);
+            int status = std::system(runCmd.c_str());
+            std::remove(output.c_str());
+            if (status == -1)
+                return 1;
+            if (WIFEXITED(status))
+                return WEXITSTATUS(status);
+            return 128 + (WIFSIGNALED(status) ? WTERMSIG(status) : 0);
         }
         catch (const CompileError &e)
         {

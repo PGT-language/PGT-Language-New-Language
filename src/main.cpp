@@ -23,14 +23,24 @@ static void printUsage(std::ostream& os) {
           "  pgt new <name> [-t <template>]        create a project (default template: hello)\n"
           "  pgt new --list                        list project templates\n"
           "  pgt build [dir|file.pgt] [-o <out>]   compile a package (default: .)\n"
+          "  pgt run [dir|file.pgt] [-- args...]   build, run and delete the program\n"
           "  pgt <dir|file.pgt>                    same as pgt build\n"
           "  pgt build [dir|file.pgt] --emit-ir    write LLVM IR (.ll) instead\n";
 }
 
-static int runBuild(int argc, char** argv, int first) {
+static int runBuild(int argc, char** argv, int first, bool run = false) {
     pgt::BuildOptions opts;
+    opts.run = run;
     for (int i = first; i < argc; ++i) {
         std::string_view a = argv[i];
+        if (run && a == "--") {
+            for (++i; i < argc; ++i) opts.runArgs.push_back(argv[i]);
+            break;
+        }
+        if (run && (a == "-o" || a == "--emit-ir")) {
+            std::cerr << "pgt: error: '" << a << "' cannot be used with 'pgt run'\n";
+            return 1;
+        }
         if (a == "-o") {
             if (++i >= argc) {
                 std::cerr << "pgt: error: '-o' needs an argument\n";
@@ -113,6 +123,7 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (cmd == "build") return runBuild(argc, argv, 2);
+    if (cmd == "run") return runBuild(argc, argv, 2, true);
     if (cmd == "new") return runNew(argc, argv);
 
     if (cmd[0] != '-' && std::filesystem::exists(cmd)) return runBuild(argc, argv, 1);

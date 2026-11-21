@@ -1,6 +1,7 @@
 #include "loader/Loader.h"
 
 #include "common/Error.h"
+#include "common/Paths.h"
 #include "lexer/Lexer.h"
 #include "parser/Parser.h"
 
@@ -85,7 +86,8 @@ namespace pgt
         if (auto modPath = findModFile(dir))
             mod_ = parseModFile(*modPath);
 
-        ws_.root = loadPackage(dir, std::move(files), true);
+        stdDir_ = findStdDir();
+        ws_.root = loadPackage(dir, std::move(files), true, "");
         return std::move(ws_);
     }
 
@@ -102,22 +104,35 @@ namespace pgt
 
     fs::path Loader::resolveImport(const Import &imp, const std::string &file) const
     {
-        if (!mod_)
-            failAt("cannot import \"" + imp.path + "\": no pgt.mod found", file, imp.line, imp.col);
+        if (mod_)
+        {
+            const std::string &name = mod_->name;
+            if (imp.path == name)
+                return mod_->root;
+            if (imp.path.size() > name.size() && imp.path.compare(0, name.size(), name) == 0 &&
+                imp.path[name.size()] == '/')
+                return mod_->root / imp.path.substr(name.size() + 1);
+        }
 
-        const std::string &name = mod_->name;
-        if (imp.path == name)
-            return mod_->root;
-        if (imp.path.size() > name.size() && imp.path.compare(0, name.size(), name) == 0 &&
-            imp.path[name.size()] == '/')
-            return mod_->root / imp.path.substr(name.size() + 1);
+        // Anything else comes from the standard library: #use "strings", #use "math".
+        if (stdDir_ && imp.path.find("..") == std::string::npos)
+        {
+            fs::path dir = *stdDir_ / imp.path;
+            std::error_code ec;
+            if (fs::is_directory(dir, ec))
+                return dir;
+        }
 
-        failAt("cannot find package \"" + imp.path + "\" in module '" + name +
-                   "' (external dependencies are not supported yet)",
+        std::string where = mod_ ? "in module '" + mod_->name + "' or " : "";
+        std::string hint = mod_ ? "" : " (to import your own packages, create a pgt.mod)";
+        failAt("cannot find package \"" + imp.path + "\" " + where + "in the standard library" +
+                   (stdDir_ ? "" : " (the standard library directory was not found; set PGT_STD)") +
+                   hint,
                file, imp.line, imp.col);
     }
 
-    Package *Loader::loadPackage(const fs::path &dir, std::vector<std::string> files, bool isRoot)
+    Package *Loader::loadPackage(const fs::path &dir, std::vector<std::string> files, bool isRoot,
+                                 const std::string &importPath)
     {
         auto pkg = std::make_unique<Package>();
         pkg->dir = dir.string();
@@ -136,7 +151,7 @@ namespace pgt
         if (!isRoot && pkg->name == "main")
             failAt("package 'main' cannot be imported", pkg->programs.front().file, 0, 0);
 
-        pkg->importPath = importPathFor(dir, pkg->name);
+        pkg->importPath = importPath.empty() ? importPathFor(dir, pkg->name) : importPath;
 
         if (std::find(stack_.begin(), stack_.end(), pkg->importPath) != stack_.end())
         {
@@ -162,7 +177,7 @@ namespace pgt
                            imp.col);
                 for (std::string &f : depFiles)
                     f = displayPath(f);
-                loadPackage(depDir, std::move(depFiles), false);
+                loadPackage(depDir, std::move(depFiles), false, imp.path);
             }
         }
 
