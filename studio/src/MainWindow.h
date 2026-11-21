@@ -58,6 +58,7 @@ private:
     QStackedWidget *center_;
     QWidget *welcome_;
     QListWidget *welcomeRecent_;
+    QLabel *welcomeRecentLabel_;
     QTabWidget *tabs_;
     QTreeView *tree_;
     QFileSystemModel *fsModel_;

@@ -171,7 +171,8 @@ void MainWindow::createWelcome()
     layout->addWidget(newBtn, 0, Qt::AlignHCenter);
     layout->addWidget(openBtn, 0, Qt::AlignHCenter);
     layout->addSpacing(16);
-    layout->addWidget(new QLabel("Недавние проекты:"), 0, Qt::AlignHCenter);
+    welcomeRecentLabel_ = new QLabel("Недавние проекты:");
+    layout->addWidget(welcomeRecentLabel_, 0, Qt::AlignHCenter);
     layout->addWidget(welcomeRecent_, 0, Qt::AlignHCenter);
     layout->addStretch();
 }
@@ -191,6 +192,8 @@ void MainWindow::updateRecentMenu()
         welcomeRecent_->addItem(item);
     }
     recentMenu_->setEnabled(!recentMenu_->isEmpty());
+    welcomeRecent_->setVisible(welcomeRecent_->count() > 0);
+    welcomeRecentLabel_->setVisible(welcomeRecent_->count() > 0);
 }
 
 void MainWindow::updateTitle()

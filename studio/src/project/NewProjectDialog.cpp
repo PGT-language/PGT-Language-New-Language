@@ -39,11 +39,16 @@ NewProjectDialog::NewProjectDialog(const QString &compiler, QWidget *parent)
     template_ = new QComboBox;
     preview_ = new QLabel;
     preview_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    preview_->setWordWrap(true);
+    // Long paths must wrap instead of squeezing the labels of the form.
+    preview_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    location_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     error_ = new QLabel;
     error_->setWordWrap(true);
     error_->setStyleSheet("color: #c0392b");
 
     auto *form = new QFormLayout;
+    form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     form->addRow("Имя:", name_);
     form->addRow("Папка:", locationRow);
     form->addRow("Шаблон:", template_);
