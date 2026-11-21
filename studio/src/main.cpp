@@ -1,15 +1,27 @@
 #include "MainWindow.h"
+#include "Theme.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QFileInfo>
+#include <QLibraryInfo>
+#include <QTranslator>
 
 int main(int argc, char **argv)
 {
+    // System file dialogs follow the desktop theme and could be light; ours follow the studio theme.
+    QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+
     QApplication app(argc, argv);
     QApplication::setApplicationName("PGT Studio");
     QApplication::setOrganizationName("pgt");
     QApplication::setApplicationVersion(PGT_STUDIO_VERSION);
+    Theme::apply(app);
+
+    // Russian labels for the standard buttons (Save, Cancel, ...) when the translation is installed.
+    QTranslator qtTranslator;
+    if (qtTranslator.load("qtbase_ru", QLibraryInfo::path(QLibraryInfo::TranslationsPath)))
+        app.installTranslator(&qtTranslator);
 
     QCommandLineParser parser;
     parser.setApplicationDescription("PGT Studio");

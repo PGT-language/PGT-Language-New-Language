@@ -19,6 +19,7 @@ public:
 private:
     void loadTemplates();
     void updatePreview();
+    void showError(const QString &text);
     void create();
 
     QString compiler_;

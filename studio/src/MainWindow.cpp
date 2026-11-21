@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 
 #include "OutputPanel.h"
+#include "Theme.h"
 #include "editor/CodeEditor.h"
 #include "project/NewProjectDialog.h"
 #include "settings/Settings.h"
@@ -14,7 +15,6 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFileSystemModel>
-#include <QHeaderView>
 #include <QInputDialog>
 #include <QLabel>
 #include <QListWidget>
@@ -56,15 +56,17 @@ MainWindow::MainWindow()
     tree_ = new QTreeView;
     tree_->setModel(fsModel_);
     tree_->setHeaderHidden(true);
+    tree_->setFrameShape(QFrame::NoFrame);
     for (int c = 1; c < fsModel_->columnCount(); ++c)
         tree_->hideColumn(c);
     connect(tree_, &QTreeView::activated, this, [this](const QModelIndex &index) {
         if (!fsModel_->isDir(index))
             openFile(fsModel_->filePath(index));
     });
-    auto *treeDock = new QDockWidget("Проект");
+    auto *treeDock = new QDockWidget("ПРОЕКТ");
     treeDock->setObjectName("projectDock");
     treeDock->setWidget(tree_);
+    treeDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable);
     addDockWidget(Qt::LeftDockWidgetArea, treeDock);
 
     // ---- output
@@ -86,10 +88,13 @@ MainWindow::MainWindow()
         }
         updateActions();
     });
-    auto *outDock = new QDockWidget("Вывод");
+    auto *outDock = new QDockWidget("ВЫВОД");
     outDock->setObjectName("outputDock");
     outDock->setWidget(output_);
+    outDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable);
     addDockWidget(Qt::BottomDockWidgetArea, outDock);
+    resizeDocks({treeDock}, {240}, Qt::Horizontal);
+    resizeDocks({outDock}, {220}, Qt::Vertical);
 
     // ---- status bar
     cursorInfo_ = new QLabel;
@@ -128,8 +133,8 @@ void MainWindow::createActions()
             saveEditor(e);
     });
     saveAllAct_ = file->addAction("Сохранить всё", QKeySequence("Ctrl+Shift+S"), this, &MainWindow::saveAll);
-    closeTabAct_ = file->addAction("Закрыть вкладку", QKeySequence::Close, this,
-                                   [this] { closeTab(tabs_->currentIndex()); });
+    closeTabAct_ =
+        file->addAction("Закрыть вкладку", QKeySequence::Close, this, [this] { closeTab(tabs_->currentIndex()); });
     file->addSeparator();
     file->addAction("Настройки…", QKeySequence("Ctrl+,"), this, &MainWindow::showSettings);
     file->addSeparator();
@@ -153,25 +158,43 @@ void MainWindow::createActions()
 void MainWindow::createWelcome()
 {
     welcome_ = new QWidget;
-    auto *title = new QLabel("<h1>PGT Studio</h1><p>Среда разработки для языка PGT</p>");
+    welcome_->setAutoFillBackground(true);
+    QPalette bg = welcome_->palette();
+    bg.setColor(QPalette::Window, Theme::editor);
+    welcome_->setPalette(bg);
+
+    auto *title = new QLabel(QString("<div style='font-size:34pt; font-weight:800; color:%1'>PGT "
+                                     "<span style='color:%2'>Studio</span></div>")
+                                 .arg(Theme::hex(Theme::accent), Theme::hex(Theme::text)));
     title->setAlignment(Qt::AlignCenter);
+    auto *subtitle = new QLabel(
+        QString("<span style='color:%1'>Среда разработки для языка PGT</span>").arg(Theme::hex(Theme::textDim)));
+    subtitle->setAlignment(Qt::AlignCenter);
+
     auto *newBtn = new QPushButton("Новый проект");
+    newBtn->setObjectName("primary");
     auto *openBtn = new QPushButton("Открыть проект");
+    for (QPushButton *b : {newBtn, openBtn})
+        b->setMinimumWidth(220);
     connect(newBtn, &QPushButton::clicked, this, &MainWindow::newProject);
     connect(openBtn, &QPushButton::clicked, this, &MainWindow::openProjectDialog);
 
+    welcomeRecentLabel_ =
+        new QLabel(QString("<span style='color:%1'>НЕДАВНИЕ ПРОЕКТЫ</span>").arg(Theme::hex(Theme::textDim)));
     welcomeRecent_ = new QListWidget;
-    welcomeRecent_->setMaximumWidth(520);
+    welcomeRecent_->setFixedWidth(520);
+    welcomeRecent_->setMaximumHeight(220);
     connect(welcomeRecent_, &QListWidget::itemActivated, this,
             [this](QListWidgetItem *item) { openProject(item->data(Qt::UserRole).toString()); });
 
     auto *layout = new QVBoxLayout(welcome_);
     layout->addStretch();
     layout->addWidget(title);
+    layout->addWidget(subtitle);
+    layout->addSpacing(24);
     layout->addWidget(newBtn, 0, Qt::AlignHCenter);
     layout->addWidget(openBtn, 0, Qt::AlignHCenter);
-    layout->addSpacing(16);
-    welcomeRecentLabel_ = new QLabel("Недавние проекты:");
+    layout->addSpacing(28);
     layout->addWidget(welcomeRecentLabel_, 0, Qt::AlignHCenter);
     layout->addWidget(welcomeRecent_, 0, Qt::AlignHCenter);
     layout->addStretch();
@@ -187,7 +210,7 @@ void MainWindow::updateRecentMenu()
         if (!QFileInfo(dir).isDir())
             continue;
         recentMenu_->addAction(dir, this, [this, dir] { openProject(dir); });
-        auto *item = new QListWidgetItem(QFileInfo(dir).fileName() + "   —   " + dir);
+        auto *item = new QListWidgetItem(QFileInfo(dir).fileName() + "    " + dir);
         item->setData(Qt::UserRole, dir);
         welcomeRecent_->addItem(item);
     }
@@ -293,8 +316,8 @@ void MainWindow::openFileDialog()
 void MainWindow::newFile()
 {
     bool ok = false;
-    QString name = QInputDialog::getText(this, "Новый файл", "Имя файла (относительно проекта):",
-                                         QLineEdit::Normal, "file.pgt", &ok);
+    QString name = QInputDialog::getText(this, "Новый файл", "Имя файла (относительно проекта):", QLineEdit::Normal,
+                                         "file.pgt", &ok);
     if (!ok || name.trimmed().isEmpty())
         return;
     QString path = QDir(projectDir_).filePath(name.trimmed());
@@ -344,7 +367,8 @@ CodeEditor *MainWindow::openFile(const QString &path)
     int index = tabs_->addTab(editor, editor->displayName());
     tabs_->setTabToolTip(index, editor->filePath());
     tabs_->setCurrentIndex(index);
-    connect(editor->document(), &QTextDocument::modificationChanged, this, [this, editor] { refreshTabTitle(editor); });
+    connect(editor->document(), &QTextDocument::modificationChanged, this,
+            [this, editor] { refreshTabTitle(editor); });
     connect(editor, &QPlainTextEdit::cursorPositionChanged, this, &MainWindow::updateCursorInfo);
     editor->setFocus();
     updateActions();
@@ -378,8 +402,7 @@ bool MainWindow::closeTab(int index)
         return true;
     if (editor->document()->isModified())
     {
-        auto answer = QMessageBox::question(this, "Закрыть файл",
-                                            "Сохранить изменения в " + editor->displayName() + "?",
+        auto answer = QMessageBox::question(this, "Закрыть файл", "Сохранить изменения в " + editor->displayName() + "?",
                                             QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
         if (answer == QMessageBox::Cancel || (answer == QMessageBox::Save && !saveEditor(editor)))
             return false;
@@ -413,8 +436,7 @@ QString MainWindow::compilerOrAsk()
     QString compiler = Settings::resolvedCompiler();
     if (!compiler.isEmpty())
         return compiler;
-    auto answer = QMessageBox::warning(this, "Компилятор не найден",
-                                       "Укажите путь к компилятору pgt в настройках.",
+    auto answer = QMessageBox::warning(this, "Компилятор не найден", "Укажите путь к компилятору pgt в настройках.",
                                        QMessageBox::Open | QMessageBox::Cancel);
     if (answer == QMessageBox::Open)
         showSettings();
@@ -437,7 +459,8 @@ void MainWindow::build(bool runAfter)
 
 void MainWindow::runBinary()
 {
-    // `pgt build <dir>` names the executable after the directory.
+    // `pgt build <dir>` names the executable after the directory. It is started directly
+    // (not through `pgt run`) so that "Stop" kills the program itself.
     QString exe = QDir(projectDir_).filePath(QFileInfo(projectDir_).fileName());
     if (!QFileInfo(exe).isExecutable())
     {
@@ -463,8 +486,7 @@ void MainWindow::showSettings()
 void MainWindow::about()
 {
     QMessageBox::about(this, "О программе",
-                       QString("<h3>PGT Studio %1</h3><p>Среда разработки для языка PGT.</p>"
-                               "<p>Qt %2</p>")
+                       QString("<h3>PGT Studio %1</h3><p>Среда разработки для языка PGT.</p><p>Qt %2</p>")
                            .arg(PGT_STUDIO_VERSION, qVersion()));
 }
 

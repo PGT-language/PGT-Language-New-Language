@@ -1,5 +1,7 @@
 #include "editor/PgtHighlighter.h"
 
+#include "Theme.h"
+
 namespace
 {
 
@@ -22,34 +24,34 @@ namespace
 
 PgtHighlighter::PgtHighlighter(QTextDocument *doc) : QSyntaxHighlighter(doc)
 {
-    const QStringList keywords = {"package", "fn",     "return",  "if",        "else",  "while",
-                                  "for",     "in",     "break",   "continue",  "struct", "interface",
-                                  "const",   "switch", "case",    "default",   "extern"};
+    const QStringList keywords = {"package", "fn",     "return", "if",      "else",   "while",
+                                  "for",     "in",     "break",  "continue", "struct", "interface",
+                                  "const",   "switch", "case",   "default", "extern"};
     const QStringList types = {"int", "int64", "float", "char", "string", "bool", "void"};
     const QStringList constants = {"true", "false", "nil"};
     const QStringList builtins = {
-        "print",     "println",  "input",      "inputln",   "len",        "append",     "make",
-        "new",       "free",     "str",        "chars",     "parseInt",   "parseInt64", "parseFloat",
-        "substr",    "contains", "indexOf",    "startsWith", "endsWith",  "upper",      "lower",
-        "abs",       "min",      "max",        "sqrt",      "pow",        "floor",      "ceil",
-        "round",     "trunc",    "sin",        "cos",       "tan",        "log",        "exp",
-        "readFile",  "writeFile", "appendFile", "fileExists", "rand",     "srand",      "exit",
+        "print",    "println",   "input",      "inputln",    "len",      "append",     "make",
+        "new",      "free",      "str",        "chars",      "parseInt", "parseInt64", "parseFloat",
+        "substr",   "contains",  "indexOf",    "startsWith", "endsWith", "upper",      "lower",
+        "abs",      "min",       "max",        "sqrt",       "pow",      "floor",      "ceil",
+        "round",    "trunc",     "sin",        "cos",        "tan",      "log",        "exp",
+        "readFile", "writeFile", "appendFile", "fileExists", "rand",     "srand",      "exit",
         "panic"};
 
     // Later rules win, so the most specific ones come last.
-    rules_.push_back({QRegularExpression("\\b[A-Z]\\w*\\b"), makeFormat(QColor("#2b7a78"))});
-    rules_.push_back({QRegularExpression("\\b\\w+(?=\\s*\\()"), makeFormat(QColor("#3867d6"))});
-    rules_.push_back({QRegularExpression(words(builtins) + "(?=\\s*\\()"), makeFormat(QColor("#8854d0"))});
-    rules_.push_back({QRegularExpression(words(types)), makeFormat(QColor("#0f8b8d"), true)});
-    rules_.push_back({QRegularExpression(words(keywords)), makeFormat(QColor("#c0392b"), true)});
-    rules_.push_back({QRegularExpression("\\bvar\\*"), makeFormat(QColor("#c0392b"), true)});
-    rules_.push_back({QRegularExpression("#use\\b"), makeFormat(QColor("#d35400"), true)});
-    rules_.push_back({QRegularExpression(words(constants)), makeFormat(QColor("#d35400"))});
+    rules_.push_back({QRegularExpression("\\b[A-Z]\\w*\\b"), makeFormat(Theme::synExported)});
+    rules_.push_back({QRegularExpression("\\b\\w+(?=\\s*\\()"), makeFormat(Theme::synFunction)});
+    rules_.push_back({QRegularExpression(words(builtins) + "(?=\\s*\\()"), makeFormat(Theme::synBuiltin)});
+    rules_.push_back({QRegularExpression(words(types)), makeFormat(Theme::synType)});
+    rules_.push_back({QRegularExpression(words(keywords)), makeFormat(Theme::synKeyword, true)});
+    rules_.push_back({QRegularExpression("\\bvar\\*"), makeFormat(Theme::synKeyword, true)});
+    rules_.push_back({QRegularExpression("#use\\b"), makeFormat(Theme::synDirective, true)});
+    rules_.push_back({QRegularExpression(words(constants)), makeFormat(Theme::synConstant)});
     rules_.push_back({QRegularExpression("\\b(?:0[xX][0-9a-fA-F]+|0[bB][01]+|\\d+(?:\\.\\d+)?)\\b"),
-                      makeFormat(QColor("#d35400"))});
+                      makeFormat(Theme::synConstant)});
 
-    stringFormat_ = makeFormat(QColor("#27ae60"));
-    commentFormat_ = makeFormat(QColor("#7f8c8d"), false, true);
+    stringFormat_ = makeFormat(Theme::synString);
+    commentFormat_ = makeFormat(Theme::synComment, false, true);
 }
 
 void PgtHighlighter::highlightBlock(const QString &text)

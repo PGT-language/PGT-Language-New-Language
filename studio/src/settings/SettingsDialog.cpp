@@ -1,5 +1,6 @@
 #include "settings/SettingsDialog.h"
 
+#include "Theme.h"
 #include "settings/Settings.h"
 
 #include <QDialogButtonBox>
@@ -18,16 +19,17 @@
 SettingsDialog::SettingsDialog(QWidget *parent) : QDialog(parent)
 {
     setWindowTitle("Настройки");
-    setMinimumWidth(560);
+    setMinimumWidth(580);
 
     // ---- compiler
     auto *compilerBox = new QGroupBox("Компилятор PGT");
     compilerEdit_ = new QLineEdit(Settings::compilerPath());
     QString detected = Settings::resolvedCompiler();
-    compilerEdit_->setPlaceholderText(detected.isEmpty() ? "путь к pgt"
-                                                         : "автоматически: " + detected);
+    compilerEdit_->setPlaceholderText(detected.isEmpty() ? "путь к pgt" : "автоматически: " + detected);
     auto *browse = new QPushButton("Обзор…");
     auto *check = new QPushButton("Проверить");
+    browse->setAutoDefault(false);
+    check->setAutoDefault(false);
     connect(browse, &QPushButton::clicked, this, &SettingsDialog::browseCompiler);
     connect(check, &QPushButton::clicked, this, &SettingsDialog::checkCompiler);
 
@@ -36,13 +38,18 @@ SettingsDialog::SettingsDialog(QWidget *parent) : QDialog(parent)
     pathRow->addWidget(browse);
     pathRow->addWidget(check);
 
+    auto *hint = new QLabel("Пустое поле — искать pgt в PATH и рядом со студией.");
+    QPalette dim = hint->palette();
+    dim.setColor(QPalette::WindowText, Theme::textDim);
+    hint->setPalette(dim);
+
     compilerStatus_ = new QLabel;
     compilerStatus_->setWordWrap(true);
     compilerStatus_->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
     auto *compilerLayout = new QVBoxLayout(compilerBox);
     compilerLayout->addLayout(pathRow);
-    compilerLayout->addWidget(new QLabel("Пустое поле — искать pgt в PATH и рядом со студией."));
+    compilerLayout->addWidget(hint);
     compilerLayout->addWidget(compilerStatus_);
 
     // ---- editor
@@ -68,6 +75,7 @@ SettingsDialog::SettingsDialog(QWidget *parent) : QDialog(parent)
     auto *projectsBox = new QGroupBox("Проекты");
     projectsDir_ = new QLineEdit(Settings::projectsDir());
     auto *browseDir = new QPushButton("Обзор…");
+    browseDir->setAutoDefault(false);
     connect(browseDir, &QPushButton::clicked, this, &SettingsDialog::browseProjectsDir);
     auto *dirRow = new QHBoxLayout;
     dirRow->addWidget(projectsDir_, 1);
@@ -76,10 +84,13 @@ SettingsDialog::SettingsDialog(QWidget *parent) : QDialog(parent)
     projectsLayout->addRow("Папка по умолчанию:", dirRow);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    buttons->button(QDialogButtonBox::Ok)->setText("Сохранить");
+    buttons->button(QDialogButtonBox::Cancel)->setText("Отмена");
     connect(buttons, &QDialogButtonBox::accepted, this, &SettingsDialog::save);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
     auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(16, 12, 16, 16);
     layout->addWidget(compilerBox);
     layout->addWidget(editorBox);
     layout->addWidget(projectsBox);
@@ -105,6 +116,13 @@ void SettingsDialog::browseProjectsDir()
         projectsDir_->setText(dir);
 }
 
+void SettingsDialog::setStatus(const QString &text, bool ok)
+{
+    compilerStatus_->setText(QString("<span style='color:%1'>%2 %3</span>")
+                                 .arg(Theme::hex(ok ? Theme::success : Theme::error), ok ? "✔" : "✖",
+                                      text.toHtmlEscaped().replace("\n", "<br>")));
+}
+
 void SettingsDialog::checkCompiler()
 {
     QString path = compilerEdit_->text().trimmed();
@@ -112,7 +130,7 @@ void SettingsDialog::checkCompiler()
         path = Settings::resolvedCompiler();
     if (path.isEmpty())
     {
-        compilerStatus_->setText("<span style='color:#c0392b'>Компилятор не найден.</span>");
+        setStatus("Компилятор не найден.", false);
         return;
     }
 
@@ -120,13 +138,10 @@ void SettingsDialog::checkCompiler()
     proc.start(path, {"--version"});
     if (!proc.waitForFinished(5000) || proc.exitStatus() != QProcess::NormalExit || proc.exitCode() != 0)
     {
-        compilerStatus_->setText("<span style='color:#c0392b'>Не удалось запустить " + path.toHtmlEscaped() +
-                                 ": " + proc.errorString().toHtmlEscaped() + "</span>");
+        setStatus("Не удалось запустить " + path + ": " + proc.errorString(), false);
         return;
     }
-    QString version = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
-    compilerStatus_->setText("<span style='color:#27ae60'>✔ " + version.toHtmlEscaped().replace("\n", "<br>") +
-                             "</span>");
+    setStatus(QString::fromUtf8(proc.readAllStandardOutput()).trimmed(), true);
 }
 
 void SettingsDialog::save()

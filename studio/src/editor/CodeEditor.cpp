@@ -1,13 +1,14 @@
 #include "editor/CodeEditor.h"
 
+#include "Theme.h"
 #include "editor/PgtHighlighter.h"
 #include "settings/Settings.h"
 
 #include <QFile>
-#include <QKeyEvent>
-#include <QPaintEvent>
 #include <QFileInfo>
+#include <QKeyEvent>
 #include <QPainter>
+#include <QPaintEvent>
 #include <QSaveFile>
 #include <QTextBlock>
 
@@ -27,6 +28,14 @@ private:
 CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent), lineNumbers_(new LineNumberArea(this))
 {
     setLineWrapMode(QPlainTextEdit::NoWrap);
+    setFrameShape(QFrame::NoFrame);
+    QPalette p = palette();
+    p.setColor(QPalette::Base, Theme::editor);
+    p.setColor(QPalette::Text, Theme::text);
+    p.setColor(QPalette::Highlight, Theme::selection);
+    p.setColor(QPalette::HighlightedText, Theme::text);
+    setPalette(p);
+
     connect(this, &QPlainTextEdit::blockCountChanged, this, &CodeEditor::updateLineNumberAreaWidth);
     connect(this, &QPlainTextEdit::updateRequest, this, &CodeEditor::updateLineNumberArea);
     connect(this, &QPlainTextEdit::cursorPositionChanged, this, &CodeEditor::highlightCurrentLine);
@@ -138,7 +147,7 @@ void CodeEditor::keyPressEvent(QKeyEvent *event)
 int CodeEditor::lineNumberAreaWidth() const
 {
     int digits = QString::number(qMax(1, blockCount())).size();
-    return 16 + fontMetrics().horizontalAdvance('9') * qMax(3, digits);
+    return 24 + fontMetrics().horizontalAdvance('9') * qMax(3, digits);
 }
 
 void CodeEditor::updateLineNumberAreaWidth()
@@ -166,8 +175,7 @@ void CodeEditor::resizeEvent(QResizeEvent *event)
 void CodeEditor::highlightCurrentLine()
 {
     QTextEdit::ExtraSelection sel;
-    QColor base = palette().color(QPalette::Base);
-    sel.format.setBackground(base.lightness() > 128 ? base.darker(106) : base.lighter(130));
+    sel.format.setBackground(Theme::currentLine);
     sel.format.setProperty(QTextFormat::FullWidthSelection, true);
     sel.cursor = textCursor();
     sel.cursor.clearSelection();
@@ -177,8 +185,7 @@ void CodeEditor::highlightCurrentLine()
 void CodeEditor::paintLineNumbers(QPaintEvent *event)
 {
     QPainter painter(lineNumbers_);
-    QColor base = palette().color(QPalette::Base);
-    painter.fillRect(event->rect(), base.lightness() > 128 ? base.darker(104) : base.lighter(115));
+    painter.fillRect(event->rect(), Theme::editor);
 
     QTextBlock block = firstVisibleBlock();
     int number = block.blockNumber();
@@ -190,12 +197,10 @@ void CodeEditor::paintLineNumbers(QPaintEvent *event)
     {
         if (block.isVisible() && bottom >= event->rect().top())
         {
-            QFont f = font();
-            f.setBold(number == current);
-            painter.setFont(f);
-            painter.setPen(number == current ? palette().color(QPalette::Text)
-                                             : palette().color(QPalette::PlaceholderText));
-            painter.drawText(0, top, lineNumbers_->width() - 8, fontMetrics().height(), Qt::AlignRight,
+            if (number == current)
+                painter.fillRect(0, top, lineNumbers_->width(), bottom - top, Theme::currentLine);
+            painter.setPen(number == current ? Theme::text : Theme::textFaint);
+            painter.drawText(0, top, lineNumbers_->width() - 14, fontMetrics().height(), Qt::AlignRight,
                              QString::number(number + 1));
         }
         block = block.next();

@@ -32,7 +32,7 @@ namespace Settings
 
         // A development checkout: studio/build/pgt-studio next to build/pgt.
         QDir dir(QCoreApplication::applicationDirPath());
-        for (const QString &rel : {"pgt", "../../build/pgt", "../build/pgt"})
+        for (const char *rel : {"pgt", "../../build/pgt", "../build/pgt"})
         {
             QFileInfo f(dir.filePath(rel));
             if (f.isFile() && f.isExecutable())

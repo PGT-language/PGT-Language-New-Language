@@ -10,6 +10,7 @@ qt_standard_project_setup()
 
 qt_add_executable(pgt-studio
     src/main.cpp
+    src/Theme.cpp
     src/MainWindow.cpp
     src/OutputPanel.cpp
     src/editor/CodeEditor.cpp

@@ -17,6 +17,7 @@ private:
     void browseCompiler();
     void browseProjectsDir();
     void checkCompiler();
+    void setStatus(const QString &text, bool ok);
     void save();
 
     QLineEdit *compilerEdit_;

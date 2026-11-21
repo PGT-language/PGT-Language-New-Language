@@ -1,5 +1,6 @@
 #include "project/NewProjectDialog.h"
 
+#include "Theme.h"
 #include "settings/Settings.h"
 
 #include <QComboBox>
@@ -20,13 +21,15 @@ NewProjectDialog::NewProjectDialog(const QString &compiler, QWidget *parent)
     : QDialog(parent), compiler_(compiler)
 {
     setWindowTitle("Новый проект");
-    setMinimumWidth(520);
+    setMinimumWidth(560);
 
     name_ = new QLineEdit("hello");
-    name_->setValidator(
-        new QRegularExpressionValidator(QRegularExpression("[A-Za-z_][A-Za-z0-9_-]*"), name_));
+    name_->setValidator(new QRegularExpressionValidator(QRegularExpression("[A-Za-z_][A-Za-z0-9_-]*"), name_));
     location_ = new QLineEdit(Settings::projectsDir());
+    // Long paths must not squeeze the labels of the form.
+    location_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     auto *browse = new QPushButton("Обзор…");
+    browse->setAutoDefault(false);
     connect(browse, &QPushButton::clicked, this, [this] {
         QString dir = QFileDialog::getExistingDirectory(this, "Где создать проект", location_->text());
         if (!dir.isEmpty())
@@ -40,15 +43,20 @@ NewProjectDialog::NewProjectDialog(const QString &compiler, QWidget *parent)
     preview_ = new QLabel;
     preview_->setTextInteractionFlags(Qt::TextSelectableByMouse);
     preview_->setWordWrap(true);
-    // Long paths must wrap instead of squeezing the labels of the form.
     preview_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    location_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+    QPalette dim = preview_->palette();
+    dim.setColor(QPalette::WindowText, Theme::textDim);
+    preview_->setPalette(dim);
+
     error_ = new QLabel;
     error_->setWordWrap(true);
-    error_->setStyleSheet("color: #c0392b");
+    QPalette red = error_->palette();
+    red.setColor(QPalette::WindowText, Theme::error);
+    error_->setPalette(red);
 
     auto *form = new QFormLayout;
     form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    form->setVerticalSpacing(10);
     form->addRow("Имя:", name_);
     form->addRow("Папка:", locationRow);
     form->addRow("Шаблон:", template_);
@@ -56,10 +64,12 @@ NewProjectDialog::NewProjectDialog(const QString &compiler, QWidget *parent)
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     buttons->button(QDialogButtonBox::Ok)->setText("Создать");
+    buttons->button(QDialogButtonBox::Cancel)->setText("Отмена");
     connect(buttons, &QDialogButtonBox::accepted, this, &NewProjectDialog::create);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
     auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(16, 16, 16, 16);
     layout->addLayout(form);
     layout->addWidget(error_);
     layout->addStretch();
@@ -78,7 +88,8 @@ void NewProjectDialog::loadTemplates()
     proc.start(compiler_, {"new", "--list"});
     if (proc.waitForFinished(5000) && proc.exitCode() == 0)
     {
-        const QStringList lines = QString::fromUtf8(proc.readAllStandardOutput()).split('\n', Qt::SkipEmptyParts);
+        const QStringList lines =
+            QString::fromUtf8(proc.readAllStandardOutput()).split('\n', Qt::SkipEmptyParts);
         for (const QString &line : lines)
         {
             QString t = line.trimmed();
@@ -91,7 +102,7 @@ void NewProjectDialog::loadTemplates()
     if (template_->count() == 0)
     {
         template_->addItem("hello", "hello");
-        error_->setText("Не удалось получить список шаблонов от компилятора: проверьте путь в настройках.");
+        showError("Не удалось получить список шаблонов от компилятора: проверьте путь в настройках.");
     }
 }
 
@@ -100,18 +111,23 @@ void NewProjectDialog::updatePreview()
     preview_->setText(QDir(location_->text()).filePath(name_->text()));
 }
 
+void NewProjectDialog::showError(const QString &text)
+{
+    error_->setText(text);
+}
+
 void NewProjectDialog::create()
 {
     QString name = name_->text();
     QDir location(location_->text());
     if (name.isEmpty())
     {
-        error_->setText("Введите имя проекта.");
+        showError("Введите имя проекта.");
         return;
     }
     if (!location.exists() && !QDir().mkpath(location.path()))
     {
-        error_->setText("Не удалось создать папку " + location.path());
+        showError("Не удалось создать папку " + location.path());
         return;
     }
 
@@ -120,12 +136,12 @@ void NewProjectDialog::create()
     proc.start(compiler_, {"new", name, "-t", template_->currentData().toString()});
     if (!proc.waitForFinished(10000))
     {
-        error_->setText("Компилятор не ответил: " + proc.errorString());
+        showError("Компилятор не ответил: " + proc.errorString());
         return;
     }
     if (proc.exitCode() != 0)
     {
-        error_->setText(QString::fromUtf8(proc.readAllStandardError()).trimmed());
+        showError(QString::fromUtf8(proc.readAllStandardError()).trimmed());
         return;
     }
     projectDir_ = location.filePath(name);
