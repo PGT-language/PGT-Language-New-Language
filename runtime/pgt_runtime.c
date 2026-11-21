@@ -208,6 +208,18 @@ int32_t pgt_index_of(const char *s, const char *sub)
     return p ? (int32_t)(p - s) : -1;
 }
 
+int32_t pgt_index_from(const char *s, const char *sub, int32_t from)
+{
+    s = S(s);
+    int32_t len = (int32_t)strlen(s);
+    if (from < 0)
+        from = 0;
+    if (from > len)
+        return -1;
+    const char *p = strstr(s + from, S(sub));
+    return p ? (int32_t)(p - s) : -1;
+}
+
 int32_t pgt_last_index_of(const char *s, const char *sub)
 {
     s = S(s);
