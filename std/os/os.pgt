@@ -1,0 +1,86 @@
+package os
+
+// Аргументы командной строки, окружение, файлы и запуск команд.
+
+extern fn pgt_argc() int
+extern fn pgt_argv(i int) string
+extern fn pgt_getenv(name string) string
+extern fn pgt_system(cmd string) int
+extern fn pgt_remove_file(path string) bool
+extern fn pgt_is_dir(path string) bool
+
+// Args возвращает аргументы программы; Args()[0] — имя самой программы.
+fn Args() []string {
+    var* out + {[]string} = []
+    for i in 0..pgt_argc() {
+        out = append(out, pgt_argv(i))
+    }
+    return out
+}
+
+fn NumArgs() int {
+    return pgt_argc() - 1
+}
+
+// Arg возвращает i-й аргумент (начиная с 1) или "", если его нет.
+fn Arg(i int) string {
+    return pgt_argv(i)
+}
+
+fn Getenv(name string) string {
+    return pgt_getenv(name)
+}
+
+// Run запускает команду оболочки и возвращает её код завершения.
+fn Run(cmd string) int {
+    return pgt_system(cmd)
+}
+
+fn Exit(code int) {
+    exit(code)
+}
+
+fn ReadFile(path string) string {
+    return readFile(path)
+}
+
+fn WriteFile(path string, data string) bool {
+    return writeFile(path, data)
+}
+
+fn AppendFile(path string, data string) bool {
+    return appendFile(path, data)
+}
+
+fn Exists(path string) bool {
+    return fileExists(path)
+}
+
+fn IsDir(path string) bool {
+    return pgt_is_dir(path)
+}
+
+fn Remove(path string) bool {
+    return pgt_remove_file(path)
+}
+
+// ReadLines читает файл и делит его на строки.
+fn ReadLines(path string) []string {
+    var* text = readFile(path)
+    var* out + {[]string} = []
+    var* start = 0
+    for i, ch in text {
+        if ch == '\n' {
+            var* line = substr(text, start, i - start)
+            if endsWith(line, "\r") {
+                line = substr(line, 0, len(line) - 1)
+            }
+            out = append(out, line)
+            start = i + 1
+        }
+    }
+    if start < len(text) {
+        out = append(out, substr(text, start, len(text) - start))
+    }
+    return out
+}

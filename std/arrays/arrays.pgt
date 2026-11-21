@@ -1,0 +1,301 @@
+package arrays
+
+// Функции для массивов. Массивы передаются по ссылке на данные (как срезы в Go),
+// поэтому Sort, Reverse и Fill меняют сам массив.
+
+// ---- []int
+
+fn Sum(a []int) int {
+    var* s = 0
+    for x in a {
+        s += x
+    }
+    return s
+}
+
+fn Min(a []int) int {
+    if len(a) == 0 {
+        panic("arrays.Min: empty array")
+    }
+    var* m = a[0]
+    for x in a {
+        m = min(m, x)
+    }
+    return m
+}
+
+fn Max(a []int) int {
+    if len(a) == 0 {
+        panic("arrays.Max: empty array")
+    }
+    var* m = a[0]
+    for x in a {
+        m = max(m, x)
+    }
+    return m
+}
+
+fn Mean(a []int) float {
+    if len(a) == 0 {
+        return 0.0
+    }
+    return float(Sum(a)) / float(len(a))
+}
+
+fn Contains(a []int, v int) bool {
+    return IndexOf(a, v) >= 0
+}
+
+fn IndexOf(a []int, v int) int {
+    for i, x in a {
+        if x == v {
+            return i
+        }
+    }
+    return -1
+}
+
+fn Count(a []int, v int) int {
+    var* n = 0
+    for x in a {
+        if x == v {
+            n++
+        }
+    }
+    return n
+}
+
+fn Equal(a []int, b []int) bool {
+    if len(a) != len(b) {
+        return false
+    }
+    for i, x in a {
+        if x != b[i] {
+            return false
+        }
+    }
+    return true
+}
+
+fn Copy(a []int) []int {
+    var* out = make([]int, len(a))
+    for i, x in a {
+        out[i] = x
+    }
+    return out
+}
+
+// Slice возвращает копию элементов [from, to).
+fn Slice(a []int, from int, to int) []int {
+    var* lo = max(0, from)
+    var* hi = min(len(a), to)
+    var* out + {[]int} = []
+    for i in lo..hi {
+        out = append(out, a[i])
+    }
+    return out
+}
+
+fn Concat(a []int, b []int) []int {
+    var* out = Copy(a)
+    for x in b {
+        out = append(out, x)
+    }
+    return out
+}
+
+// Range возвращает [from, from+1, ..., to-1].
+fn Range(from int, to int) []int {
+    var* out + {[]int} = []
+    for i in from..to {
+        out = append(out, i)
+    }
+    return out
+}
+
+fn Repeat(v int, n int) []int {
+    var* out = make([]int, n)
+    Fill(out, v)
+    return out
+}
+
+fn Fill(a []int, v int) {
+    for i in 0..len(a) {
+        a[i] = v
+    }
+}
+
+fn Reverse(a []int) {
+    var* n = len(a)
+    for i in 0..n / 2 {
+        var* t = a[i]
+        a[i] = a[n - 1 - i]
+        a[n - 1 - i] = t
+    }
+}
+
+fn IsSorted(a []int) bool {
+    for i in 1..len(a) {
+        if a[i - 1] > a[i] {
+            return false
+        }
+    }
+    return true
+}
+
+// Sort сортирует массив по возрастанию (быстрая сортировка + вставки для малых кусков).
+fn Sort(a []int) {
+    quicksort(a, 0, len(a) - 1)
+}
+
+fn SortDesc(a []int) {
+    Sort(a)
+    Reverse(a)
+}
+
+fn quicksort(a []int, lo int, hi int) {
+    while hi - lo > 16 {
+        var* mid = lo + (hi - lo) / 2
+        var* pivot = median(a[lo], a[mid], a[hi])
+        var* i = lo
+        var* j = hi
+        while i <= j {
+            while a[i] < pivot { i++ }
+            while a[j] > pivot { j-- }
+            if i <= j {
+                var* t = a[i]
+                a[i] = a[j]
+                a[j] = t
+                i++
+                j--
+            }
+        }
+        // Рекурсия по меньшей части, цикл по большей: глубина стека O(log n).
+        if j - lo < hi - i {
+            quicksort(a, lo, j)
+            lo = i
+        } else {
+            quicksort(a, i, hi)
+            hi = j
+        }
+    }
+    for i in lo + 1..hi + 1 {
+        var* v = a[i]
+        var* j = i - 1
+        while j >= lo && a[j] > v {
+            a[j + 1] = a[j]
+            j--
+        }
+        a[j + 1] = v
+    }
+}
+
+fn median(a int, b int, c int) int {
+    if a < b {
+        if b < c { return b }
+        if a < c { return c }
+        return a
+    }
+    if a < c { return a }
+    if b < c { return c }
+    return b
+}
+
+// BinarySearch ищет v в отсортированном массиве; -1, если не найден.
+fn BinarySearch(a []int, v int) int {
+    var* lo = 0
+    var* hi = len(a) - 1
+    while lo <= hi {
+        var* mid = lo + (hi - lo) / 2
+        if a[mid] == v {
+            return mid
+        }
+        if a[mid] < v {
+            lo = mid + 1
+        } else {
+            hi = mid - 1
+        }
+    }
+    return -1
+}
+
+// Unique возвращает элементы без повторов, сохраняя порядок первого появления.
+fn Unique(a []int) []int {
+    var* out + {[]int} = []
+    for x in a {
+        if !Contains(out, x) {
+            out = append(out, x)
+        }
+    }
+    return out
+}
+
+// ---- []float
+
+fn SumFloat(a []float) float {
+    var* s = 0.0
+    for x in a {
+        s += x
+    }
+    return s
+}
+
+fn MeanFloat(a []float) float {
+    if len(a) == 0 {
+        return 0.0
+    }
+    return SumFloat(a) / float(len(a))
+}
+
+fn SortFloat(a []float) {
+    for i in 1..len(a) {
+        var* v = a[i]
+        var* j = i - 1
+        while j >= 0 && a[j] > v {
+            a[j + 1] = a[j]
+            j--
+        }
+        a[j + 1] = v
+    }
+}
+
+// ---- []string
+
+fn ContainsString(a []string, v string) bool {
+    return IndexOfString(a, v) >= 0
+}
+
+fn IndexOfString(a []string, v string) int {
+    for i, x in a {
+        if x == v {
+            return i
+        }
+    }
+    return -1
+}
+
+fn ReverseStrings(a []string) {
+    var* n = len(a)
+    for i in 0..n / 2 {
+        var* t = a[i]
+        a[i] = a[n - 1 - i]
+        a[n - 1 - i] = t
+    }
+}
+
+// SortStrings сортирует строки лексикографически (сортировка Шелла).
+fn SortStrings(a []string) {
+    var* gap = len(a) / 2
+    while gap > 0 {
+        for i in gap..len(a) {
+            var* v = a[i]
+            var* j = i
+            while j >= gap && a[j - gap] > v {
+                a[j] = a[j - gap]
+                j -= gap
+            }
+            a[j] = v
+        }
+        gap /= 2
+    }
+}

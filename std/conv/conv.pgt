@@ -1,0 +1,111 @@
+package conv
+
+// Преобразования между строками и числами.
+
+extern fn pgt_is_int(s string) bool
+extern fn pgt_is_float(s string) bool
+extern fn pgt_str_float_prec(x float, prec int) string
+
+fn Itoa(n int) string {
+    return str(n)
+}
+
+fn Atoi(s string) int {
+    return parseInt(s)
+}
+
+fn ParseInt64(s string) int64 {
+    return parseInt64(s)
+}
+
+fn ParseFloat(s string) float {
+    return parseFloat(s)
+}
+
+// ParseBool понимает true/false, 1/0, yes/no.
+fn ParseBool(s string) bool {
+    var* l = lower(s)
+    return l == "true" || l == "1" || l == "yes" || l == "y"
+}
+
+fn IsInt(s string) bool {
+    return pgt_is_int(s)
+}
+
+fn IsFloat(s string) bool {
+    return pgt_is_float(s)
+}
+
+// FormatFloat печатает число с фиксированным числом знаков после точки.
+fn FormatFloat(x float, prec int) string {
+    return pgt_str_float_prec(x, prec)
+}
+
+// FormatInt записывает число в системе счисления base (2..36).
+fn FormatInt(n int64, base int) string {
+    if base < 2 || base > 36 {
+        panic("conv.FormatInt: base must be between 2 and 36")
+    }
+    if n == 0 {
+        return "0"
+    }
+    var* digits = "0123456789abcdefghijklmnopqrstuvwxyz"
+    var* neg = n < 0
+    var* x = n
+    var* out + {[]char} = []
+    while x != 0 {
+        var* d = x % int64(base)
+        if d < 0 {
+            d = -d
+        }
+        out = append(out, digits[d])
+        x /= int64(base)
+    }
+    if neg {
+        out = append(out, '-')
+    }
+    var* n2 = len(out)
+    for i in 0..n2 / 2 {
+        var* t = out[i]
+        out[i] = out[n2 - 1 - i]
+        out[n2 - 1 - i] = t
+    }
+    return string(out)
+}
+
+fn ToBinary(n int64) string { return FormatInt(n, 2) }
+fn ToHex(n int64) string { return FormatInt(n, 16) }
+
+// ParseIntBase читает число в системе счисления base; неизвестные символы пропускаются.
+fn ParseIntBase(s string, base int) int64 {
+    var* r int64 = 0
+    var* neg = false
+    for i, ch in s {
+        if i == 0 && ch == '-' {
+            neg = true
+            continue
+        }
+        var* d = digitValue(ch)
+        if d < 0 || d >= base {
+            continue
+        }
+        r = r * int64(base) + int64(d)
+    }
+    if neg {
+        return -r
+    }
+    return r
+}
+
+fn digitValue(c char) int {
+    if c >= '0' && c <= '9' {
+        return int(c - '0')
+    }
+    if c >= 'a' && c <= 'z' {
+        return int(c - 'a') + 10
+    }
+    if c >= 'A' && c <= 'Z' {
+        return int(c - 'A') + 10
+    }
+    return -1
+}

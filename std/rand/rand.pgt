@@ -1,0 +1,84 @@
+package rand
+
+// Псевдослучайные числа (генератор xorshift64*). Без Seed стартует от текущего времени.
+
+extern fn pgt_time_ms() int64
+
+var* state int64 = 0
+
+fn Seed(seed int64) {
+    state = seed ^ 0x2545F4914F6CDD1D
+    if state == 0 {
+        state = 1
+    }
+}
+
+fn next() int64 {
+    if state == 0 {
+        Seed(pgt_time_ms())
+    }
+    var* x = state
+    x = x ^ ((x >> 12) & 0xFFFFFFFFFFFFF)
+    x = x ^ (x << 25)
+    x = x ^ ((x >> 27) & 0x1FFFFFFFFF)
+    state = x
+    return x * 2685821657736338717
+}
+
+// Int возвращает неотрицательное случайное int.
+fn Int() int {
+    return int((next() >> 33) & 0x7FFFFFFF)
+}
+
+// IntN возвращает число от 0 до n-1.
+fn IntN(n int) int {
+    if n <= 0 {
+        panic("rand.IntN: n must be positive")
+    }
+    return int(((next() >> 1) & 0x3FFFFFFFFFFFFFFF) % int64(n))
+}
+
+// Range возвращает число от lo до hi включительно.
+fn Range(lo int, hi int) int {
+    return lo + IntN(hi - lo + 1)
+}
+
+// Float возвращает число из [0, 1).
+fn Float() float {
+    return float((next() >> 11) & 0x1FFFFFFFFFFFFF) / 9007199254740992.0
+}
+
+fn Bool() bool {
+    return (next() >> 40) & 1 == 1
+}
+
+// Chance возвращает true с вероятностью p (от 0 до 1).
+fn Chance(p float) bool {
+    return Float() < p
+}
+
+fn Shuffle(a []int) {
+    var* i = len(a) - 1
+    while i > 0 {
+        var* j = IntN(i + 1)
+        var* t = a[i]
+        a[i] = a[j]
+        a[j] = t
+        i--
+    }
+}
+
+fn ShuffleStrings(a []string) {
+    var* i = len(a) - 1
+    while i > 0 {
+        var* j = IntN(i + 1)
+        var* t = a[i]
+        a[i] = a[j]
+        a[j] = t
+        i--
+    }
+}
+
+fn Pick(a []string) string {
+    return a[IntN(len(a))]
+}
