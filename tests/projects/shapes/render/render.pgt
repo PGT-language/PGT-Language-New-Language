@@ -1,0 +1,18 @@
+package render
+
+#use (
+    "shapes/geom"
+    "strings"
+    "conv"
+)
+
+fn Describe(s geom.Shape) string {
+    return strings.PadRight(s.Name(), 10, '.') + " " + conv.FormatFloat(s.Area(), 2)
+}
+
+fn Report(all []geom.Shape) {
+    for i, s in all {
+        println(i + 1, ". ", Describe(s))
+    }
+    println("total: ", conv.FormatFloat(geom.Total(all), 2))
+}

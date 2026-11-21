@@ -1,0 +1,8 @@
+// panic: nil pointer dereference
+package main
+struct N { V int }
+fn main() {
+    var* p *N = nil
+    println(p.V)
+}
+return 0

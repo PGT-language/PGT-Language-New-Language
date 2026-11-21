@@ -1,0 +1,5 @@
+// error: P has no field 'Z'
+package main
+struct P { X int }
+fn main() { var* p = P{Z: 1} }
+return 0

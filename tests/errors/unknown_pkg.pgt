@@ -1,0 +1,5 @@
+// error: cannot find package "nosuchpkg"
+package main
+#use "nosuchpkg"
+fn main() {}
+return 0

@@ -1,0 +1,8 @@
+// error: mismatched types int and float
+package main
+fn main() {
+    var* a = 1
+    var* b = 2.5
+    println(a + b)
+}
+return 0

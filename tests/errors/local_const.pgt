@@ -1,0 +1,4 @@
+// error: constants can only be declared at the top level
+package main
+fn main() { const X = 1 }
+return 0

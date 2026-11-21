@@ -1,0 +1,5 @@
+// error: cannot modify the constant
+package main
+const X = 1
+fn main() { X = 2 }
+return 0

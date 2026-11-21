@@ -1,0 +1,7 @@
+// panic: integer divide by zero
+package main
+fn main() {
+    var* z = 0
+    println(10 / z)
+}
+return 0

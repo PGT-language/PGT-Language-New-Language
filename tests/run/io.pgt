@@ -1,0 +1,18 @@
+package main
+
+#use (
+    "io"
+    "strings"
+)
+
+fn main() {
+    var* name = io.Prompt("name? ")
+    println("hi ", name)
+    var* n = io.ReadInt("n? ")
+    println("n*2 = ", n * 2)
+    var* rest = io.ReadLines()
+    println(len(rest), " more lines: ", rest)
+    println("upper: ", strings.Upper(strings.Join(rest, "|")), " eof=", io.EOF())
+}
+
+return 0

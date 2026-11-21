@@ -1,0 +1,6 @@
+// error: methods cannot be declared on interface
+package main
+interface I { F() }
+fn (i I) F() {}
+fn main() {}
+return 0

@@ -1,0 +1,7 @@
+// error: cannot use string as int in argument 2 of 'append'
+package main
+fn main() {
+    var* a = [1]
+    a = append(a, "x")
+}
+return 0

@@ -1,0 +1,7 @@
+// error: strings are immutable
+package main
+fn main() {
+    var* s = "abc"
+    s[0] = 'x'
+}
+return 0

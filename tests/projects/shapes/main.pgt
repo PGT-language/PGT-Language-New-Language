@@ -1,0 +1,20 @@
+package main
+
+#use (
+    "shapes/render"
+    "shapes/geom"
+)
+
+fn main() {
+    var* c = geom.NewCircle(0, 0, 1)
+    var* big = geom.NewCircle(3, 4, 2)
+    big.Scale(1.5)
+    var* all + {[]geom.Shape} = [c, big, geom.Square{Side: 2}]
+    render.Report(all)
+    println("distance: ", c.Center.Dist(big.Center), " created: ", geom.Created(), " unit: ", geom.Unit)
+    var* p = geom.Point{X: 1}
+    p.Y = 2
+    println(p)
+}
+
+return 0

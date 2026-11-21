@@ -1,0 +1,4 @@
+// panic: boom 42
+package main
+fn main() { panic("boom " + 42) }
+return 0

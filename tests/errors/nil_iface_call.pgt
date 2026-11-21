@@ -1,0 +1,8 @@
+// panic: method call on a nil interface
+package main
+interface I { F() }
+fn main() {
+    var* i I
+    i.F()
+}
+return 0

@@ -1,0 +1,6 @@
+// error: is not exported
+package main
+#use "strings"
+fn main() { var* b strings.Builder
+println(b.size) }
+return 0

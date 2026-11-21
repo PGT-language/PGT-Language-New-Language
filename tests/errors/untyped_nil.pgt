@@ -1,0 +1,4 @@
+// error: cannot infer the type of 'x' from nil
+package main
+fn main() { var* x = nil }
+return 0

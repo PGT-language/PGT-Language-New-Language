@@ -1,0 +1,8 @@
+// error: 'continue' outside of a loop
+package main
+fn main() {
+    switch 1 {
+        case 1 { continue }
+    }
+}
+return 0

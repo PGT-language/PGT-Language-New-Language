@@ -1,0 +1,55 @@
+package geom
+
+#use "math"
+
+const Unit = 1.0
+
+interface Shape {
+    Area() float
+    Name() string
+}
+
+struct Point {
+    X float
+    Y float
+}
+
+fn (p Point) Dist(q Point) float {
+    return math.Hypot(p.X - q.X, p.Y - q.Y)
+}
+
+struct Circle {
+    Center Point
+    R float
+    id int
+}
+
+fn NewCircle(x float, y float, r float) *Circle {
+    count++
+    return &Circle{Center: Point{X: x, Y: y}, R: r, id: count}
+}
+
+var* count = 0
+
+fn (c *Circle) Area() float { return math.Pi * c.R * c.R }
+fn (c *Circle) Name() string { return "circle#" + c.id }
+fn (c *Circle) Scale(k float) { c.R *= k }
+
+struct Square {
+    Side float
+}
+
+fn (s Square) Area() float { return s.Side * s.Side }
+fn (s Square) Name() string { return "square" }
+
+fn Total(shapes []Shape) float {
+    var* t = 0.0
+    for s in shapes {
+        t += s.Area()
+    }
+    return t
+}
+
+fn Created() int {
+    return count
+}

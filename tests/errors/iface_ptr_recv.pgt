@@ -1,0 +1,7 @@
+// error: does not implement S: method 'F' has a pointer receiver
+package main
+struct P { X int }
+interface S { F() }
+fn (p *P) F() {}
+fn main() { var* s S = P{X: 1} }
+return 0

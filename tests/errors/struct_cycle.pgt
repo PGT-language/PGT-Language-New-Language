@@ -1,0 +1,5 @@
+// error: contains itself
+package main
+struct A { B A }
+fn main() {}
+return 0

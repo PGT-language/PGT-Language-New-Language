@@ -1,0 +1,6 @@
+// error: does not implement Shape: missing method 'Area'
+package main
+interface Shape { Area() float }
+struct Dot { X int }
+fn main() { var* s Shape = Dot{X: 1} }
+return 0

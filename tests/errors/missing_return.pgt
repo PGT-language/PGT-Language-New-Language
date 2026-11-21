@@ -1,0 +1,7 @@
+// error: missing return at the end of function 'f'
+package main
+fn f() int {
+    if true { return 1 }
+}
+fn main() {}
+return 0

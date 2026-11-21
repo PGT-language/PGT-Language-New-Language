@@ -1,0 +1,4 @@
+name? hi Ann
+n? n*2 = 42
+3 more lines: [x y  last]
+upper: X Y||LAST eof=true

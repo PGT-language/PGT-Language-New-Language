@@ -1,0 +1,31 @@
+consts: 3.14 42 PGT
+global counter = 2, squares = [0 1 4 9 16]
+1 3000000000 x 2 0
+bits: 2 7 5 1024 -4 -1 255 5
+concat: 5 true c 2.5
+strings: true true 5 e
+5 [10 3 3 4 5]
+make: [0 0 0]
+[ann bob] nil? false
+10;3;3;4;5;
+0=ann 1=bob 
+[h][i][!]
+012
+one or two
+it's PGT
+small
+0134
+{6 1} sum=7
+{14 1} &{14 1} 15
+x = 5, *px = 5
+&{1 0} &{0 9} {0 9}
+nil ptr: <nil> true true
+rect area=6
+circle area=3.14
+shapes: [{1 1} &{2}] total=13.56
+nil iface: <nil> true
+list: 3 2 1 sum=6
+conv: 3 3.5 42 1.5 A abc
+builtins: world true 2 ABC abc
+math: 3 2 2.5 4 1024 2 3
+parse: 124 5 true true

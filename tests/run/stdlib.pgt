@@ -1,0 +1,92 @@
+package main
+
+#use (
+    "strings"
+    "arrays"
+    "math"
+    "conv"
+    "rand"
+    "time"
+    "os"
+)
+
+fn main() {
+    println("--- strings")
+    var* parts = strings.Split("a,b,,c", ",")
+    println(parts, " ", len(parts))
+    println(strings.Join(parts, "+"))
+    println(strings.Fields("  hello   pgt  world "))
+    println("[", strings.TrimSpace("  x y  "), "] [", strings.Trim("--x--", "-"), "]")
+    println(strings.Replace("aaa", "a", "bb"), " ", strings.ReplaceN("aaa", "a", "b", 2))
+    println(strings.Repeat("ab", 3), " ", strings.Reverse("hello"), " ", strings.Title("hello big world"))
+    println(strings.Count("cheese", "e"), " ", strings.LastIndex("go gopher", "go"), " ", strings.IndexFrom("abcabc", "b", 2))
+    println("[", strings.PadLeft("7", 3, '0'), "] [", strings.PadRight("ab", 4, '.'), "] [", strings.Center("hi", 6, '*'), "]")
+    println(strings.HasPrefix("prefix", "pre"), " ", strings.TrimPrefix("prefix", "pre"), " ", strings.TrimSuffix("file.pgt", ".pgt"))
+    println(strings.IsDigit('7'), " ", strings.IsLetter('7'), " ", strings.ToUpper('q'), " ", strings.EqualFold("PgT", "pgt"))
+    println(strings.Lines("one\ntwo\r\nthree\n"))
+    var* b strings.Builder
+    for i in 0..5 {
+        b.Write(str(i))
+        b.WriteChar('-')
+    }
+    println(b.String(), " len=", b.Len())
+
+    println("--- math")
+    println(math.Pi, " ", math.E, " ", math.MaxInt, " ", math.MinInt, " ", math.MaxInt64)
+    println(math.Cbrt(27), " ", math.Hypot(3, 4), " ", math.Atan2(1, 1) * 4, " ", math.Log10(1000), " ", math.Log2(8))
+    println(math.PowInt(2, 62), " ", math.Gcd(84, 36), " ", math.Lcm(4, 6), " ", math.Factorial(20), " ", math.Fib(90))
+    println(math.IsPrime(97), " ", math.IsPrime(91), " ", math.Clamp(5.5, 0, 1), " ", math.Round(2.5), " ", math.Mod(7.5, 2))
+    println(math.IsNaN(math.NaN()), " ", math.IsInf(math.Inf()), " ", math.Sign(-2.5), " ", math.Degrees(math.Pi), " ", math.DigitSum(-1234))
+
+    println("--- arrays")
+    var* a = [5, 3, 9, 1, 7, 3, 8, 2, 6, 4, 0, 11, 15, 13, 12, 14, 10, 19, 17, 16, 18, 3]
+    arrays.Sort(a)
+    println(a, " sorted=", arrays.IsSorted(a))
+    println(arrays.Sum(a), " ", arrays.Min(a), " ", arrays.Max(a), " ", arrays.Mean([1, 2]), " ", arrays.Count(a, 3))
+    println(arrays.BinarySearch(a, 13), " ", arrays.BinarySearch(a, 42), " ", arrays.Unique([1, 2, 1, 3, 2]))
+    var* r = arrays.Range(0, 5)
+    arrays.Reverse(r)
+    println(r, " ", arrays.Slice(r, 1, 3), " ", arrays.Concat([1], [2, 3]), " ", arrays.Repeat(7, 3))
+    var* words = ["pear", "apple", "fig", "banana"]
+    arrays.SortStrings(words)
+    println(words, " ", arrays.ContainsString(words, "fig"))
+    var* fs = [2.5, 1.5, 3.0]
+    arrays.SortFloat(fs)
+    println(fs, " ", arrays.MeanFloat(fs))
+
+    println("--- conv")
+    println(conv.Itoa(42) + "!", " ", conv.Atoi("-17") * 2, " ", conv.ParseBool("yes"), " ", conv.IsInt(" 12 "), " ", conv.IsInt("12a"), " ", conv.IsFloat("1e3"))
+    println(conv.FormatFloat(math.Pi, 3), " ", conv.ToBinary(10), " ", conv.ToHex(255), " ", conv.FormatInt(-35, 36), " ", conv.ParseIntBase("ff", 16), " ", conv.ParseIntBase("-101", 2))
+
+    println("--- rand")
+    rand.Seed(42)
+    var* first = rand.Int()
+    rand.Seed(42)
+    println("deterministic: ", first == rand.Int())
+    var* ok = true
+    for i in 0..1000 {
+        var* d = rand.Range(1, 6)
+        if d < 1 || d > 6 { ok = false }
+        var* f = rand.Float()
+        if f < 0.0 || f >= 1.0 { ok = false }
+    }
+    println("ranges ok: ", ok)
+    var* deck = arrays.Range(0, 10)
+    rand.Shuffle(deck)
+    arrays.Sort(deck)
+    println("shuffle keeps elements: ", arrays.Equal(deck, arrays.Range(0, 10)))
+
+    println("--- time / os")
+    var* sw = time.StartStopwatch()
+    time.Sleep(20)
+    println("slept enough: ", sw.ElapsedMs() >= 15, " year ok: ", len(time.Format(time.Now(), "%Y")) == 4)
+    println("args: ", os.NumArgs(), " ", os.Arg(1))
+    var* path = "/tmp/pgt-stdlib-test.txt"
+    os.WriteFile(path, "line1\nline2\n")
+    os.AppendFile(path, "line3")
+    println(os.ReadLines(path), " exists=", os.Exists(path), " dir=", os.IsDir("/tmp"))
+    os.Remove(path)
+    println("removed: ", !os.Exists(path), " HOME set: ", len(os.Getenv("HOME")) > 0)
+}
+
+return 0

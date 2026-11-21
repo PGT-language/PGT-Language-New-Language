@@ -1,0 +1,5 @@
+// error: values can only be compared with nil
+package main
+struct P { X int }
+fn main() { println(P{X: 1} == P{X: 1}) }
+return 0
