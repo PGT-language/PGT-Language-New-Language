@@ -51,6 +51,40 @@ namespace pgt
             return "'true'";
         case Tok::KwFalse:
             return "'false'";
+        case Tok::KwStruct:
+            return "'struct'";
+        case Tok::KwInterface:
+            return "'interface'";
+        case Tok::KwConst:
+            return "'const'";
+        case Tok::KwSwitch:
+            return "'switch'";
+        case Tok::KwCase:
+            return "'case'";
+        case Tok::KwDefault:
+            return "'default'";
+        case Tok::KwNil:
+            return "'nil'";
+        case Tok::KwExtern:
+            return "'extern'";
+        case Tok::LBracket:
+            return "'['";
+        case Tok::RBracket:
+            return "']'";
+        case Tok::Colon:
+            return "':'";
+        case Tok::Amp:
+            return "'&'";
+        case Tok::Pipe:
+            return "'|'";
+        case Tok::Caret:
+            return "'^'";
+        case Tok::Tilde:
+            return "'~'";
+        case Tok::Shl:
+            return "'<<'";
+        case Tok::Shr:
+            return "'>>'";
         case Tok::LParen:
             return "'('";
         case Tok::RParen:
@@ -154,6 +188,20 @@ namespace pgt
                 while (!atEnd() && peek() != '\n')
                     advance();
             }
+            else if (c == '/' && peek(1) == '*')
+            {
+                int line = line_, col = col_;
+                advance();
+                advance();
+                while (!(peek() == '*' && peek(1) == '/'))
+                {
+                    if (atEnd())
+                        throw CompileError("unterminated block comment", line, col);
+                    advance();
+                }
+                advance();
+                advance();
+            }
             else
             {
                 break;
@@ -165,6 +213,31 @@ namespace pgt
     {
         int line = line_, col = col_;
         std::string digits;
+        if (peek() == '0' && (peek(1) == 'x' || peek(1) == 'X' || peek(1) == 'b' || peek(1) == 'B'))
+        {
+            bool hex = peek(1) == 'x' || peek(1) == 'X';
+            advance();
+            advance();
+            std::string body;
+            while (hex ? std::isxdigit(static_cast<unsigned char>(peek()))
+                       : (peek() == '0' || peek() == '1'))
+                body += advance();
+            if (body.empty())
+                throw CompileError(hex ? "expected hex digits after '0x'" : "expected binary digits after '0b'",
+                                   line, col);
+            unsigned long long v = 0;
+            try
+            {
+                v = std::stoull(body, nullptr, hex ? 16 : 2);
+            }
+            catch (const std::out_of_range &)
+            {
+                throw CompileError("integer literal is too large", line, col);
+            }
+            if (v > 0x7fffffffffffffffULL)
+                throw CompileError("integer literal is too large", line, col);
+            return make(Tok::Int, std::to_string(v), line, col);
+        }
         while (std::isdigit(static_cast<unsigned char>(peek())))
             digits += advance();
         if (peek() == '.' && std::isdigit(static_cast<unsigned char>(peek(1))))
@@ -311,6 +384,14 @@ namespace pgt
             return make(Tok::KwTrue, word, line, col);
         if (word == "false")
             return make(Tok::KwFalse, word, line, col);
+        static const std::pair<const char *, Tok> more[] = {
+            {"struct", Tok::KwStruct}, {"interface", Tok::KwInterface}, {"const", Tok::KwConst},
+            {"switch", Tok::KwSwitch}, {"case", Tok::KwCase},           {"default", Tok::KwDefault},
+            {"nil", Tok::KwNil},       {"extern", Tok::KwExtern},
+        };
+        for (const auto &[text, kind] : more)
+            if (word == text)
+                return make(kind, word, line, col);
         return make(Tok::Ident, std::move(word), line, col);
     }
 
@@ -381,6 +462,21 @@ namespace pgt
                 case ',':
                     kind = Tok::Comma;
                     break;
+                case '[':
+                    kind = Tok::LBracket;
+                    break;
+                case ']':
+                    kind = Tok::RBracket;
+                    break;
+                case ':':
+                    kind = Tok::Colon;
+                    break;
+                case '^':
+                    kind = Tok::Caret;
+                    break;
+                case '~':
+                    kind = Tok::Tilde;
+                    break;
                 case ';':
                     kind = Tok::Semi;
                     break;
@@ -394,20 +490,18 @@ namespace pgt
                     kind = match('=') ? Tok::Ne : Tok::Bang;
                     break;
                 case '<':
-                    kind = match('=') ? Tok::Le : Tok::Lt;
+                    kind = match('<') ? Tok::Shl : match('=') ? Tok::Le
+                                                              : Tok::Lt;
                     break;
                 case '>':
-                    kind = match('=') ? Tok::Ge : Tok::Gt;
+                    kind = match('>') ? Tok::Shr : match('=') ? Tok::Ge
+                                                              : Tok::Gt;
                     break;
                 case '&':
-                    if (!match('&'))
-                        throw CompileError("unexpected character '&' (did you mean '&&'?)", line, col);
-                    kind = Tok::AndAnd;
+                    kind = match('&') ? Tok::AndAnd : Tok::Amp;
                     break;
                 case '|':
-                    if (!match('|'))
-                        throw CompileError("unexpected character '|' (did you mean '||'?)", line, col);
-                    kind = Tok::OrOr;
+                    kind = match('|') ? Tok::OrOr : Tok::Pipe;
                     break;
                 case '+':
                     kind = match('+') ? Tok::PlusPlus : match('=') ? Tok::PlusAssign

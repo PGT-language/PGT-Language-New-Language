@@ -6,6 +6,66 @@
 namespace pgt
 {
 
+    namespace
+    {
+
+        struct FlagGuard
+        {
+            bool &flag;
+            bool saved;
+            FlagGuard(bool &f, bool value) : flag(f), saved(f)
+            {
+                flag = value;
+            }
+            ~FlagGuard()
+            {
+                flag = saved;
+            }
+        };
+
+        bool isAssignOp(Tok k)
+        {
+            switch (k)
+            {
+            case Tok::Assign:
+            case Tok::PlusAssign:
+            case Tok::MinusAssign:
+            case Tok::StarAssign:
+            case Tok::SlashAssign:
+            case Tok::PercentAssign:
+            case Tok::PlusPlus:
+            case Tok::MinusMinus:
+                return true;
+            default:
+                return false;
+            }
+        }
+
+        // Binary operators from the loosest to the tightest binding level.
+        struct OpLevel
+        {
+            std::vector<std::pair<Tok, BinOp>> ops;
+        };
+
+        const std::vector<OpLevel> &opLevels()
+        {
+            static const std::vector<OpLevel> levels = {
+                {{{Tok::OrOr, BinOp::Or}}},
+                {{{Tok::AndAnd, BinOp::And}}},
+                {{{Tok::Pipe, BinOp::BitOr}}},
+                {{{Tok::Caret, BinOp::BitXor}}},
+                {{{Tok::Amp, BinOp::BitAnd}}},
+                {{{Tok::Eq, BinOp::Eq}, {Tok::Ne, BinOp::Ne}}},
+                {{{Tok::Lt, BinOp::Lt}, {Tok::Gt, BinOp::Gt}, {Tok::Le, BinOp::Le}, {Tok::Ge, BinOp::Ge}}},
+                {{{Tok::Shl, BinOp::Shl}, {Tok::Shr, BinOp::Shr}}},
+                {{{Tok::Plus, BinOp::Add}, {Tok::Minus, BinOp::Sub}}},
+                {{{Tok::Star, BinOp::Mul}, {Tok::Slash, BinOp::Div}, {Tok::Percent, BinOp::Mod}}},
+            };
+            return levels;
+        }
+
+    }
+
     const Token &Parser::peekTok(size_t ahead) const
     {
         size_t i = pos_ + ahead;
@@ -29,8 +89,8 @@ namespace pgt
     {
         if (!check(k))
         {
-            errorHere(std::string("expected ") + tokName(k) + " " + context + ", found " +
-                      tokName(cur().kind));
+            errorHere(std::string("expected ") + tokName(k) + (*context ? " " : "") + context +
+                      ", found " + tokName(cur().kind));
         }
         return advance();
     }
@@ -44,8 +104,35 @@ namespace pgt
         while (check(Tok::KwUse))
             parseImports(prog);
 
-        while (check(Tok::KwFn))
-            prog.functions.push_back(parseFunction());
+        while (true)
+        {
+            switch (cur().kind)
+            {
+            case Tok::KwFn:
+                prog.functions.push_back(parseFunction());
+                continue;
+            case Tok::KwExtern:
+                prog.functions.push_back(parseExtern());
+                continue;
+            case Tok::KwStruct:
+                prog.structs.push_back(parseStruct());
+                continue;
+            case Tok::KwInterface:
+                prog.interfaces.push_back(parseInterface());
+                continue;
+            case Tok::KwConst:
+                parseConsts(prog.globals);
+                continue;
+            case Tok::KwVar:
+                prog.globals.push_back(parseVarDecl());
+                continue;
+            case Tok::KwUse:
+                errorHere("'#use' must come before all declarations");
+            default:
+                break;
+            }
+            break;
+        }
 
         if (check(Tok::KwReturn))
         {
@@ -57,7 +144,9 @@ namespace pgt
         {
             if (prog.exitCode)
                 errorHere("unexpected code after the final 'return'");
-            errorHere(std::string("expected 'fn' or 'return', found ") + tokName(cur().kind));
+            errorHere(std::string("expected a declaration ('fn', 'struct', 'interface', 'const', "
+                                  "'var*') or the final 'return', found ") +
+                      tokName(cur().kind));
         }
         return prog;
     }
@@ -89,10 +178,69 @@ namespace pgt
         }
     }
 
-    TypeExpr Parser::parseTypeName(const char *context)
+    bool Parser::atTypeStart() const
     {
-        const Token &t = expect(Tok::Ident, context);
-        return TypeExpr{t.text, t.line, t.col};
+        return check(Tok::Ident) || check(Tok::LBracket) || check(Tok::Star);
+    }
+
+    TypeExpr Parser::parseType(const char *context)
+    {
+        const Token &t = cur();
+        if (check(Tok::LBracket))
+        {
+            advance();
+            expect(Tok::RBracket, "in the array type '[]T'");
+            TypeExpr arr;
+            arr.kind = TypeExpr::Kind::Array;
+            arr.line = t.line;
+            arr.col = t.col;
+            arr.elem = std::make_shared<TypeExpr>(parseType("as the array element type"));
+            return arr;
+        }
+        if (check(Tok::Star))
+        {
+            advance();
+            TypeExpr ptr;
+            ptr.kind = TypeExpr::Kind::Pointer;
+            ptr.line = t.line;
+            ptr.col = t.col;
+            ptr.elem = std::make_shared<TypeExpr>(parseType("after '*'"));
+            return ptr;
+        }
+        const Token &name = expect(Tok::Ident, context);
+        TypeExpr out = TypeExpr::named(name.text, name.line, name.col);
+        if (check(Tok::Dot) && peekTok().kind == Tok::Ident)
+        {
+            advance();
+            out.qualifier = out.name;
+            out.name = advance().text;
+        }
+        return out;
+    }
+
+    std::vector<Param> Parser::parseParams()
+    {
+        std::vector<Param> params;
+        expect(Tok::LParen, "before the parameters");
+        if (!check(Tok::RParen))
+        {
+            do
+            {
+                if (check(Tok::RParen))
+                    break;
+                Param param;
+                param.line = cur().line;
+                param.col = cur().col;
+                param.name = expect(Tok::Ident, "as a parameter name").text;
+                if (atTypeStart())
+                    param.type = parseType("as a parameter type");
+                else
+                    param.type = TypeExpr::named("int", param.line, param.col);
+                params.push_back(std::move(param));
+            } while (accept(Tok::Comma));
+        }
+        expect(Tok::RParen, "after the parameters");
+        return params;
     }
 
     Function Parser::parseFunction()
@@ -101,68 +249,149 @@ namespace pgt
         fn.line = cur().line;
         fn.col = cur().col;
         expect(Tok::KwFn, "");
-        fn.name = expect(Tok::Ident, "after 'fn'").text;
-        expect(Tok::LParen, "after the function name");
-        if (!check(Tok::RParen))
+        if (check(Tok::LParen))
         {
-            do
-            {
-                Param param;
-                param.line = cur().line;
-                param.col = cur().col;
-                param.name = expect(Tok::Ident, "as a parameter name").text;
-                if (check(Tok::Ident))
-                    param.type = parseTypeName("as a parameter type");
-                else
-                    param.type = TypeExpr{"int", param.line, param.col};
-                fn.params.push_back(std::move(param));
-            } while (check(Tok::Comma) && (advance(), true));
+            advance();
+            Receiver recv;
+            recv.line = cur().line;
+            recv.col = cur().col;
+            recv.name = expect(Tok::Ident, "as the receiver name").text;
+            recv.pointer = accept(Tok::Star);
+            recv.typeName = expect(Tok::Ident, "as the receiver type").text;
+            expect(Tok::RParen, "after the receiver");
+            fn.receiver = recv;
         }
-        expect(Tok::RParen, "after the parameters");
-        if (check(Tok::Ident))
-            fn.ret = parseTypeName("as the result type");
+        fn.name = expect(Tok::Ident, "as the function name").text;
+        fn.params = parseParams();
+        if (atTypeStart())
+            fn.ret = parseType("as the result type");
         fn.body = parseBlock("before the function body");
         if (!fn.ret && hasValueReturn(fn.body))
-            fn.ret = TypeExpr{"int", fn.line, fn.col};
+            fn.ret = TypeExpr::named("int", fn.line, fn.col);
         return fn;
+    }
+
+    Function Parser::parseExtern()
+    {
+        Function fn;
+        fn.line = cur().line;
+        fn.col = cur().col;
+        fn.isExtern = true;
+        advance();
+        expect(Tok::KwFn, "after 'extern'");
+        fn.name = expect(Tok::Ident, "as the name of the external function").text;
+        fn.params = parseParams();
+        if (atTypeStart())
+            fn.ret = parseType("as the result type");
+        return fn;
+    }
+
+    StructDecl Parser::parseStruct()
+    {
+        StructDecl decl;
+        decl.line = cur().line;
+        decl.col = cur().col;
+        advance();
+        decl.name = expect(Tok::Ident, "after 'struct'").text;
+        expect(Tok::LBrace, "after the struct name");
+        while (!check(Tok::RBrace))
+        {
+            if (check(Tok::Eof))
+                errorHere("unexpected end of file, expected '}'");
+            std::vector<Field> group;
+            do
+            {
+                Field f;
+                f.line = cur().line;
+                f.col = cur().col;
+                f.name = expect(Tok::Ident, "as a field name").text;
+                group.push_back(std::move(f));
+            } while (accept(Tok::Comma));
+            TypeExpr type = parseType("as the field type");
+            for (Field &f : group)
+            {
+                f.type = type;
+                decl.fields.push_back(std::move(f));
+            }
+            accept(Tok::Semi);
+        }
+        advance();
+        return decl;
+    }
+
+    InterfaceDecl Parser::parseInterface()
+    {
+        InterfaceDecl decl;
+        decl.line = cur().line;
+        decl.col = cur().col;
+        advance();
+        decl.name = expect(Tok::Ident, "after 'interface'").text;
+        expect(Tok::LBrace, "after the interface name");
+        while (!check(Tok::RBrace))
+        {
+            if (check(Tok::Eof))
+                errorHere("unexpected end of file, expected '}'");
+            MethodSig m;
+            m.line = cur().line;
+            m.col = cur().col;
+            m.name = expect(Tok::Ident, "as a method name").text;
+            m.params = parseParams();
+            // `Name(` on the same position starts the next method, not a result type.
+            if (atTypeStart() && !(check(Tok::Ident) && peekTok().kind == Tok::LParen))
+                m.ret = parseType("as the result type");
+            decl.methods.push_back(std::move(m));
+            accept(Tok::Semi);
+        }
+        advance();
+        return decl;
+    }
+
+    std::unique_ptr<VarDecl> Parser::parseConstSpec()
+    {
+        auto decl = make<VarDecl>(cur());
+        decl->isConst = true;
+        decl->name = expect(Tok::Ident, "as the constant name").text;
+        if (atTypeStart())
+            decl->type = parseType("after the constant name");
+        expect(Tok::Assign, "after the constant name (a constant needs a value)");
+        decl->init = parseExpr();
+        return decl;
+    }
+
+    void Parser::parseConsts(std::vector<std::unique_ptr<VarDecl>> &out)
+    {
+        advance();
+        if (accept(Tok::LParen))
+        {
+            while (!check(Tok::RParen))
+            {
+                if (check(Tok::Eof))
+                    errorHere("unexpected end of file, expected ')'");
+                out.push_back(parseConstSpec());
+            }
+            advance();
+            return;
+        }
+        out.push_back(parseConstSpec());
     }
 
     Block Parser::parseBlock(const char *context)
     {
         expect(Tok::LBrace, context);
+        FlagGuard guard(noStructLit_, false);
         Block body;
         while (!check(Tok::RBrace))
         {
             if (check(Tok::Eof))
                 errorHere("unexpected end of file, expected '}'");
-
             body.push_back(parseStatement());
+            accept(Tok::Semi);
         }
         advance();
         return body;
     }
 
-    bool Parser::atAssignment() const
-    {
-        if (!check(Tok::Ident))
-            return false;
-        switch (peekTok().kind)
-        {
-        case Tok::Assign:
-        case Tok::PlusAssign:
-        case Tok::MinusAssign:
-        case Tok::StarAssign:
-        case Tok::SlashAssign:
-        case Tok::PercentAssign:
-        case Tok::PlusPlus:
-        case Tok::MinusMinus:
-            return true;
-        default:
-            return false;
-        }
-    }
-
-    StmtPtr Parser::parseVarDecl()
+    std::unique_ptr<VarDecl> Parser::parseVarDecl()
     {
         auto decl = make<VarDecl>(cur());
         advance();
@@ -171,22 +400,17 @@ namespace pgt
         {
             advance();
             advance();
-            decl->type = parseTypeName("inside '{ }'");
+            decl->type = parseType("inside '{ }'");
             expect(Tok::RBrace, "after the type");
         }
-        else if (check(Tok::Ident))
+        else if (atTypeStart())
         {
-            decl->type = parseTypeName("after the variable name");
+            decl->type = parseType("after the variable name");
         }
-        if (check(Tok::Assign))
-        {
-            advance();
+        if (accept(Tok::Assign))
             decl->init = parseExpr();
-        }
         else if (!decl->type)
-        {
             errorHere("expected '=' or a type after the variable name");
-        }
         return decl;
     }
 
@@ -194,11 +418,21 @@ namespace pgt
     {
         if (check(Tok::KwVar))
             return parseVarDecl();
-        if (!atAssignment())
-            errorHere("expected a variable declaration or an assignment");
 
-        auto assign = make<Assign>(cur());
-        assign->name = advance().text;
+        const Token &start = cur();
+        ExprPtr target = parseExpr();
+        if (!isAssignOp(cur().kind))
+        {
+            auto stmt = make<ExprStmt>(start);
+            if (!dynamic_cast<Call *>(target.get()))
+                throw CompileError("expression result is unused; only calls can be statements",
+                                   start.line, start.col);
+            stmt->expr = std::move(target);
+            return stmt;
+        }
+
+        auto assign = make<Assign>(start);
+        assign->target = std::move(target);
         const Token &opTok = advance();
 
         auto one = [&]
@@ -249,17 +483,23 @@ namespace pgt
         {
         case Tok::KwVar:
             return parseVarDecl();
+        case Tok::KwConst:
+            errorHere("constants can only be declared at the top level of a file");
         case Tok::KwIf:
             return parseIf();
         case Tok::KwWhile:
             return parseWhile();
         case Tok::KwFor:
             return parseFor();
+        case Tok::KwSwitch:
+            return parseSwitch();
         case Tok::KwReturn:
         {
-            auto stmt = make<Return>(cur());
+            const Token &retTok = cur();
+            auto stmt = make<Return>(retTok);
             advance();
-            if (!check(Tok::RBrace))
+            // A value must start on the same line as 'return'.
+            if (!check(Tok::RBrace) && !check(Tok::Semi) && cur().line == retTok.line)
                 stmt->value = parseExpr();
             return stmt;
         }
@@ -278,23 +518,20 @@ namespace pgt
         default:
             break;
         }
+        return parseSimpleStatement();
+    }
 
-        if (atAssignment())
-            return parseSimpleStatement();
-
-        auto stmt = make<ExprStmt>(cur());
-        stmt->expr = parseExpr();
-        if (!dynamic_cast<Call *>(stmt->expr.get()))
-            throw CompileError("expression result is unused; only calls can be statements",
-                               stmt->line, stmt->col);
-        return stmt;
+    ExprPtr Parser::parseHeaderExpr()
+    {
+        FlagGuard guard(noStructLit_, true);
+        return parseExpr();
     }
 
     StmtPtr Parser::parseIf()
     {
         auto node = make<If>(cur());
         advance();
-        node->cond = parseExpr();
+        node->cond = parseHeaderExpr();
         node->thenBody = parseBlock("after the 'if' condition");
         if (check(Tok::KwElse))
         {
@@ -312,7 +549,7 @@ namespace pgt
     {
         auto loop = make<Loop>(cur());
         advance();
-        loop->cond = parseExpr();
+        loop->cond = parseHeaderExpr();
         loop->body = parseBlock("after the 'while' condition");
         return loop;
     }
@@ -322,169 +559,256 @@ namespace pgt
         const Token &forTok = cur();
         advance();
 
-        if (check(Tok::Ident) && peekTok().kind == Tok::KwIn)
+        bool oneName = check(Tok::Ident) && peekTok().kind == Tok::KwIn;
+        bool twoNames = check(Tok::Ident) && peekTok().kind == Tok::Comma &&
+                        peekTok(2).kind == Tok::Ident && peekTok(3).kind == Tok::KwIn;
+        if (oneName || twoNames)
         {
-            auto range = make<RangeLoop>(forTok);
-            range->var = advance().text;
+            auto loop = make<ForIn>(forTok);
+            if (twoNames)
+            {
+                loop->key = advance().text;
+                advance();
+            }
+            loop->value = advance().text;
             advance();
-            range->from = parseExpr();
-            expect(Tok::DotDot, "in the range of 'for'");
-            range->to = parseExpr();
-            range->body = parseBlock("after the 'for' range");
-            return range;
+            loop->iterable = parseHeaderExpr();
+            if (accept(Tok::DotDot))
+            {
+                if (twoNames)
+                    throw CompileError("a range 'a..b' has only one loop variable", forTok.line,
+                                       forTok.col);
+                loop->rangeEnd = parseHeaderExpr();
+            }
+            loop->body = parseBlock("after the 'for' header");
+            return loop;
         }
 
         auto loop = make<Loop>(forTok);
-
         if (check(Tok::LBrace))
         {
             loop->body = parseBlock("");
             return loop;
         }
 
-        if (check(Tok::KwVar) || atAssignment())
+        StmtPtr first;
         {
-            loop->init = parseSimpleStatement();
-            expect(Tok::Semi, "after the 'for' initializer");
-            loop->cond = parseExpr();
-            expect(Tok::Semi, "after the 'for' condition");
-            if (!check(Tok::LBrace))
-                loop->post = parseSimpleStatement();
-            loop->body = parseBlock("after the 'for' header");
-            return loop;
+            FlagGuard guard(noStructLit_, true);
+            if (check(Tok::Semi))
+                first = nullptr;
+            else if (check(Tok::KwVar))
+                first = parseVarDecl();
+            else
+            {
+                size_t start = pos_;
+                ExprPtr e = parseExpr();
+                if (!isAssignOp(cur().kind) && !check(Tok::Semi))
+                {
+                    loop->cond = std::move(e);
+                    loop->body = parseBlock("after the 'for' condition");
+                    return loop;
+                }
+                // It is the initializer of a three-part loop: parse it again as a statement.
+                pos_ = start;
+                first = parseSimpleStatement();
+            }
         }
 
-        loop->cond = parseExpr();
-        loop->body = parseBlock("after the 'for' condition");
+        loop->init = std::move(first);
+        expect(Tok::Semi, "after the 'for' initializer");
+        if (!check(Tok::Semi))
+            loop->cond = parseHeaderExpr();
+        expect(Tok::Semi, "after the 'for' condition");
+        if (!check(Tok::LBrace))
+        {
+            FlagGuard guard(noStructLit_, true);
+            loop->post = parseSimpleStatement();
+        }
+        loop->body = parseBlock("after the 'for' header");
         return loop;
+    }
+
+    StmtPtr Parser::parseSwitch()
+    {
+        auto sw = make<Switch>(cur());
+        advance();
+        if (!check(Tok::LBrace))
+            sw->tag = parseHeaderExpr();
+        expect(Tok::LBrace, "after the 'switch' value");
+        while (!check(Tok::RBrace))
+        {
+            if (check(Tok::KwCase))
+            {
+                Case c;
+                c.line = cur().line;
+                c.col = cur().col;
+                advance();
+                do
+                {
+                    c.values.push_back(parseHeaderExpr());
+                } while (accept(Tok::Comma));
+                c.body = parseBlock("after the 'case' values");
+                sw->cases.push_back(std::move(c));
+            }
+            else if (check(Tok::KwDefault))
+            {
+                if (sw->hasDefault)
+                    errorHere("a 'switch' can have only one 'default'");
+                advance();
+                sw->hasDefault = true;
+                sw->defaultBody = parseBlock("after 'default'");
+            }
+            else
+            {
+                errorHere(std::string("expected 'case', 'default' or '}' in 'switch', found ") +
+                          tokName(cur().kind));
+            }
+        }
+        advance();
+        return sw;
     }
 
     ExprPtr Parser::parseExpr()
     {
-        return parseOr();
+        return parseBinary(0);
     }
 
-    ExprPtr Parser::parseOr()
+    ExprPtr Parser::parseBinary(int level)
     {
-        ExprPtr lhs = parseAnd();
-        while (check(Tok::OrOr))
+        const auto &levels = opLevels();
+        if (level >= static_cast<int>(levels.size()))
+            return parseUnary();
+
+        ExprPtr lhs = parseBinary(level + 1);
+        while (true)
         {
+            const BinOp *found = nullptr;
+            for (const auto &[tok, op] : levels[level].ops)
+                if (check(tok))
+                    found = &op;
+            if (!found)
+                return lhs;
             auto bin = make<Binary>(cur());
             advance();
-            bin->op = BinOp::Or;
+            bin->op = *found;
             bin->lhs = std::move(lhs);
-            bin->rhs = parseAnd();
+            bin->rhs = parseBinary(level + 1);
             lhs = std::move(bin);
         }
-        return lhs;
-    }
-
-    ExprPtr Parser::parseAnd()
-    {
-        ExprPtr lhs = parseEquality();
-        while (check(Tok::AndAnd))
-        {
-            auto bin = make<Binary>(cur());
-            advance();
-            bin->op = BinOp::And;
-            bin->lhs = std::move(lhs);
-            bin->rhs = parseEquality();
-            lhs = std::move(bin);
-        }
-        return lhs;
-    }
-
-    ExprPtr Parser::parseEquality()
-    {
-        ExprPtr lhs = parseRelational();
-        while (check(Tok::Eq) || check(Tok::Ne))
-        {
-            auto bin = make<Binary>(cur());
-            bin->op = advance().kind == Tok::Eq ? BinOp::Eq : BinOp::Ne;
-            bin->lhs = std::move(lhs);
-            bin->rhs = parseRelational();
-            lhs = std::move(bin);
-        }
-        return lhs;
-    }
-
-    ExprPtr Parser::parseRelational()
-    {
-        ExprPtr lhs = parseAdditive();
-        while (check(Tok::Lt) || check(Tok::Gt) || check(Tok::Le) || check(Tok::Ge))
-        {
-            auto bin = make<Binary>(cur());
-            switch (advance().kind)
-            {
-            case Tok::Lt:
-                bin->op = BinOp::Lt;
-                break;
-            case Tok::Gt:
-                bin->op = BinOp::Gt;
-                break;
-            case Tok::Le:
-                bin->op = BinOp::Le;
-                break;
-            default:
-                bin->op = BinOp::Ge;
-                break;
-            }
-            bin->lhs = std::move(lhs);
-            bin->rhs = parseAdditive();
-            lhs = std::move(bin);
-        }
-        return lhs;
-    }
-
-    ExprPtr Parser::parseAdditive()
-    {
-        ExprPtr lhs = parseTerm();
-        while (check(Tok::Plus) || check(Tok::Minus))
-        {
-            auto bin = make<Binary>(cur());
-            bin->op = advance().kind == Tok::Plus ? BinOp::Add : BinOp::Sub;
-            bin->lhs = std::move(lhs);
-            bin->rhs = parseTerm();
-            lhs = std::move(bin);
-        }
-        return lhs;
-    }
-
-    ExprPtr Parser::parseTerm()
-    {
-        ExprPtr lhs = parseUnary();
-        while (check(Tok::Star) || check(Tok::Slash) || check(Tok::Percent))
-        {
-            auto bin = make<Binary>(cur());
-            switch (advance().kind)
-            {
-            case Tok::Star:
-                bin->op = BinOp::Mul;
-                break;
-            case Tok::Slash:
-                bin->op = BinOp::Div;
-                break;
-            default:
-                bin->op = BinOp::Mod;
-                break;
-            }
-            bin->lhs = std::move(lhs);
-            bin->rhs = parseUnary();
-            lhs = std::move(bin);
-        }
-        return lhs;
     }
 
     ExprPtr Parser::parseUnary()
     {
-        if (check(Tok::Minus) || check(Tok::Bang))
+        UnOp op;
+        switch (cur().kind)
         {
-            auto un = make<Unary>(cur());
-            un->op = advance().kind == Tok::Minus ? UnOp::Neg : UnOp::Not;
-            un->operand = parseUnary();
-            return un;
+        case Tok::Minus:
+            op = UnOp::Neg;
+            break;
+        case Tok::Bang:
+            op = UnOp::Not;
+            break;
+        case Tok::Tilde:
+            op = UnOp::BitNot;
+            break;
+        case Tok::Star:
+            op = UnOp::Deref;
+            break;
+        case Tok::Amp:
+            op = UnOp::AddrOf;
+            break;
+        default:
+            return parsePostfix();
         }
-        return parsePrimary();
+        auto un = make<Unary>(cur());
+        advance();
+        un->op = op;
+        un->operand = parseUnary();
+        return un;
+    }
+
+    ExprPtr Parser::parsePostfix()
+    {
+        ExprPtr e = parsePrimary();
+        while (true)
+        {
+            if (check(Tok::Dot))
+            {
+                auto sel = make<Selector>(cur());
+                advance();
+                sel->name = expect(Tok::Ident, "after '.'").text;
+                sel->base = std::move(e);
+                e = std::move(sel);
+            }
+            else if (check(Tok::LBracket))
+            {
+                auto idx = make<Index>(cur());
+                advance();
+                FlagGuard guard(noStructLit_, false);
+                idx->index = parseExpr();
+                expect(Tok::RBracket, "after the index");
+                idx->base = std::move(e);
+                e = std::move(idx);
+            }
+            else if (check(Tok::LParen))
+            {
+                auto call = make<Call>(cur());
+                call->line = e->line;
+                call->col = e->col;
+                advance();
+                FlagGuard guard(noStructLit_, false);
+                auto *ref = dynamic_cast<VarRef *>(e.get());
+                if (ref && (ref->name == "make" || ref->name == "new") && !check(Tok::RParen))
+                {
+                    call->typeArg = parseType("as the type argument");
+                    if (!check(Tok::RParen))
+                        expect(Tok::Comma, "after the type argument");
+                }
+                while (!check(Tok::RParen))
+                {
+                    call->args.push_back(parseExpr());
+                    if (!accept(Tok::Comma))
+                        break;
+                }
+                expect(Tok::RParen, "after call arguments");
+                call->callee = std::move(e);
+                e = std::move(call);
+            }
+            else
+            {
+                return e;
+            }
+        }
+    }
+
+    bool Parser::atStructLitBody() const
+    {
+        if (noStructLit_ || !check(Tok::LBrace))
+            return false;
+        Tok next = peekTok().kind;
+        return next == Tok::RBrace || (next == Tok::Ident && peekTok(2).kind == Tok::Colon);
+    }
+
+    ExprPtr Parser::parseStructLit(TypeExpr type, const Token &at)
+    {
+        auto lit = make<StructLit>(at);
+        lit->type = std::move(type);
+        expect(Tok::LBrace, "");
+        FlagGuard guard(noStructLit_, false);
+        while (!check(Tok::RBrace))
+        {
+            FieldInit f;
+            f.line = cur().line;
+            f.col = cur().col;
+            f.name = expect(Tok::Ident, "as a field name").text;
+            expect(Tok::Colon, "after the field name");
+            f.value = parseExpr();
+            lit->fields.push_back(std::move(f));
+            if (!accept(Tok::Comma))
+                break;
+        }
+        expect(Tok::RBrace, "after the struct fields");
+        return lit;
     }
 
     ExprPtr Parser::parsePrimary()
@@ -529,6 +853,11 @@ namespace pgt
             advance();
             return lit;
         }
+        case Tok::KwNil:
+        {
+            advance();
+            return make<NilLit>(t);
+        }
         case Tok::String:
         {
             auto lit = make<StringLit>(t);
@@ -538,43 +867,45 @@ namespace pgt
         }
         case Tok::Ident:
         {
-            std::string name = t.text;
             advance();
-            std::string qualifier;
-            if (check(Tok::Dot))
+            // `Name{...}` and `pkg.Name{...}` are struct literals.
+            if (atStructLitBody())
+                return parseStructLit(TypeExpr::named(t.text, t.line, t.col), t);
+            if (check(Tok::Dot) && peekTok().kind == Tok::Ident && !noStructLit_ &&
+                peekTok(2).kind == Tok::LBrace &&
+                (peekTok(3).kind == Tok::RBrace ||
+                 (peekTok(3).kind == Tok::Ident && peekTok(4).kind == Tok::Colon)))
             {
                 advance();
-                qualifier = std::move(name);
-                name = expect(Tok::Ident, "after '.'").text;
-                if (!check(Tok::LParen))
-                    errorHere("expected '(' after a qualified name");
-            }
-            if (check(Tok::LParen))
-            {
-                advance();
-                auto call = make<Call>(t);
-                call->qualifier = std::move(qualifier);
-                call->callee = std::move(name);
-                if (!check(Tok::RParen))
-                {
-                    do
-                    {
-                        call->args.push_back(parseExpr());
-                    } while (check(Tok::Comma) && (advance(), true));
-                }
-                expect(Tok::RParen, "after call arguments");
-                return call;
+                TypeExpr type = TypeExpr::named(advance().text, t.line, t.col);
+                type.qualifier = t.text;
+                return parseStructLit(std::move(type), t);
             }
             auto ref = make<VarRef>(t);
-            ref->name = std::move(name);
+            ref->name = t.text;
             return ref;
         }
         case Tok::LParen:
         {
             advance();
+            FlagGuard guard(noStructLit_, false);
             ExprPtr inner = parseExpr();
             expect(Tok::RParen, "to close the parenthesized expression");
             return inner;
+        }
+        case Tok::LBracket:
+        {
+            auto lit = make<ArrayLit>(t);
+            advance();
+            FlagGuard guard(noStructLit_, false);
+            while (!check(Tok::RBracket))
+            {
+                lit->elems.push_back(parseExpr());
+                if (!accept(Tok::Comma))
+                    break;
+            }
+            expect(Tok::RBracket, "after the array elements");
+            return lit;
         }
         default:
             errorHere(std::string("expected an expression, found ") + tokName(t.kind));

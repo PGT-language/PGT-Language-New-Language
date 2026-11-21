@@ -25,31 +25,44 @@ namespace pgt
         {
             return cur().kind == k;
         }
+        bool accept(Tok k)
+        {
+            if (!check(k))
+                return false;
+            advance();
+            return true;
+        }
         const Token &advance();
         const Token &expect(Tok k, const char *context);
         [[noreturn]] void errorHere(const std::string &msg) const;
 
         void parseImports(Program &prog);
-        TypeExpr parseTypeName(const char *context);
+        bool atTypeStart() const;
+        TypeExpr parseType(const char *context);
+        std::vector<Param> parseParams();
         Function parseFunction();
+        Function parseExtern();
+        StructDecl parseStruct();
+        InterfaceDecl parseInterface();
+        void parseConsts(std::vector<std::unique_ptr<VarDecl>> &out);
+        std::unique_ptr<VarDecl> parseConstSpec();
         Block parseBlock(const char *context);
         StmtPtr parseStatement();
-        StmtPtr parseVarDecl();
+        std::unique_ptr<VarDecl> parseVarDecl();
         StmtPtr parseSimpleStatement();
-        bool atAssignment() const;
         StmtPtr parseIf();
         StmtPtr parseWhile();
         StmtPtr parseFor();
+        StmtPtr parseSwitch();
+        ExprPtr parseHeaderExpr();
 
         ExprPtr parseExpr();
-        ExprPtr parseOr();
-        ExprPtr parseAnd();
-        ExprPtr parseEquality();
-        ExprPtr parseRelational();
-        ExprPtr parseAdditive();
-        ExprPtr parseTerm();
+        ExprPtr parseBinary(int level);
         ExprPtr parseUnary();
+        ExprPtr parsePostfix();
         ExprPtr parsePrimary();
+        ExprPtr parseStructLit(TypeExpr type, const Token &at);
+        bool atStructLitBody() const;
 
         template <typename T>
         std::unique_ptr<T> make(const Token &at) const
@@ -62,6 +75,8 @@ namespace pgt
 
         std::vector<Token> toks_;
         size_t pos_ = 0;
+        // Inside `if`/`for`/`switch` headers `Name {` starts the body, not a struct literal.
+        bool noStructLit_ = false;
     };
 
 }

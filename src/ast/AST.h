@@ -21,12 +21,20 @@ namespace pgt
         Le,
         Ge,
         And,
-        Or
+        Or,
+        BitAnd,
+        BitOr,
+        BitXor,
+        Shl,
+        Shr
     };
     enum class UnOp
     {
         Neg,
-        Not
+        Not,
+        BitNot,
+        Deref,
+        AddrOf
     };
     enum class AssignOp
     {
@@ -68,19 +76,74 @@ namespace pgt
             return "&&";
         case BinOp::Or:
             return "||";
+        case BinOp::BitAnd:
+            return "&";
+        case BinOp::BitOr:
+            return "|";
+        case BinOp::BitXor:
+            return "^";
+        case BinOp::Shl:
+            return "<<";
+        case BinOp::Shr:
+            return ">>";
         }
         return "?";
     }
 
     inline const char *opText(UnOp op)
     {
-        return op == UnOp::Neg ? "-" : "!";
+        switch (op)
+        {
+        case UnOp::Neg:
+            return "-";
+        case UnOp::Not:
+            return "!";
+        case UnOp::BitNot:
+            return "~";
+        case UnOp::Deref:
+            return "*";
+        case UnOp::AddrOf:
+            return "&";
+        }
+        return "?";
     }
 
+    // A type as written in the source: `int`, `geom.Point`, `[]T`, `*T`.
     struct TypeExpr
     {
+        enum class Kind
+        {
+            Named,
+            Array,
+            Pointer
+        };
+        Kind kind = Kind::Named;
+        std::string qualifier; // package name for `pkg.Name`
         std::string name;
+        std::shared_ptr<TypeExpr> elem;
         int line = 0, col = 0;
+
+        static TypeExpr named(std::string name, int line, int col)
+        {
+            TypeExpr t;
+            t.name = std::move(name);
+            t.line = line;
+            t.col = col;
+            return t;
+        }
+        std::string text() const
+        {
+            switch (kind)
+            {
+            case Kind::Array:
+                return "[]" + elem->text();
+            case Kind::Pointer:
+                return "*" + elem->text();
+            case Kind::Named:
+                break;
+            }
+            return qualifier.empty() ? name : qualifier + "." + name;
+        }
     };
 
     struct Expr
@@ -115,6 +178,10 @@ namespace pgt
         std::string value;
     };
 
+    struct NilLit : Expr
+    {
+    };
+
     struct VarRef : Expr
     {
         std::string name;
@@ -132,11 +199,44 @@ namespace pgt
         ExprPtr lhs, rhs;
     };
 
+    // `callee(args)`; the callee is a VarRef (`f`) or a Selector (`pkg.F`, `value.Method`).
+    // `typeArg` is set for builtins whose first argument is a type: make([]int, n), new(Point).
     struct Call : Expr
     {
-        std::string qualifier;
-        std::string callee;
+        ExprPtr callee;
+        std::optional<TypeExpr> typeArg;
         std::vector<ExprPtr> args;
+    };
+
+    // `base.name`: a struct field, or a constant/variable of an imported package.
+    struct Selector : Expr
+    {
+        ExprPtr base;
+        std::string name;
+    };
+
+    struct Index : Expr
+    {
+        ExprPtr base;
+        ExprPtr index;
+    };
+
+    struct ArrayLit : Expr
+    {
+        std::vector<ExprPtr> elems;
+    };
+
+    struct FieldInit
+    {
+        std::string name;
+        ExprPtr value;
+        int line = 0, col = 0;
+    };
+
+    struct StructLit : Expr
+    {
+        TypeExpr type;
+        std::vector<FieldInit> fields;
     };
 
     struct Stmt
@@ -152,11 +252,12 @@ namespace pgt
         std::string name;
         std::optional<TypeExpr> type;
         ExprPtr init;
+        bool isConst = false;
     };
 
     struct Assign : Stmt
     {
-        std::string name;
+        ExprPtr target;
         AssignOp op = AssignOp::Set;
         ExprPtr value;
     };
@@ -182,11 +283,29 @@ namespace pgt
         Block body;
     };
 
-    struct RangeLoop : Stmt
+    // `for i in a..b`, `for x in arr`, `for i, x in arr`, `for ch in s`.
+    struct ForIn : Stmt
     {
-        std::string var;
-        ExprPtr from, to;
+        std::string key;   // index variable (only with two names)
+        std::string value; // element / range variable
+        ExprPtr iterable;  // or the start of the range
+        ExprPtr rangeEnd;  // set for `a..b`
         Block body;
+    };
+
+    struct Case
+    {
+        std::vector<ExprPtr> values;
+        Block body;
+        int line = 0, col = 0;
+    };
+
+    struct Switch : Stmt
+    {
+        ExprPtr tag; // null: every case value is a condition
+        std::vector<Case> cases;
+        Block defaultBody;
+        bool hasDefault = false;
     };
 
     struct Break : Stmt
@@ -208,12 +327,51 @@ namespace pgt
         int line = 0, col = 0;
     };
 
+    struct Receiver
+    {
+        std::string name;
+        std::string typeName;
+        bool pointer = false;
+        int line = 0, col = 0;
+    };
+
     struct Function
+    {
+        std::string name;
+        std::optional<Receiver> receiver;
+        std::vector<Param> params;
+        std::optional<TypeExpr> ret;
+        Block body;
+        bool isExtern = false;
+        int line = 0, col = 0;
+    };
+
+    struct Field
+    {
+        std::string name;
+        TypeExpr type;
+        int line = 0, col = 0;
+    };
+
+    struct StructDecl
+    {
+        std::string name;
+        std::vector<Field> fields;
+        int line = 0, col = 0;
+    };
+
+    struct MethodSig
     {
         std::string name;
         std::vector<Param> params;
         std::optional<TypeExpr> ret;
-        Block body;
+        int line = 0, col = 0;
+    };
+
+    struct InterfaceDecl
+    {
+        std::string name;
+        std::vector<MethodSig> methods;
         int line = 0, col = 0;
     };
 
@@ -229,6 +387,9 @@ namespace pgt
         std::string package;
         std::vector<Import> imports;
         std::vector<Function> functions;
+        std::vector<StructDecl> structs;
+        std::vector<InterfaceDecl> interfaces;
+        std::vector<std::unique_ptr<VarDecl>> globals;
         ExprPtr exitCode;
     };
 
