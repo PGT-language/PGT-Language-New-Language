@@ -612,6 +612,7 @@ pgt run [dir|file.pgt] [-- args]    скомпилировать, запусти
 pgt new <name> [-t template]        создать проект
 pgt build file.pgt --debug          показать токены и синтаксическое дерево, затем собрать
 pgt build - --debug=json < file     то же в JSON без сборки (для PGT Studio; '-' — читать stdin)
+pgt build . --debug=project         JSON всего проекта: файлы, импорты, вес в токенах, AST (для PGT Studio)
 ```
 
 `--debug` печатает для каждого файла пакета все токены с позицией (`строка:столбец`), видом и текстом, а затем дерево разбора:

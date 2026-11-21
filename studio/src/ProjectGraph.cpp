@@ -357,10 +357,24 @@ void ProjectGraphView::addAst(QTreeWidgetItem *parent, const QJsonObject &node, 
         color = Theme::synKeyword;
 
     // The top Program node itself is not repeated; its sections go straight under "AST".
+    QString label = node["label"].toString();
+    if (kind == "Section")
+    {
+        // "functions (3)" from the compiler -> "функции (3)".
+        static const QHash<QString, QString> ru = {{"imports", "импорты"},
+                                                   {"constants and variables", "константы и переменные"},
+                                                   {"structs", "структуры"},
+                                                   {"interfaces", "интерфейсы"},
+                                                   {"functions", "функции"},
+                                                   {"exit code", "код выхода"}};
+        QString name = label.section(" (", 0, 0);
+        label = ru.value(name, name) + label.mid(name.size());
+    }
+
     QTreeWidgetItem *it = parent;
     if (kind != "Program" || parent->parent() == nullptr)
     {
-        it = item(parent, node["label"].toString() + (kind == "Section" ? "" : "\t" + kind), color);
+        it = item(parent, label + (kind == "Section" ? "" : "\t" + kind), color);
         if (node["line"].toInt() > 0)
             setLocation(it, absPath, node["line"].toInt(), node["col"].toInt());
     }
