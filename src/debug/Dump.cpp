@@ -2,12 +2,19 @@
 
 #include "ast/AST.h"
 #include "common/Error.h"
+#include "common/Paths.h"
+#include "loader/Loader.h"
+#include "modfile/ModFile.h"
 #include "lexer/Lexer.h"
 #include "parser/Parser.h"
 
 #include <algorithm>
 #include <cstdio>
+#include <deque>
+#include <filesystem>
+#include <fstream>
 #include <iomanip>
+#include <map>
 #include <optional>
 #include <sstream>
 
@@ -481,6 +488,280 @@ namespace pgt
         }
         if (asJson)
             out << "]}\n";
+        return ok;
+    }
+
+
+    namespace
+    {
+
+        namespace fs = std::filesystem;
+
+        // The groups the studio shows in a file overview.
+        const char *tokenCategory(Tok k)
+        {
+            switch (k)
+            {
+            case Tok::Eof:
+                return "EOF";
+            case Tok::Ident:
+                return "IDENTIFIER";
+            case Tok::Int:
+            case Tok::Float:
+                return "NUMBER";
+            case Tok::String:
+            case Tok::Char:
+                return "STRING";
+            case Tok::LParen:
+            case Tok::RParen:
+            case Tok::LBrace:
+            case Tok::RBrace:
+            case Tok::LBracket:
+            case Tok::RBracket:
+            case Tok::Comma:
+            case Tok::Semi:
+            case Tok::Colon:
+            case Tok::Dot:
+            case Tok::DotDot:
+                return "SYMBOL";
+            default:
+                break;
+            }
+            std::string name = tokKindName(k);
+            if (name.rfind("Kw", 0) == 0)
+                return "KEYWORD";
+            return "OPERATOR";
+        }
+
+        struct ProjectFile
+        {
+            fs::path abs;
+            std::string display;
+            std::string packageDir; // key of its package
+            std::string text;
+            std::vector<Token> tokens;
+            std::optional<Program> prog;
+            std::optional<CompileError> error;
+        };
+
+        struct ProjectPackage
+        {
+            std::string importPath;
+            std::vector<size_t> files; // indices into the file list
+        };
+
+        // Groups the top-level declarations of a file the way the studio shows them.
+        Node astView(const Program &p)
+        {
+            Node full = program(p);
+            Node root = group("Program", "package " + p.package, 1, 1);
+            const std::pair<const char *, const char *> sections[] = {
+                {"imports", "Import"}, {"constants and variables", "Global"}, {"structs", "Struct"},
+                {"interfaces", "Interface"}, {"functions", "Function"}, {"exit code", "ExitCode"}};
+            auto sectionOf = [](const std::string &kind) -> std::string {
+                if (kind == "Const" || kind == "VarDecl")
+                    return "Global";
+                if (kind == "Method" || kind == "Extern")
+                    return "Function";
+                return kind;
+            };
+            for (const auto &[title, kind] : sections)
+            {
+                Node sec = group("Section", title, 0, 0);
+                for (const Node &n : full.kids)
+                    if (sectionOf(n.kind) == kind)
+                        sec.kids.push_back(n);
+                if (!sec.kids.empty())
+                {
+                    sec.label += " (" + std::to_string(sec.kids.size()) + ")";
+                    root.kids.push_back(std::move(sec));
+                }
+            }
+            return root;
+        }
+
+    }
+
+    bool dumpProject(const std::string &input, std::ostream &out)
+    {
+        fs::path in(input);
+        if (!fs::exists(in))
+            throw CompileError("no such file or directory", 0, 0);
+        bool isDir = fs::is_directory(in);
+        fs::path rootDir = fs::weakly_canonical(isDir ? in : (in.has_parent_path() ? in.parent_path() : "."));
+
+        std::optional<ModFile> mod;
+        if (auto modPath = findModFile(rootDir))
+            mod = parseModFile(*modPath);
+        std::optional<fs::path> stdDir = findStdDir();
+        fs::path projectRoot = mod ? fs::weakly_canonical(mod->root) : rootDir;
+
+        auto displayOf = [&](const fs::path &p) {
+            fs::path c = fs::weakly_canonical(p);
+            auto under = [&](const fs::path &base) {
+                auto rel = c.lexically_relative(base);
+                return !rel.empty() && rel.native()[0] != '.' ? rel.generic_string() : std::string();
+            };
+            if (std::string r = under(projectRoot); !r.empty())
+                return r;
+            if (stdDir)
+                if (std::string r = under(fs::weakly_canonical(*stdDir)); !r.empty())
+                    return "std/" + r;
+            return c.string();
+        };
+
+        std::vector<ProjectFile> files;
+        std::map<std::string, ProjectPackage> packages; // by canonical directory
+        std::deque<std::string> queue;
+        std::vector<std::string> unresolved;
+        size_t edges = 0;
+
+        auto addPackage = [&](const fs::path &dir, std::vector<std::string> paths, const std::string &importPath) {
+            std::string key = fs::weakly_canonical(dir).string();
+            if (packages.count(key))
+                return key;
+            ProjectPackage &pkg = packages[key];
+            pkg.importPath = importPath;
+            for (const std::string &f : paths)
+            {
+                ProjectFile pf;
+                pf.abs = fs::weakly_canonical(f);
+                pf.display = displayOf(f);
+                pf.packageDir = key;
+                std::ifstream s(f, std::ios::binary);
+                std::ostringstream ss;
+                ss << s.rdbuf();
+                pf.text = ss.str();
+                try
+                {
+                    pf.tokens = Lexer(pf.text).tokenize();
+                    pf.prog = Parser(pf.tokens).parseProgram();
+                }
+                catch (const CompileError &e)
+                {
+                    pf.error = e;
+                }
+                pkg.files.push_back(files.size());
+                files.push_back(std::move(pf));
+            }
+            queue.push_back(key);
+            return key;
+        };
+
+        std::vector<std::string> rootFiles = isDir ? listSources(in) : std::vector<std::string>{input};
+        std::string rootKey = addPackage(rootDir, rootFiles, mod ? mod->name : "main");
+
+        // Breadth-first over imports; remembers where every import of every file points.
+        std::map<size_t, std::vector<std::pair<std::string, std::string>>> importsOf; // file -> (path, pkg key)
+        while (!queue.empty())
+        {
+            std::string key = queue.front();
+            queue.pop_front();
+            std::vector<size_t> pkgFiles = packages[key].files;
+            for (size_t fi : pkgFiles)
+            {
+                if (!files[fi].prog)
+                    continue;
+                for (const Import &imp : files[fi].prog->imports)
+                {
+                    ++edges;
+                    auto dir = resolveImportDir(imp.path, mod, stdDir);
+                    if (!dir)
+                    {
+                        unresolved.push_back(files[fi].display + ": " + imp.path);
+                        importsOf[fi].push_back({imp.path, ""});
+                        continue;
+                    }
+                    std::string depKey = addPackage(*dir, listSources(*dir), imp.path);
+                    importsOf[fi].push_back({imp.path, depKey});
+                }
+            }
+        }
+
+        // The entry file: the one with the final `return`, else the first one.
+        size_t entry = packages[rootKey].files.empty() ? 0 : packages[rootKey].files.front();
+        for (size_t fi : packages[rootKey].files)
+            if (files[fi].prog && files[fi].prog->exitCode)
+                entry = fi;
+
+        size_t totalTokens = 0;
+        for (const ProjectFile &f : files)
+            totalTokens += f.tokens.size();
+
+        out << "{\"entry\":" << json(files.empty() ? "" : files[entry].display) << ",\"root\":"
+            << json(projectRoot.string()) << ",\"totalTokens\":" << totalTokens << ",\"importEdges\":" << edges
+            << ",\"unresolved\":[";
+        for (size_t i = 0; i < unresolved.size(); ++i)
+            out << (i ? "," : "") << json(unresolved[i]);
+        out << "],\"files\":[";
+
+        // Entry first, then the rest in discovery order.
+        std::vector<size_t> order{entry};
+        for (size_t i = 0; i < files.size(); ++i)
+            if (i != entry)
+                order.push_back(i);
+
+        bool ok = unresolved.empty();
+        for (size_t oi = 0; oi < order.size(); ++oi)
+        {
+            const ProjectFile &f = files[order[oi]];
+            std::map<std::string, int> cats;
+            for (const Token &t : f.tokens)
+                ++cats[tokenCategory(t.kind)];
+            int lines = f.text.empty() ? 0 : 1 + static_cast<int>(std::count(f.text.begin(), f.text.end(), '\n'));
+            if (!f.text.empty() && f.text.back() == '\n')
+                --lines;
+            int functions = 0;
+            if (f.prog)
+                functions = static_cast<int>(f.prog->functions.size());
+
+            out << (oi ? "," : "") << "{\"path\":" << json(f.display) << ",\"absPath\":" << json(f.abs.string())
+                << ",\"package\":" << json(f.prog ? f.prog->package : "") << ",\"importPath\":"
+                << json(packages[f.packageDir].importPath) << ",\"lines\":" << lines << ",\"functions\":"
+                << functions << ",\"tokenCount\":" << f.tokens.size() << ",\"categories\":{";
+            bool first = true;
+            for (const auto &[cat, n] : cats)
+            {
+                out << (first ? "" : ",") << json(cat) << ":" << n;
+                first = false;
+            }
+            out << "},\"imports\":[";
+            const auto &imps = importsOf[order[oi]];
+            for (size_t i = 0; i < imps.size(); ++i)
+            {
+                const auto &[path, key] = imps[i];
+                out << (i ? "," : "") << "{\"path\":" << json(path) << ",\"resolved\":" << (key.empty() ? "false" : "true")
+                    << ",\"files\":[";
+                if (!key.empty())
+                {
+                    const auto &pf = packages[key].files;
+                    for (size_t j = 0; j < pf.size(); ++j)
+                        out << (j ? "," : "") << json(files[pf[j]].display);
+                }
+                out << "]}";
+            }
+            out << "],\"tokens\":[";
+            for (size_t i = 0; i < f.tokens.size(); ++i)
+            {
+                const Token &t = f.tokens[i];
+                out << (i ? "," : "") << "{\"kind\":" << json(tokKindName(t.kind)) << ",\"text\":" << json(t.text)
+                    << ",\"line\":" << t.line << ",\"col\":" << t.col << "}";
+            }
+            out << "]";
+            if (f.prog)
+            {
+                out << ",\"ast\":";
+                printJson(astView(*f.prog), out);
+            }
+            if (f.error)
+            {
+                ok = false;
+                out << ",\"error\":{\"message\":" << json(f.error->what()) << ",\"line\":" << f.error->line
+                    << ",\"col\":" << f.error->col << "}";
+            }
+            out << "}";
+        }
+        out << "]}\n";
         return ok;
     }
 

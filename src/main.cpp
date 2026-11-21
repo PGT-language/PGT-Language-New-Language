@@ -28,7 +28,9 @@ static void printUsage(std::ostream& os) {
           "  pgt build [dir|file.pgt] --emit-ir    write LLVM IR (.ll) instead\n"
           "  pgt build [dir|file.pgt|-] --debug    print the tokens and the syntax tree of every file,\n"
           "                                        then build (--debug=json: print JSON and stop;\n"
-          "                                        '-' reads one file from stdin)\n";
+          "                                        '-' reads one file from stdin)\n"
+          "  pgt build [dir] --debug=project       JSON of the whole project: files, imports,\n"
+          "                                        token statistics, syntax trees (for PGT Studio)\n";
 }
 
 static int runBuild(int argc, char** argv, int first, bool run = false) {
@@ -56,6 +58,8 @@ static int runBuild(int argc, char** argv, int first, bool run = false) {
             opts.debug = pgt::DebugMode::Text;
         } else if (a == "--debug=json") {
             opts.debug = pgt::DebugMode::Json;
+        } else if (a == "--debug=project") {
+            opts.debug = pgt::DebugMode::Project;
         } else if (a == "-" && opts.input.empty()) {
             opts.input = "-";
         } else if (!a.empty() && a[0] == '-') {

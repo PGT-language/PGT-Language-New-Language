@@ -77,6 +77,12 @@ namespace pgt
     {
         try
         {
+            if (opts.debug == DebugMode::Project)
+            {
+                bool ok = dumpProject(opts.input, std::cout);
+                std::cout.flush();
+                return ok ? 0 : 1;
+            }
             if (opts.debug != DebugMode::Off)
             {
                 bool json = opts.debug == DebugMode::Json;

@@ -9,7 +9,8 @@ namespace pgt
     {
         Off,
         Text, // --debug: print tokens and syntax trees, then build as usual
-        Json  // --debug=json: print them as JSON and stop (for PGT Studio); input may be "-" (stdin)
+        Json,   // --debug=json: print them as JSON and stop (for PGT Studio); input may be "-" (stdin)
+        Project // --debug=project: the whole project with its imports as JSON, then stop
     };
 
     struct BuildOptions

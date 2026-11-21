@@ -18,4 +18,9 @@ namespace pgt
     // Returns false if any file has a lexical or syntax error (it is reported in the dump).
     bool dumpSources(const std::vector<DebugSource> &sources, bool json, std::ostream &out);
 
+    // `--debug=project`: walks the package given by `input` and every package it imports
+    // (the standard library included) and prints, as JSON, each file with its imports, token
+    // statistics, syntax tree and token stream. Unresolved imports are reported, not fatal.
+    bool dumpProject(const std::string &input, std::ostream &out);
+
 }
