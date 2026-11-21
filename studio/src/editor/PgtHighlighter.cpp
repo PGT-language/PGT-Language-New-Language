@@ -3,7 +3,7 @@
 namespace
 {
 
-    QTextCharFormat format(const QColor &color, bool bold = false, bool italic = false)
+    QTextCharFormat makeFormat(const QColor &color, bool bold = false, bool italic = false)
     {
         QTextCharFormat f;
         f.setForeground(color);
@@ -37,19 +37,19 @@ PgtHighlighter::PgtHighlighter(QTextDocument *doc) : QSyntaxHighlighter(doc)
         "panic"};
 
     // Later rules win, so the most specific ones come last.
-    rules_.push_back({QRegularExpression("\\b[A-Z]\\w*\\b"), format(QColor("#2b7a78"))});
-    rules_.push_back({QRegularExpression("\\b\\w+(?=\\s*\\()"), format(QColor("#3867d6"))});
-    rules_.push_back({QRegularExpression(words(builtins) + "(?=\\s*\\()"), format(QColor("#8854d0"))});
-    rules_.push_back({QRegularExpression(words(types)), format(QColor("#0f8b8d"), true)});
-    rules_.push_back({QRegularExpression(words(keywords)), format(QColor("#c0392b"), true)});
-    rules_.push_back({QRegularExpression("\\bvar\\*"), format(QColor("#c0392b"), true)});
-    rules_.push_back({QRegularExpression("#use\\b"), format(QColor("#d35400"), true)});
-    rules_.push_back({QRegularExpression(words(constants)), format(QColor("#d35400"))});
+    rules_.push_back({QRegularExpression("\\b[A-Z]\\w*\\b"), makeFormat(QColor("#2b7a78"))});
+    rules_.push_back({QRegularExpression("\\b\\w+(?=\\s*\\()"), makeFormat(QColor("#3867d6"))});
+    rules_.push_back({QRegularExpression(words(builtins) + "(?=\\s*\\()"), makeFormat(QColor("#8854d0"))});
+    rules_.push_back({QRegularExpression(words(types)), makeFormat(QColor("#0f8b8d"), true)});
+    rules_.push_back({QRegularExpression(words(keywords)), makeFormat(QColor("#c0392b"), true)});
+    rules_.push_back({QRegularExpression("\\bvar\\*"), makeFormat(QColor("#c0392b"), true)});
+    rules_.push_back({QRegularExpression("#use\\b"), makeFormat(QColor("#d35400"), true)});
+    rules_.push_back({QRegularExpression(words(constants)), makeFormat(QColor("#d35400"))});
     rules_.push_back({QRegularExpression("\\b(?:0[xX][0-9a-fA-F]+|0[bB][01]+|\\d+(?:\\.\\d+)?)\\b"),
-                      format(QColor("#d35400"))});
+                      makeFormat(QColor("#d35400"))});
 
-    stringFormat_ = format(QColor("#27ae60"));
-    commentFormat_ = format(QColor("#7f8c8d"), false, true);
+    stringFormat_ = makeFormat(QColor("#27ae60"));
+    commentFormat_ = makeFormat(QColor("#7f8c8d"), false, true);
 }
 
 void PgtHighlighter::highlightBlock(const QString &text)
