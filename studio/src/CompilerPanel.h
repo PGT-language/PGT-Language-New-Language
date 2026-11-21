@@ -3,6 +3,8 @@
 #include <QWidget>
 
 class CodeEditor;
+class ProjectGraphView;
+class QTabWidget;
 class QLabel;
 class QProcess;
 class QTimer;
@@ -20,6 +22,11 @@ public:
     explicit CompilerPanel(QWidget *parent = nullptr);
 
     void setEditor(CodeEditor *editor);
+    // Builds the project token graph and switches to its tab.
+    void analyzeProject(const QString &projectDir);
+
+signals:
+    void locationActivated(const QString &file, int line, int column);
 
 private:
     void scheduleRefresh();
@@ -34,6 +41,8 @@ private:
     QLabel *status_;
     QTreeWidget *tokens_;
     QTreeWidget *ast_;
+    QTabWidget *tabs_;
+    ProjectGraphView *graph_;
     QProcess *proc_;
     QTimer *debounce_;
     QMetaObject::Connection textConn_, cursorConn_;

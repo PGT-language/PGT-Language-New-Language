@@ -1,5 +1,6 @@
 #include "CompilerPanel.h"
 
+#include "ProjectGraph.h"
 #include "Theme.h"
 #include "editor/CodeEditor.h"
 #include "settings/Settings.h"
@@ -75,16 +76,20 @@ CompilerPanel::CompilerPanel(QWidget *parent)
     tokens_->setRootIsDecorated(false);
     ast_ = makeTree({"Узел", "Вид", "Позиция"});
 
-    auto *tabs = new QTabWidget;
-    tabs->setDocumentMode(true);
-    tabs->addTab(ast_, "Дерево");
-    tabs->addTab(tokens_, "Токены");
+    graph_ = new ProjectGraphView;
+    connect(graph_, &ProjectGraphView::locationActivated, this, &CompilerPanel::locationActivated);
+
+    tabs_ = new QTabWidget;
+    tabs_->setDocumentMode(true);
+    tabs_->addTab(ast_, "Дерево");
+    tabs_->addTab(tokens_, "Токены");
+    tabs_->addTab(graph_, "Граф проекта");
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
     layout->addWidget(status_);
-    layout->addWidget(tabs);
+    layout->addWidget(tabs_);
 
     debounce_->setSingleShot(true);
     debounce_->setInterval(400);
@@ -121,6 +126,12 @@ void CompilerPanel::setEditor(CodeEditor *editor)
         cursorConn_ = connect(editor_, &QPlainTextEdit::cursorPositionChanged, this, &CompilerPanel::syncWithCursor);
     }
     refresh();
+}
+
+void CompilerPanel::analyzeProject(const QString &projectDir)
+{
+    tabs_->setCurrentWidget(graph_);
+    graph_->analyze(projectDir);
 }
 
 void CompilerPanel::scheduleRefresh()

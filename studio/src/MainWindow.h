@@ -5,6 +5,7 @@ class CodeEditor;
 class CompilerPanel;
 class OutputPanel;
 class QAction;
+class QDockWidget;
 class QFileSystemModel;
 class QLabel;
 class QListWidget;
@@ -53,6 +54,7 @@ private:
     QString compilerOrAsk();
     void build(bool runAfter);
     void runBinary();
+    void debug();
 
     CodeEditor *currentEditor() const;
     CodeEditor *editorAt(int index) const;
@@ -67,6 +69,7 @@ private:
     QListWidget *welcomeRecent_;
     QLabel *welcomeRecentLabel_;
     QTabWidget *tabs_;
+    QDockWidget *compilerDock_ = nullptr;
     QTreeView *tree_;
     QFileSystemModel *fsModel_;
     OutputPanel *output_;
@@ -76,5 +79,5 @@ private:
     QMenu *recentMenu_;
 
     QAction *saveAct_, *saveAllAct_, *closeTabAct_, *newFileAct_;
-    QAction *buildAct_, *runAct_, *stopAct_;
+    QAction *buildAct_, *runAct_, *debugAct_, *stopAct_;
 };

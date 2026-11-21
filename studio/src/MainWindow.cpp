@@ -117,11 +117,16 @@ MainWindow::MainWindow()
     addDockWidget(Qt::BottomDockWidgetArea, outDock);
     compilerPanel_ = new CompilerPanel;
     auto *compilerDock = new QDockWidget("КОМПИЛЯТОР");
+    compilerDock_ = compilerDock;
     compilerDock->setObjectName("compilerDock");
     compilerDock->setWidget(compilerPanel_);
     compilerDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable);
     addDockWidget(Qt::RightDockWidgetArea, compilerDock);
     connect(tabs_, &QTabWidget::currentChanged, this, [this] { compilerPanel_->setEditor(currentEditor()); });
+    connect(compilerPanel_, &CompilerPanel::locationActivated, this, [this](const QString &file, int line, int col) {
+        if (CodeEditor *e = openFile(file))
+            e->goToLine(line, col);
+    });
 
     resizeDocks({treeDock, compilerDock}, {240, 360}, Qt::Horizontal);
     resizeDocks({outDock}, {220}, Qt::Vertical);
@@ -175,6 +180,8 @@ void MainWindow::createActions()
     QMenu *buildMenu = menuBar()->addMenu("&Сборка");
     buildAct_ = buildMenu->addAction("Собрать", QKeySequence("Ctrl+B"), this, [this] { build(false); });
     runAct_ = buildMenu->addAction("Запустить", QKeySequence("F5"), this, [this] { build(true); });
+    debugAct_ = buildMenu->addAction("Отладка", QKeySequence("F6"), this, &MainWindow::debug);
+    debugAct_->setToolTip("Собрать и запустить программу и построить граф токенов проекта (F6)");
     stopAct_ = buildMenu->addAction("Остановить", QKeySequence("Shift+F5"), this, [this] { output_->stop(); });
 
     auto *bar = addToolBar("Сборка");
@@ -184,6 +191,7 @@ void MainWindow::createActions()
     bar->addSeparator();
     bar->addAction(buildAct_);
     bar->addAction(runAct_);
+    bar->addAction(debugAct_);
     bar->addAction(stopAct_);
 }
 
@@ -272,6 +280,7 @@ void MainWindow::updateActions()
     newFileAct_->setEnabled(!projectDir_.isEmpty());
     buildAct_->setEnabled(!projectDir_.isEmpty() && !running);
     runAct_->setEnabled(!projectDir_.isEmpty() && !running);
+    debugAct_->setEnabled(!projectDir_.isEmpty() && !running);
     stopAct_->setEnabled(running);
     center_->setCurrentWidget(tabs_->count() > 0 ? static_cast<QWidget *>(tabs_) : welcome_);
 }
@@ -598,6 +607,16 @@ void MainWindow::build(bool runAfter)
     runAfterBuild_ = runAfter;
     output_->start(compiler, {"build", "."}, projectDir_);
     updateActions();
+}
+
+void MainWindow::debug()
+{
+    if (projectDir_.isEmpty())
+        return;
+    compilerDock_->show();
+    compilerDock_->raise();
+    compilerPanel_->analyzeProject(projectDir_);
+    build(true);
 }
 
 void MainWindow::runBinary()
