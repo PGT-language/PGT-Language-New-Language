@@ -1,0 +1,122 @@
+==== <stdin> ====
+
+-- tokens (79)
+  1:1     KwPackage     package
+  1:9     Ident         main
+  3:1     KwStruct      struct
+  3:8     Ident         P
+  3:10    LBrace        {
+  4:5     Ident         X
+  4:6     Comma         ,
+  4:8     Ident         Y
+  4:10    Ident         int
+  5:1     RBrace        }
+  7:1     KwFn          fn
+  7:4     LParen        (
+  7:5     Ident         p
+  7:7     Star          *
+  7:8     Ident         P
+  7:9     RParen        )
+  7:11    Ident         Move
+  7:15    LParen        (
+  7:16    Ident         d
+  7:18    Ident         int
+  7:21    RParen        )
+  7:23    LBrace        {
+  7:25    Ident         p
+  7:26    Dot           .
+  7:27    Ident         X
+  7:29    PlusAssign    +=
+  7:32    Ident         d
+  7:34    RBrace        }
+  9:1     KwFn          fn
+  9:4     Ident         main
+  9:8     LParen        (
+  9:9     RParen        )
+  9:11    LBrace        {
+  10:5    KwVar         var*
+  10:10   Ident         p
+  10:12   Assign        =
+  10:14   Amp           &
+  10:15   Ident         P
+  10:16   LBrace        {
+  10:17   Ident         X
+  10:18   Colon         :
+  10:20   Int           1
+  10:21   RBrace        }
+  11:5    KwSwitch      switch
+  11:12   Ident         p
+  11:13   Dot           .
+  11:14   Ident         X
+  11:16   LBrace        {
+  12:9    KwCase        case
+  12:14   Int           1
+  12:15   Comma         ,
+  12:17   Int           2
+  12:19   LBrace        {
+  12:21   Ident         p
+  12:22   Dot           .
+  12:23   Ident         Move
+  12:27   LParen        (
+  12:28   Minus         -
+  12:29   Int           1
+  12:30   RParen        )
+  12:32   RBrace        }
+  13:9    KwDefault     default
+  13:17   LBrace        {
+  13:19   Ident         println
+  13:26   LParen        (
+  13:27   Ident         p
+  13:28   Comma         ,
+  13:30   Int           255
+  13:35   Shl           <<
+  13:38   Int           2
+  13:39   Comma         ,
+  13:41   String        "a\tb"
+  13:47   RParen        )
+  13:49   RBrace        }
+  14:5    RBrace        }
+  15:1    RBrace        }
+  17:1    KwReturn      return
+  17:8    Int           0
+  18:1    Eof           
+
+-- syntax tree
+Program package main (1:1)
+├─ Struct struct P (3:1)
+│  ├─ Field X int (4:5)
+│  └─ Field Y int (4:8)
+├─ Method fn (p *P) Move(d int) (7:1)
+│  └─ Assign += (7:25)
+│     ├─ Selector .X (7:26)
+│     │  └─ Name p (7:25)
+│     └─ Name d (7:32)
+├─ Function fn main() (9:1)
+│  ├─ VarDecl var* p (10:5)
+│  │  └─ Unary & (10:14)
+│  │     └─ StructLit P{} (10:15)
+│  │        └─ FieldInit X: (10:17)
+│  │           └─ IntLit 1 (10:20)
+│  └─ Switch switch (11:5)
+│     ├─ Part value (11:13)
+│     │  └─ Selector .X (11:13)
+│     │     └─ Name p (11:12)
+│     ├─ Case case (12:9)
+│     │  ├─ IntLit 1 (12:14)
+│     │  ├─ IntLit 2 (12:17)
+│     │  └─ Block body (12:9)
+│     │     └─ Call call (12:22)
+│     │        ├─ Selector .Move (12:22)
+│     │        │  └─ Name p (12:21)
+│     │        └─ Unary - (12:28)
+│     │           └─ IntLit 1 (12:29)
+│     └─ Block default (11:5)
+│        └─ Call call (13:19)
+│           ├─ Name println (13:19)
+│           ├─ Name p (13:27)
+│           ├─ Binary << (13:35)
+│           │  ├─ IntLit 255 (13:30)
+│           │  └─ IntLit 2 (13:38)
+│           └─ StringLit "a\tb" (13:41)
+└─ ExitCode return (exit code) (17:8)
+   └─ IntLit 0 (17:8)

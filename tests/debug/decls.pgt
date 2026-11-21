@@ -1,0 +1,17 @@
+package main
+
+struct P {
+    X, Y int
+}
+
+fn (p *P) Move(d int) { p.X += d }
+
+fn main() {
+    var* p = &P{X: 1}
+    switch p.X {
+        case 1, 2 { p.Move(-1) }
+        default { println(p, 0xFF << 2, "a\tb") }
+    }
+}
+
+return 0

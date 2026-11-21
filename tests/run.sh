@@ -7,6 +7,7 @@
 # run/<name>.pgt         compiled and run; stdout must equal run/<name>.out
 #                        (stdin comes from <name>.in, arguments from <name>.args when present)
 # projects/<dir>/        a module with pgt.mod; same rules with <dir>.out / <dir>.in next to it
+# debug/<name>.pgt       `pgt build - --debug` (tokens and syntax tree) must equal debug/<name>.out
 # errors/<name>.pgt      the first line is `// error: <text>` (compilation must fail with <text>)
 #                        or `// panic: <text>` (the program must crash with <text> on stderr)
 
@@ -68,6 +69,19 @@ done
 for d in projects/*/; do
     d=${d%/}
     check_output "$d" "$d" "$d.out" "$d.in" "$d.args"
+done
+
+for f in debug/*.pgt; do
+    base=${f%.pgt}
+    out=$("$PGT" build - --debug < "$f" 2>&1)
+    if [ "${UPDATE:-}" = 1 ]; then
+        printf '%s\n' "$out" > "$base.out"
+        ok
+    elif diff -u "$base.out" <(printf '%s\n' "$out") > "$TMP/diff"; then
+        ok
+    else
+        bad "$f" "$(cat "$TMP/diff")"
+    fi
 done
 
 for f in errors/*.pgt; do

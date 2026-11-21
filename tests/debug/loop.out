@@ -1,0 +1,66 @@
+==== <stdin> ====
+
+-- tokens (37)
+  1:1     KwPackage     package
+  1:9     Ident         main
+  3:1     KwConst       const
+  3:7     Ident         N
+  3:9     Assign        =
+  3:11    Int           3
+  5:1     KwFn          fn
+  5:4     Ident         main
+  5:8     LParen        (
+  5:9     RParen        )
+  5:11    LBrace        {
+  6:5     KwFor         for
+  6:9     Ident         i
+  6:11    KwIn          in
+  6:14    Int           0
+  6:15    DotDot        ..
+  6:17    Ident         N
+  6:19    LBrace        {
+  7:9     KwIf          if
+  7:12    Ident         i
+  7:14    Percent       %
+  7:16    Int           2
+  7:18    Eq            ==
+  7:21    Int           0
+  7:23    LBrace        {
+  8:13    Ident         println
+  8:20    LParen        (
+  8:21    String        "even "
+  8:28    Comma         ,
+  8:30    Ident         i
+  8:31    RParen        )
+  9:9     RBrace        }
+  10:5    RBrace        }
+  11:1    RBrace        }
+  13:1    KwReturn      return
+  13:8    Int           0
+  14:1    Eof           
+
+-- syntax tree
+Program package main (1:1)
+├─ Const const N (3:7)
+│  └─ IntLit 3 (3:11)
+├─ Function fn main() (5:1)
+│  └─ ForIn for i in (6:5)
+│     ├─ Part from (6:14)
+│     │  └─ IntLit 0 (6:14)
+│     ├─ Part to (6:17)
+│     │  └─ Name N (6:17)
+│     └─ Block body (6:5)
+│        └─ If if (7:9)
+│           ├─ Part condition (7:18)
+│           │  └─ Binary == (7:18)
+│           │     ├─ Binary % (7:14)
+│           │     │  ├─ Name i (7:12)
+│           │     │  └─ IntLit 2 (7:16)
+│           │     └─ IntLit 0 (7:21)
+│           └─ Block then (7:9)
+│              └─ Call call (8:13)
+│                 ├─ Name println (8:13)
+│                 ├─ StringLit "even " (8:21)
+│                 └─ Name i (8:30)
+└─ ExitCode return (exit code) (13:8)
+   └─ IntLit 0 (13:8)

@@ -1,0 +1,17 @@
+==== <stdin> ====
+
+-- tokens (12)
+  1:1     KwPackage     package
+  1:9     Ident         main
+  2:1     KwFn          fn
+  2:4     Ident         main
+  2:8     LParen        (
+  2:9     RParen        )
+  2:11    LBrace        {
+  3:5     KwVar         var*
+  3:10    Assign        =
+  3:12    Int           5
+  4:1     RBrace        }
+  5:1     Eof           
+
+<stdin>:3:10: error: expected identifier after 'var*', found '='
