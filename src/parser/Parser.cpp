@@ -41,7 +41,6 @@ namespace pgt
             }
         }
 
-        // Binary operators from the loosest to the tightest binding level.
         struct OpLevel
         {
             std::vector<std::pair<Tok, BinOp>> ops;
@@ -52,14 +51,22 @@ namespace pgt
             static const std::vector<OpLevel> levels = {
                 {{{Tok::OrOr, BinOp::Or}}},
                 {{{Tok::AndAnd, BinOp::And}}},
-                {{{Tok::Pipe, BinOp::BitOr}}},
-                {{{Tok::Caret, BinOp::BitXor}}},
-                {{{Tok::Amp, BinOp::BitAnd}}},
-                {{{Tok::Eq, BinOp::Eq}, {Tok::Ne, BinOp::Ne}}},
-                {{{Tok::Lt, BinOp::Lt}, {Tok::Gt, BinOp::Gt}, {Tok::Le, BinOp::Le}, {Tok::Ge, BinOp::Ge}}},
-                {{{Tok::Shl, BinOp::Shl}, {Tok::Shr, BinOp::Shr}}},
-                {{{Tok::Plus, BinOp::Add}, {Tok::Minus, BinOp::Sub}}},
-                {{{Tok::Star, BinOp::Mul}, {Tok::Slash, BinOp::Div}, {Tok::Percent, BinOp::Mod}}},
+                {{{Tok::Eq, BinOp::Eq},
+                  {Tok::Ne, BinOp::Ne},
+                  {Tok::Lt, BinOp::Lt},
+                  {Tok::Gt, BinOp::Gt},
+                  {Tok::Le, BinOp::Le},
+                  {Tok::Ge, BinOp::Ge}}},
+                {{{Tok::Plus, BinOp::Add},
+                  {Tok::Minus, BinOp::Sub},
+                  {Tok::Pipe, BinOp::BitOr},
+                  {Tok::Caret, BinOp::BitXor}}},
+                {{{Tok::Star, BinOp::Mul},
+                  {Tok::Slash, BinOp::Div},
+                  {Tok::Percent, BinOp::Mod},
+                  {Tok::Shl, BinOp::Shl},
+                  {Tok::Shr, BinOp::Shr},
+                  {Tok::Amp, BinOp::BitAnd}}},
             };
             return levels;
         }
