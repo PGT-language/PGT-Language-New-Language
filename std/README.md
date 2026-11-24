@@ -464,12 +464,14 @@ asm.Free(f)
 
 ## syscall
 
-Номера системных вызовов Linux x86-64, как пакет `syscall` в Go. Все 386 констант взяты из `asm/unistd_64.h`: имя вызова в верхнем регистре с префиксом `SYS_`.
+Системные вызовы, по каталогу на каждую ОС: `std/syscall/linux` (пакет `syscall_linux`) и `std/syscall/purec-os`.
+
+`syscall_linux` — номера системных вызовов Linux x86-64, как в Go. Все 386 констант взяты из `asm/unistd_64.h`: имя вызова в верхнем регистре с префиксом `SYS_`.
 
 ```pgt
-#use "pgt/std/syscall"
+#use "pgt/std/syscall/linux"
 
-fmt.Println(syscall.SYS_WRITE, " ", syscall.SYS_EXIT)    // 1 60
+fmt.Println(syscall_linux.SYS_WRITE, " ", syscall_linux.SYS_EXIT)    // 1 60
 ```
 
 Пока в пакете только номера; функции для прямых системных вызовов будут добавляться постепенно.
