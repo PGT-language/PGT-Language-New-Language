@@ -4,7 +4,7 @@ package main
 
 fn main() {
     var* a = 10
-    var& := a = malloc(free[byte] 1)
+    var& := a = malloc(free[byte] 4)
     println(a)
 }
 
