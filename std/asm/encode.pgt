@@ -23,13 +23,14 @@ struct Form {
     ForceRex bool
     HighUsed bool
     NoModRM bool
+    Embed bool
     ImmN int
     Imm int64
     NoW bool
 }
 
 fn newForm(opc []int, size int, reg int, rm Operand) Form {
-    return Form{Opc: opc, Size: size, Reg: reg, RM: rm, ForceRex: false, HighUsed: false, NoModRM: false, ImmN: 0, Imm: 0, NoW: false}
+    return Form{Opc: opc, Size: size, Reg: reg, RM: rm, ForceRex: false, HighUsed: false, NoModRM: rm.Kind == OpNone, Embed: false, ImmN: 0, Imm: 0, NoW: false}
 }
 
 fn fits8(v int64) bool {
@@ -195,7 +196,7 @@ fn emitForm(e *Enc, f Form) {
     var* n = len(f.Opc)
     for i in 0..n {
         var* b = f.Opc[i]
-        if f.NoModRM && i == n - 1 {
+        if f.Embed && i == n - 1 {
             b = b + (f.RM.Reg & 7)
         }
         e.Byte(b)
@@ -213,5 +214,7 @@ fn emitForm(e *Enc, f Form) {
 }
 
 fn emitSimple(e *Enc, opc []int) {
-    emitForm(e, Form{Opc: opc, Size: 0, Reg: 0, RM: newOperand(OpNone), ForceRex: false, HighUsed: false, NoModRM: true, ImmN: 0, Imm: 0, NoW: false})
+    for i in 0..len(opc) {
+        e.Byte(opc[i])
+    }
 }

@@ -1,0 +1,851 @@
+package asm
+
+fn invalid() {
+    fail("invalid combination of operands")
+}
+
+fn mkForm(opc []int, size int, regOp Operand, rm Operand) Form {
+    var* f = newForm(opc, size, regOp.Reg, rm)
+    f.ForceRex = needsRex8(regOp) || needsRex8(rm)
+    f.HighUsed = isHigh8(regOp) || isHigh8(rm)
+    return f
+}
+
+fn extForm(opc []int, size int, ext int, rm Operand) Form {
+    var* f = newForm(opc, size, ext, rm)
+    f.ForceRex = needsRex8(rm)
+    f.HighUsed = isHigh8(rm)
+    return f
+}
+
+fn regForm(opc []int, size int, r Operand) Form {
+    var* f = newForm(opc, size, 0, r)
+    f.NoModRM = true
+    f.Embed = true
+    f.ForceRex = needsRex8(r)
+    f.HighUsed = isHigh8(r)
+    return f
+}
+
+fn pairSize(rm Operand, r Operand) int {
+    if rm.Size != 0 && rm.Size != r.Size {
+        fail("operand size mismatch")
+        return 0
+    }
+    return r.Size
+}
+
+fn needSize(o Operand) int {
+    if o.Size == 0 {
+        fail("operand size not specified")
+    }
+    return o.Size
+}
+
+fn checkImm(v int64, size int) {
+    if !immFits(v, size) {
+        fail("immediate out of range")
+    }
+}
+
+fn countIs(ops []Operand, n int) bool {
+    if len(ops) != n {
+        fail("wrong number of operands")
+        return false
+    }
+    return true
+}
+
+fn isAcc(o Operand) bool {
+    return o.Kind == OpReg && o.Reg == 0 && !o.High
+}
+
+fn aluIndex(m string) int {
+    switch m {
+        case "add" { return 0 }
+        case "or" { return 1 }
+        case "adc" { return 2 }
+        case "sbb" { return 3 }
+        case "and" { return 4 }
+        case "sub" { return 5 }
+        case "xor" { return 6 }
+        case "cmp" { return 7 }
+    }
+    return -1
+}
+
+fn shiftExt(m string) int {
+    switch m {
+        case "rol" { return 0 }
+        case "ror" { return 1 }
+        case "shl" { return 4 }
+        case "shr" { return 5 }
+        case "sar" { return 7 }
+    }
+    return -1
+}
+
+fn encALU(e *Enc, idx int, ops []Operand) {
+    if !countIs(ops, 2) {
+        return
+    }
+    var* a = ops[0]
+    var* b = ops[1]
+    if isRM(a) && isReg(b) {
+        var* size = pairSize(a, b)
+        if failed() {
+            return
+        }
+        var* opc = idx * 8 + 1
+        if size == 8 {
+            opc = idx * 8
+        }
+        emitForm(e, mkForm([opc], size, b, a))
+    } else if isReg(a) && isMem(b) {
+        var* size2 = pairSize(b, a)
+        if failed() {
+            return
+        }
+        var* opc2 = idx * 8 + 3
+        if size2 == 8 {
+            opc2 = idx * 8 + 2
+        }
+        emitForm(e, mkForm([opc2], size2, a, b))
+    } else if isRM(a) && isImm(b) {
+        var* size3 = needSize(a)
+        if failed() {
+            return
+        }
+        checkImm(b.Imm, size3)
+        if failed() {
+            return
+        }
+        var* v = simm(b.Imm, size3)
+        if size3 == 8 {
+            if isAcc(a) {
+                var* f0 = newForm([idx * 8 + 4], 0, 0, newOperand(OpNone))
+                f0.ImmN = 1
+                f0.Imm = v
+                emitForm(e, f0)
+            } else {
+                var* f1 = extForm([0x80], 0, idx, a)
+                f1.ImmN = 1
+                f1.Imm = v
+                emitForm(e, f1)
+            }
+        } else if fits8(v) {
+            var* f2 = extForm([0x83], size3, idx, a)
+            f2.ImmN = 1
+            f2.Imm = v
+            emitForm(e, f2)
+        } else {
+            var* n = 4
+            if size3 == 16 {
+                n = 2
+            }
+            if isAcc(a) {
+                var* f3 = newForm([idx * 8 + 5], size3, 0, newOperand(OpNone))
+                f3.ImmN = n
+                f3.Imm = v
+                emitForm(e, f3)
+            } else {
+                var* f4 = extForm([0x81], size3, idx, a)
+                f4.ImmN = n
+                f4.Imm = v
+                emitForm(e, f4)
+            }
+        }
+    } else {
+        invalid()
+    }
+}
+
+fn encMov(e *Enc, ops []Operand) {
+    if !countIs(ops, 2) {
+        return
+    }
+    var* a = ops[0]
+    var* b = ops[1]
+    if isRM(a) && isReg(b) {
+        var* size = pairSize(a, b)
+        if failed() {
+            return
+        }
+        var* opc = 0x89
+        if size == 8 {
+            opc = 0x88
+        }
+        emitForm(e, mkForm([opc], size, b, a))
+    } else if isReg(a) && isMem(b) {
+        var* size2 = pairSize(b, a)
+        if failed() {
+            return
+        }
+        var* opc2 = 0x8B
+        if size2 == 8 {
+            opc2 = 0x8A
+        }
+        emitForm(e, mkForm([opc2], size2, a, b))
+    } else if isReg(a) && isImm(b) {
+        var* sz = a.Size
+        if sz == 64 {
+            if fits32(b.Imm) {
+                var* f = extForm([0xC7], 64, 0, a)
+                f.ImmN = 4
+                f.Imm = b.Imm
+                emitForm(e, f)
+            } else {
+                var* f2 = regForm([0xB8], 64, a)
+                f2.ImmN = 8
+                f2.Imm = b.Imm
+                emitForm(e, f2)
+            }
+            return
+        }
+        checkImm(b.Imm, sz)
+        if failed() {
+            return
+        }
+        var* f3 = regForm([0xB8], sz, a)
+        f3.ImmN = sz / 8
+        if sz == 8 {
+            f3.Opc = [0xB0]
+        }
+        f3.Imm = simm(b.Imm, sz)
+        emitForm(e, f3)
+    } else if isMem(a) && isImm(b) {
+        var* sz2 = needSize(a)
+        if failed() {
+            return
+        }
+        checkImm(b.Imm, sz2)
+        if failed() {
+            return
+        }
+        var* f4 = extForm([0xC7], sz2, 0, a)
+        f4.ImmN = sz2 / 8
+        if sz2 == 64 {
+            f4.ImmN = 4
+        }
+        if sz2 == 8 {
+            f4.Opc = [0xC6]
+        }
+        f4.Imm = simm(b.Imm, sz2)
+        emitForm(e, f4)
+    } else {
+        invalid()
+    }
+}
+
+fn encExtend(e *Enc, ops []Operand, opc8 int, opc16 int) {
+    if !countIs(ops, 2) {
+        return
+    }
+    var* a = ops[0]
+    var* b = ops[1]
+    if !isReg(a) || !isRM(b) {
+        invalid()
+        return
+    }
+    if a.Size == 8 {
+        fail("operand size mismatch")
+        return
+    }
+    var* ss = needSize(b)
+    if failed() {
+        return
+    }
+    if ss == 8 {
+        emitForm(e, mkForm([0x0F, opc8], a.Size, a, b))
+    } else if ss == 16 && a.Size != 16 {
+        emitForm(e, mkForm([0x0F, opc16], a.Size, a, b))
+    } else {
+        fail("operand size mismatch")
+    }
+}
+
+fn encMovsxd(e *Enc, ops []Operand) {
+    if !countIs(ops, 2) {
+        return
+    }
+    var* a = ops[0]
+    var* b = ops[1]
+    if !isReg(a) || !isRM(b) {
+        invalid()
+        return
+    }
+    if a.Size != 64 || (b.Size != 32 && b.Size != 0) {
+        fail("operand size mismatch")
+        return
+    }
+    emitForm(e, mkForm([0x63], 64, a, b))
+}
+
+fn encLea(e *Enc, ops []Operand) {
+    if !countIs(ops, 2) {
+        return
+    }
+    var* a = ops[0]
+    var* b = ops[1]
+    if !isReg(a) || !isMem(b) {
+        invalid()
+        return
+    }
+    if a.Size == 8 {
+        fail("operand size mismatch")
+        return
+    }
+    emitForm(e, mkForm([0x8D], a.Size, a, b))
+}
+
+fn encTest(e *Enc, ops []Operand) {
+    if !countIs(ops, 2) {
+        return
+    }
+    var* a = ops[0]
+    var* b = ops[1]
+    if isReg(a) && isMem(b) {
+        var* t = a
+        a = b
+        b = t
+    }
+    if isRM(a) && isReg(b) {
+        var* size = pairSize(a, b)
+        if failed() {
+            return
+        }
+        var* opc = 0x85
+        if size == 8 {
+            opc = 0x84
+        }
+        emitForm(e, mkForm([opc], size, b, a))
+    } else if isRM(a) && isImm(b) {
+        var* size2 = needSize(a)
+        if failed() {
+            return
+        }
+        checkImm(b.Imm, size2)
+        if failed() {
+            return
+        }
+        var* n = size2 / 8
+        if size2 == 64 {
+            n = 4
+        }
+        var* v = simm(b.Imm, size2)
+        var* base = 0xF7
+        if size2 == 8 {
+            base = 0xF6
+        }
+        if isAcc(a) {
+            var* f = newForm([0xA9], size2, 0, newOperand(OpNone))
+            if size2 == 8 {
+                f.Opc = [0xA8]
+                f.Size = 0
+            }
+            f.ImmN = n
+            f.Imm = v
+            emitForm(e, f)
+        } else {
+            var* f2 = extForm([base], size2, 0, a)
+            f2.ImmN = n
+            f2.Imm = v
+            emitForm(e, f2)
+        }
+    } else {
+        invalid()
+    }
+}
+
+fn encUnary(e *Enc, ops []Operand, opc8 int, opc int, ext int) {
+    if !countIs(ops, 1) {
+        return
+    }
+    var* a = ops[0]
+    if !isRM(a) {
+        invalid()
+        return
+    }
+    var* size = needSize(a)
+    if failed() {
+        return
+    }
+    var* o = opc
+    if size == 8 {
+        o = opc8
+    }
+    emitForm(e, extForm([o], size, ext, a))
+}
+
+fn encImul(e *Enc, ops []Operand) {
+    var* n = len(ops)
+    if n == 1 {
+        encUnary(e, ops, 0xF6, 0xF7, 5)
+        return
+    }
+    if n == 2 && isReg(ops[0]) && isImm(ops[1]) {
+        encImul3(e, ops[0], ops[0], ops[1])
+        return
+    }
+    if n == 2 {
+        var* a = ops[0]
+        var* b = ops[1]
+        if !isReg(a) || !isRM(b) || a.Size == 8 {
+            invalid()
+            return
+        }
+        var* size = pairSize(b, a)
+        if failed() {
+            return
+        }
+        emitForm(e, mkForm([0x0F, 0xAF], size, a, b))
+        return
+    }
+    if n == 3 {
+        if !isReg(ops[0]) || !isRM(ops[1]) || !isImm(ops[2]) {
+            invalid()
+            return
+        }
+        encImul3(e, ops[0], ops[1], ops[2])
+        return
+    }
+    fail("wrong number of operands")
+}
+
+fn encImul3(e *Enc, a Operand, b Operand, c Operand) {
+    if a.Size == 8 {
+        invalid()
+        return
+    }
+    var* size = pairSize(b, a)
+    if failed() {
+        return
+    }
+    checkImm(c.Imm, size)
+    if failed() {
+        return
+    }
+    var* v = simm(c.Imm, size)
+    if fits8(v) {
+        var* f = mkForm([0x6B], size, a, b)
+        f.ImmN = 1
+        f.Imm = v
+        emitForm(e, f)
+    } else {
+        var* f2 = mkForm([0x69], size, a, b)
+        f2.ImmN = 4
+        if size == 16 {
+            f2.ImmN = 2
+        }
+        f2.Imm = v
+        emitForm(e, f2)
+    }
+}
+
+fn encShift(e *Enc, ext int, ops []Operand) {
+    if !countIs(ops, 2) {
+        return
+    }
+    var* a = ops[0]
+    var* b = ops[1]
+    if !isRM(a) {
+        invalid()
+        return
+    }
+    var* size = needSize(a)
+    if failed() {
+        return
+    }
+    if isImm(b) {
+        if b.Imm < 0 || b.Imm > 255 {
+            fail("immediate out of range")
+            return
+        }
+        if b.Imm == 1 {
+            var* o1 = 0xD1
+            if size == 8 {
+                o1 = 0xD0
+            }
+            emitForm(e, extForm([o1], size, ext, a))
+        } else {
+            var* o2 = 0xC1
+            if size == 8 {
+                o2 = 0xC0
+            }
+            var* f = extForm([o2], size, ext, a)
+            f.ImmN = 1
+            f.Imm = b.Imm
+            emitForm(e, f)
+        }
+    } else if isReg(b) && b.Reg == 1 && b.Size == 8 && !b.High {
+        var* o3 = 0xD3
+        if size == 8 {
+            o3 = 0xD2
+        }
+        emitForm(e, extForm([o3], size, ext, a))
+    } else {
+        invalid()
+    }
+}
+
+fn encPush(e *Enc, ops []Operand) {
+    if !countIs(ops, 1) {
+        return
+    }
+    var* a = ops[0]
+    if isReg(a) {
+        if a.Size != 64 && a.Size != 16 {
+            fail("operand size mismatch")
+            return
+        }
+        var* sz = 0
+        if a.Size == 16 {
+            sz = 16
+        }
+        emitForm(e, regForm([0x50], sz, a))
+    } else if isImm(a) {
+        if fits8(a.Imm) {
+            var* f = newForm([0x6A], 0, 0, newOperand(OpNone))
+            f.ImmN = 1
+            f.Imm = a.Imm
+            emitForm(e, f)
+        } else if fits32(a.Imm) {
+            var* f2 = newForm([0x68], 0, 0, newOperand(OpNone))
+            f2.ImmN = 4
+            f2.Imm = a.Imm
+            emitForm(e, f2)
+        } else {
+            fail("immediate out of range")
+        }
+    } else if isMem(a) {
+        if a.Size != 0 && a.Size != 64 && a.Size != 16 {
+            fail("operand size mismatch")
+            return
+        }
+        var* sz2 = 0
+        if a.Size == 16 {
+            sz2 = 16
+        }
+        emitForm(e, extForm([0xFF], sz2, 6, a))
+    } else {
+        invalid()
+    }
+}
+
+fn encPop(e *Enc, ops []Operand) {
+    if !countIs(ops, 1) {
+        return
+    }
+    var* a = ops[0]
+    if isReg(a) {
+        if a.Size != 64 && a.Size != 16 {
+            fail("operand size mismatch")
+            return
+        }
+        var* sz = 0
+        if a.Size == 16 {
+            sz = 16
+        }
+        emitForm(e, regForm([0x58], sz, a))
+    } else if isMem(a) {
+        if a.Size != 0 && a.Size != 64 && a.Size != 16 {
+            fail("operand size mismatch")
+            return
+        }
+        var* sz2 = 0
+        if a.Size == 16 {
+            sz2 = 16
+        }
+        emitForm(e, extForm([0x8F], sz2, 0, a))
+    } else {
+        invalid()
+    }
+}
+
+fn encXchg(e *Enc, ops []Operand) {
+    if !countIs(ops, 2) {
+        return
+    }
+    var* a = ops[0]
+    var* b = ops[1]
+    if isMem(a) && isReg(b) {
+        var* t = a
+        a = b
+        b = t
+    }
+    if !isReg(a) || !isRM(b) {
+        invalid()
+        return
+    }
+    var* size = pairSize(b, a)
+    if failed() {
+        return
+    }
+    if size != 8 && isReg(b) && (a.Reg == 0 || b.Reg == 0) && !(a.Reg == 0 && b.Reg == 0 && size == 32) {
+        var* other = a
+        if a.Reg == 0 {
+            other = b
+        }
+        emitForm(e, regForm([0x90], size, other))
+        return
+    }
+    var* opc = 0x87
+    if size == 8 {
+        opc = 0x86
+    }
+    emitForm(e, mkForm([opc], size, a, b))
+}
+
+fn encIndirect(e *Enc, ops []Operand, ext int) {
+    var* a = ops[0]
+    if isReg(a) {
+        if a.Size != 64 {
+            fail("operand size mismatch")
+            return
+        }
+        emitForm(e, extForm([0xFF], 0, ext, a))
+    } else if isMem(a) {
+        if a.Size != 0 && a.Size != 64 {
+            fail("operand size mismatch")
+            return
+        }
+        emitForm(e, extForm([0xFF], 0, ext, a))
+    } else {
+        invalid()
+    }
+}
+
+fn encBranch(it *Item, e *Enc, kind int, cc int, name string) {
+    var* target = labelValue(name)
+    if failed() {
+        return
+    }
+    if kind == 2 {
+        e.Byte(0xE8)
+        e.Imm(int64(target - (it.Addr + 5)), 4)
+        return
+    }
+    var* shortEnd = it.Addr + 2
+    if !it.Near && !fits8(int64(target - shortEnd)) {
+        it.Near = true
+    }
+    if !it.Near {
+        if kind == 0 {
+            e.Byte(0xEB)
+        } else {
+            e.Byte(0x70 + cc)
+        }
+        e.Imm(int64(target - shortEnd), 1)
+        return
+    }
+    if kind == 0 {
+        e.Byte(0xE9)
+        e.Imm(int64(target - (it.Addr + 5)), 4)
+    } else {
+        e.Byte(0x0F)
+        e.Byte(0x80 + cc)
+        e.Imm(int64(target - (it.Addr + 6)), 4)
+    }
+}
+
+fn noOperands(ops []Operand) bool {
+    if len(ops) != 0 {
+        fail("wrong number of operands")
+        return false
+    }
+    return true
+}
+
+fn encSetcc(e *Enc, cc int, ops []Operand) {
+    if !countIs(ops, 1) {
+        return
+    }
+    var* a = ops[0]
+    if !isRM(a) {
+        invalid()
+        return
+    }
+    if a.Size != 8 && a.Size != 0 {
+        fail("operand size mismatch")
+        return
+    }
+    var* f = extForm([0x0F, 0x90 + cc], 0, 0, a)
+    emitForm(e, f)
+}
+
+fn encCmov(e *Enc, cc int, ops []Operand) {
+    if !countIs(ops, 2) {
+        return
+    }
+    var* a = ops[0]
+    var* b = ops[1]
+    if !isReg(a) || !isRM(b) {
+        invalid()
+        return
+    }
+    if a.Size == 8 {
+        fail("operand size mismatch")
+        return
+    }
+    var* size = pairSize(b, a)
+    if failed() {
+        return
+    }
+    emitForm(e, mkForm([0x0F, 0x40 + cc], size, a, b))
+}
+
+fn encodeItem(it *Item, e *Enc) {
+    curLine = it.Line
+    e.B = make([]byte, 0)
+    e.Addr = it.Addr
+    var* m = it.Mnem
+    var* ops = it.Ops
+    var* idx = aluIndex(m)
+    if idx >= 0 {
+        encALU(e, idx, ops)
+        return
+    }
+    var* sx = shiftExt(m)
+    if sx >= 0 {
+        encShift(e, sx, ops)
+        return
+    }
+    switch m {
+        case "ret" {
+            if noOperands(ops) {
+                emitSimple(e, [0xC3])
+            }
+        }
+        case "nop" {
+            if noOperands(ops) {
+                emitSimple(e, [0x90])
+            }
+        }
+        case "int3" {
+            if noOperands(ops) {
+                emitSimple(e, [0xCC])
+            }
+        }
+        case "syscall" {
+            if noOperands(ops) {
+                emitSimple(e, [0x0F, 0x05])
+            }
+        }
+        case "rdtsc" {
+            if noOperands(ops) {
+                emitSimple(e, [0x0F, 0x31])
+            }
+        }
+        case "cpuid" {
+            if noOperands(ops) {
+                emitSimple(e, [0x0F, 0xA2])
+            }
+        }
+        case "pause" {
+            if noOperands(ops) {
+                emitSimple(e, [0xF3, 0x90])
+            }
+        }
+        case "hlt" {
+            if noOperands(ops) {
+                emitSimple(e, [0xF4])
+            }
+        }
+        case "leave" {
+            if noOperands(ops) {
+                emitSimple(e, [0xC9])
+            }
+        }
+        case "cqo" {
+            if noOperands(ops) {
+                emitSimple(e, [0x48, 0x99])
+            }
+        }
+        case "cdq" {
+            if noOperands(ops) {
+                emitSimple(e, [0x99])
+            }
+        }
+        case "int" {
+            if countIs(ops, 1) {
+                if !isImm(ops[0]) {
+                    invalid()
+                } else if ops[0].Imm < 0 || ops[0].Imm > 255 {
+                    fail("immediate out of range")
+                } else {
+                    emitSimple(e, [0xCD, int(ops[0].Imm)])
+                }
+            }
+        }
+        case "mov" { encMov(e, ops) }
+        case "movzx" { encExtend(e, ops, 0xB6, 0xB7) }
+        case "movsx" { encExtend(e, ops, 0xBE, 0xBF) }
+        case "movsxd" { encMovsxd(e, ops) }
+        case "lea" { encLea(e, ops) }
+        case "test" { encTest(e, ops) }
+        case "not" { encUnary(e, ops, 0xF6, 0xF7, 2) }
+        case "neg" { encUnary(e, ops, 0xF6, 0xF7, 3) }
+        case "mul" { encUnary(e, ops, 0xF6, 0xF7, 4) }
+        case "div" { encUnary(e, ops, 0xF6, 0xF7, 6) }
+        case "idiv" { encUnary(e, ops, 0xF6, 0xF7, 7) }
+        case "inc" { encUnary(e, ops, 0xFE, 0xFF, 0) }
+        case "dec" { encUnary(e, ops, 0xFE, 0xFF, 1) }
+        case "imul" { encImul(e, ops) }
+        case "push" { encPush(e, ops) }
+        case "pop" { encPop(e, ops) }
+        case "xchg" { encXchg(e, ops) }
+        case "jmp" {
+            if countIs(ops, 1) {
+                if ops[0].Kind == OpLabel {
+                    encBranch(it, e, 0, 0, ops[0].Sym)
+                } else {
+                    encIndirect(e, ops, 4)
+                }
+            }
+        }
+        case "call" {
+            if countIs(ops, 1) {
+                if ops[0].Kind == OpLabel {
+                    encBranch(it, e, 2, 0, ops[0].Sym)
+                } else {
+                    encIndirect(e, ops, 2)
+                }
+            }
+        }
+        default {
+            encCondition(it, e, m, ops)
+        }
+    }
+}
+
+fn encCondition(it *Item, e *Enc, m string, ops []Operand) {
+    var* l = len(m)
+    if l > 1 && substr(m, 0, 1) == "j" {
+        var* cc = ccCode(substr(m, 1, l - 1))
+        if cc >= 0 {
+            if countIs(ops, 1) {
+                if ops[0].Kind == OpLabel {
+                    encBranch(it, e, 1, cc, ops[0].Sym)
+                } else {
+                    invalid()
+                }
+            }
+            return
+        }
+    }
+    if l > 3 && substr(m, 0, 3) == "set" {
+        var* cc2 = ccCode(substr(m, 3, l - 3))
+        if cc2 >= 0 {
+            encSetcc(e, cc2, ops)
+            return
+        }
+    }
+    if l > 4 && substr(m, 0, 4) == "cmov" {
+        var* cc3 = ccCode(substr(m, 4, l - 4))
+        if cc3 >= 0 {
+            encCmov(e, cc3, ops)
+            return
+        }
+    }
+    fail("unknown mnemonic '" + m + "'")
+}
