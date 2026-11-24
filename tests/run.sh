@@ -20,7 +20,7 @@ check_output() {
     local name=$1 input=$2 expected=$3 stdin=$4 argsfile=$5
     local exe="$TMP/$(echo "$name" | tr '/' '_')"
     local log
-    if ! log=$("$PGT" build "$input" -o "$exe" 2>&1); then
+    if ! log=$(timeout 60 "$PGT" build "$input" -o "$exe" 2>&1); then
         bad "$name" "$log"
         return
     fi
@@ -33,9 +33,9 @@ check_output() {
         unset PGT_MEMSTATS
     fi
     if [ -f "$stdin" ]; then
-        out=$("$exe" "${args[@]}" < "$stdin" 2>&1)
+        out=$(timeout 20 "$exe" "${args[@]}" < "$stdin" 2>&1)
     else
-        out=$("$exe" "${args[@]}" < /dev/null 2>&1)
+        out=$(timeout 20 "$exe" "${args[@]}" < /dev/null 2>&1)
     fi
     if [ "${UPDATE:-}" = 1 ]; then
         printf '%s\n' "$out" > "$expected"
@@ -81,7 +81,7 @@ for f in errors/*.pgt; do
     exe="$TMP/err"
     if [[ $first == "// error: "* ]]; then
         want=${first#// error: }
-        if log=$("$PGT" build "$f" -o "$exe" 2>&1); then
+        if log=$(timeout 60 "$PGT" build "$f" -o "$exe" 2>&1); then
             bad "$f" "compiled, but expected the error: $want"
         elif [[ $log == *"$want"* ]]; then
             ok
@@ -90,11 +90,11 @@ for f in errors/*.pgt; do
         fi
     elif [[ $first == "// panic: "* ]]; then
         want=${first#// panic: }
-        if ! log=$("$PGT" build "$f" -o "$exe" 2>&1); then
+        if ! log=$(timeout 60 "$PGT" build "$f" -o "$exe" 2>&1); then
             bad "$f" "$log"
             continue
         fi
-        err=$("$exe" < /dev/null 2>&1 >/dev/null)
+        err=$(timeout 20 "$exe" < /dev/null 2>&1 >/dev/null)
         code=$?
         if [ $code -ne 0 ] && [[ $err == *"$want"* ]]; then
             ok

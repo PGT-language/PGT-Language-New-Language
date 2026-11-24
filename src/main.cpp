@@ -28,7 +28,7 @@ static void printUsage(std::ostream& os) {
           "  pgt <dir|file.pgt>                    same as pgt build\n"
           "  pgt lsp                               run the language server on stdin/stdout\n"
           "  pgt build [dir|file.pgt] --emit-ir    write LLVM IR (.ll) instead\n"
-          "  pgt build|run [...] -O0|-O1|-O2|-O3   optimization level (default -O2)\n"
+          "  pgt build|run [...] -O0|-O1|-O2|-O3   optimization level (default -O0)\n"
           "  pgt build [dir|file.pgt|-] --debug    print the tokens and the syntax tree of every file,\n"
           "                                        then build (--debug=json: print JSON and stop;\n"
           "                                        '-' reads one file from stdin)\n"
