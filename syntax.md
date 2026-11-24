@@ -822,6 +822,7 @@ fn main() {
 | `time` | текущее время, паузы, форматирование дат, `Stopwatch` |
 | `memory` | блоки памяти: `Copy`, `Set`, `Zero`, `KB`, `MB` (для `var&` и `malloc`) |
 | `rand` | случайные числа: `Int`, `IntN`, `Range`, `Float`, `Shuffle`, `Pick`, воспроизводимый `Seed` |
+| `syscall` | номера системных вызовов Linux x86-64: `SYS_READ`, `SYS_WRITE`, `SYS_MMAP`, `SYS_EXIT`, ... (как в Go) |
 
 Полный список функций — в [std/README.md](std/README.md); исходники лежат в `std/` и написаны на самом PGT.
 

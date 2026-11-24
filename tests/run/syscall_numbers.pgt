@@ -1,0 +1,13 @@
+package main
+
+#use (
+    "fmt"
+    "pgt/std/syscall/linux"
+)
+
+fn main() {
+    fmt.Println(syscall_linux.SYS_READ, " ", syscall_linux.SYS_WRITE, " ", syscall_linux.SYS_OPEN, " ", syscall_linux.SYS_CLOSE)
+    fmt.Println(syscall_linux.SYS_MMAP, " ", syscall_linux.SYS_EXIT, " ", syscall_linux.SYS_EXIT_GROUP, " ", syscall_linux.SYS_GETPID)
+}
+
+return 0
