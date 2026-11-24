@@ -1,0 +1,9 @@
+package main
+
+#use "fmt"
+
+fn main() {
+    fmt.Println("Hello, World!")
+}
+
+return 0
