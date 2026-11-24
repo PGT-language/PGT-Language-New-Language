@@ -8,8 +8,10 @@ const std::vector<ProjectTemplate>& projectTemplates() {
          "prints Hello, World!",
          {{"main.pgt", R"PGT(package main
 
+#use "fmt"
+
 fn main() {
-    println("Hello, World!")
+    fmt.Println("Hello, World!")
 }
 
 return 0
@@ -19,21 +21,23 @@ return 0
          "reads two numbers and prints the results of the arithmetic operations",
          {{"main.pgt", R"PGT(package main
 
+#use "fmt"
+
 fn main() {
     var* a = 0
     var* b = 0
-    input("First number: ", a)
-    input("Second number: ", b)
+    fmt.Input("First number: ", &a)
+    fmt.Input("Second number: ", &b)
 
-    println(a, " + ", b, " = ", a + b)
-    println(a, " - ", b, " = ", a - b)
-    println(a, " * ", b, " = ", a * b)
+    fmt.Println(a, " + ", b, " = ", a + b)
+    fmt.Println(a, " - ", b, " = ", a - b)
+    fmt.Println(a, " * ", b, " = ", a * b)
 
     if b == 0 {
-        println("Division by zero is not allowed")
+        fmt.Println("Division by zero is not allowed")
     } else {
-        println(a, " / ", b, " = ", a / b)
-        println(a, " % ", b, " = ", a % b)
+        fmt.Println(a, " / ", b, " = ", a / b)
+        fmt.Println(a, " % ", b, " = ", a % b)
     }
 }
 
@@ -44,16 +48,18 @@ return 0
          "classic FizzBuzz: loops, conditions and the remainder operator",
          {{"main.pgt", R"PGT(package main
 
+#use "fmt"
+
 fn main() {
     for i in 1..101 {
         if i % 15 == 0 {
-            println("FizzBuzz")
+            fmt.Println("FizzBuzz")
         } else if i % 3 == 0 {
-            println("Fizz")
+            fmt.Println("Fizz")
         } else if i % 5 == 0 {
-            println("Buzz")
+            fmt.Println("Buzz")
         } else {
-            println(i)
+            fmt.Println(i)
         }
     }
 }
@@ -67,6 +73,7 @@ return 0
          {{"main.pgt", R"PGT(package main
 
 #use (
+    "fmt"
     "strings"
     "arrays"
     "io"
@@ -85,14 +92,14 @@ fn (s *Stats) Add(line string) {
 }
 
 fn main() {
-    println("Type some text, finish with Ctrl+D:")
+    fmt.Println("Type some text, finish with Ctrl+D:")
     var* stats Stats
     for line in io.ReadLines() {
         stats.Add(line)
     }
     arrays.SortStrings(stats.Words)
-    println("lines: ", stats.Lines, ", words: ", len(stats.Words))
-    println("sorted: ", strings.Join(stats.Words, " "))
+    fmt.Println("lines: ", stats.Lines, ", words: ", len(stats.Words))
+    fmt.Println("sorted: ", strings.Join(stats.Words, " "))
 }
 
 return 0
@@ -112,8 +119,10 @@ return 0
 )PGT"},
           {"greet/greet.pgt", R"PGT(package greet
 
+#use "fmt"
+
 fn Hello() {
-    println("Hello from the greet package!")
+    fmt.Println("Hello from the greet package!")
 }
 )PGT"}}},
     };

@@ -233,9 +233,14 @@ namespace pgt::lsp
                     }
                     if (expectName && depth == 0 && t_[k].kind == Tok::Ident)
                     {
-                        size_t te = typeEnd(k + 1);
-                        std::string ty = te > k + 1 && te <= close ? typeText(k + 1, te) : "";
-                        add(SymKind::Param, t_[k], "", t_[k].text + (ty.empty() ? "" : " " + ty), ty,
+                        bool variadic = is(k + 1, Tok::Ellipsis);
+                        size_t from = variadic ? k + 2 : k + 1;
+                        size_t te = typeEnd(from);
+                        std::string ty = te > from && te <= close ? typeText(from, te) : "";
+                        std::string shown = variadic && !ty.empty() ? "..." + ty : ty;
+                        if (variadic && !ty.empty())
+                            ty = "[]" + ty;
+                        add(SymKind::Param, t_[k], "", t_[k].text + (shown.empty() ? "" : " " + shown), ty,
                             scopeBegin, scopeEnd);
                         expectName = false;
                     }

@@ -85,7 +85,7 @@
       ]
     },
     "types": {
-      "match": "\\b(int|int64|float|char|byte|string|bool|void)\\b",
+      "match": "\\b(int|int64|float|char|byte|string|bool|void|any)\\b",
       "name": "support.type.primitive.pgt"
     },
     "constants": {
@@ -103,7 +103,7 @@
     "calls": {
       "patterns": [
         {
-          "match": "\\b(panic|exit|print|println|input|inputln|len|append|make|new|free|str|chars|unsafeData|unsafeSlice|parseInt|parseInt64|parseFloat|substr|indexOf|upper|lower|abs|min|max|pow|rand|srand|readFile|writeFile|appendFile|fileExists|output)\\b(?=\\s*\\()",
+          "match": "\\b(panic|exit|len|append|make|new|free|str|chars|unsafeData|unsafeSlice|parseInt|parseInt64|parseFloat|substr|indexOf|upper|lower|abs|min|max|pow|rand|srand|readFile|writeFile|appendFile|fileExists|typeKind|typeName|anyInt|anyFloat|anyBool|anyString|anyLen|anyIndex|anyNumField|anyFieldName|anyField|anyElem|anyIsNil|anyAddr|anySlotIface|anySetInt|anySetFloat|anySetBool|anySetString|anySetChar)\\b(?=\\s*\\()",
           "name": "support.function.builtin.pgt"
         },
         {

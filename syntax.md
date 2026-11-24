@@ -100,14 +100,16 @@ num  // это имя переменной, оно может быть любы�
 вод и вывод и консоли будет такой
 
 ```.pgt
+#use "fmt"
+
 вод вот так 
-input("Введите число: ", num)
+fmt.Input("Введите число: ", &num)
 а вывод вот так
-output("Вы ввели число: ", num)
+fmt.Print("Вы ввели число: ", num)
 также можно 
-print("Вы ввели число: ", num)
+fmt.Print("Вы ввели число: ", num)
 и 
-println("Вы ввели число: ", num)
+fmt.Println("Вы ввели число: ", num)
 ```
 
 работа с массивами будет такой
@@ -119,27 +121,29 @@ var& := arr = [1, 2, 3, 4, 5] // массив целых чисел
 циклы и условия будут такими
 
 ```.pgt
+#use "fmt"
+
 for i in arr {
-    output(i)
+    fmt.Print(i)
 }
 if num > 0 {
-    output("Число положительное")
+    fmt.Print("Число положительное")
 } else {
-    output("Число отрицательное")
+    fmt.Print("Число отрицательное")
 }
 цикл while будет таким образом
 while num > 0 {
     num--
-    output(num)
+    fmt.Print(num)
 }
 while num > 0 {
     num--
-    output(num)
+    fmt.Print(num)
 }
 
 while num = 0 {
     num++
-    output(num)
+    fmt.Print(num)
 }
 
 безконечно 
@@ -154,25 +158,26 @@ while true {
 package main
 
 #use (
+    "fmt"
     "test"
 )
 
 fn main() {
     var* num = 0
-    input("Введите число: ", num)
-    output("Вы ввели число: ", num)
+    fmt.Input("Введите число: ", &num)
+    fmt.Print("Вы ввели число: ", num)
     if num > 0 {
-        output("Число положительное")
+        fmt.Print("Число положительное")
     } else {
-        output("Число отрицательное")
+        fmt.Print("Число отрицательное")
     }
     while num > 0 {
         num--
-        output(num)
+        fmt.Print(num)
     }
     while num = 0 {
         num++
-        output(num)
+        fmt.Print(num)
     }
     
 }
@@ -186,12 +191,13 @@ return 0
 package main
 
 #use "test"
+#use "fmt"
 
 const nom = 1
 
 fn test() {
     var* nom = 2
-    output(nom)
+    fmt.Print(nom)
 }
 
 fn main() {
@@ -438,10 +444,12 @@ switch x {
 `switch` без значения проверяет условия по порядку:
 
 ```pgt
+#use "fmt"
+
 switch {
-    case x < 0 { println("negative") }
-    case x == 0 { println("zero") }
-    default { println("positive") }
+    case x < 0 { fmt.Println("negative") }
+    case x == 0 { fmt.Println("zero") }
+    default { fmt.Println("positive") }
 }
 ```
 
@@ -452,10 +460,12 @@ switch {
 ## Массивы
 
 ```pgt
+#use "fmt"
+
 var* arr = [1, 2, 3]
 arr[0] = 10
 arr = append(arr, 4, 5)
-println(len(arr), arr)
+fmt.Println(len(arr), arr)
 var* grid = make([]int, 5)
 var* names + {[]string} = []
 ```
@@ -469,6 +479,8 @@ var* names + {[]string} = []
 ## Структуры и методы
 
 ```pgt
+#use "fmt"
+
 struct Point {
     X int
     Y int
@@ -484,7 +496,7 @@ fn (p *Point) Move(dx int) {    // получатель по указателю
 
 var* p = Point{X: 1, Y: 2}
 p.Move(5)
-println(p, p.Sum())
+fmt.Println(p, p.Sum())
 ```
 
 ## Указатели
@@ -509,12 +521,14 @@ free(h)
 Реализуются неявно, как в Go: достаточно, чтобы у типа были все методы.
 
 ```pgt
+#use "fmt"
+
 interface Shape {
     Area() float
 }
 
 fn describe(s Shape) {
-    println(s.Area())
+    fmt.Println(s.Area())
 }
 
 describe(Rect{W: 2, H: 3})     // методы по значению: подходит и Rect, и *Rect
@@ -526,12 +540,14 @@ describe(&Circle{R: 1})        // методы по указателю: подх
 ## Функции с типами
 
 ```pgt
+#use "fmt"
+
 fn add(a int, b int) int {
     return a + b
 }
 
 fn greet(name string) {
-    println("Hello, " + name)
+    fmt.Println("Hello, " + name)
 }
 ```
 
@@ -540,9 +556,11 @@ fn greet(name string) {
 ## Ввод
 
 ```pgt
-input("Число: ", n)        // int, int64, float, char, bool, string (одно слово)
-inputln("Строка: ", line)  // строка целиком
-input(p.X)                 // можно читать в поле структуры или элемент массива
+#use "fmt"
+
+fmt.Input("Число: ", &n)        // int, int64, float, char, bool, string (одно слово)
+fmt.InputLine("Строка: ", &line)  // строка целиком
+fmt.Input("", &p.X)                 // можно читать в поле структуры или элемент массива
 ```
 
 Если прочитать значение не удалось (конец ввода или не число), переменная не меняется. `bool` принимает `true/false`, `yes/no`, `y/n`, `1/0`.
@@ -582,11 +600,12 @@ input(p.X)                 // можно читать в поле структу
 
 ```pgt
 #use "pgt/std/memory"
+#use "fmt"
 
 fn main() {
     var& := x = malloc(free[byte] 1024)
     x[0] = 255
-    println(len(x), " ", x[0], " ", x[1])    // 1024 255 0
+    fmt.Println(len(x), " ", x[0], " ", x[1])    // 1024 255 0
     for b in x { /* ... */ }
     free(x)
 }
@@ -605,10 +624,12 @@ fn main() {
 `var*` объявляет переменную, а `var& := имя = malloc(...)` с уже объявленным именем ничего не объявляет: компилятор берёт эту переменную, перестаёт за ней следить и переносит её значение в блок, выделенный вручную. Дальше это забота программиста.
 
 ```pgt
+#use "fmt"
+
 var* a = 10
 var& := a = malloc(free[int] 1)   // a по-прежнему int и равна 10, но живёт в ручной памяти
 a = a + 5                          // присваивать можно
-println(a)                         // 15
+fmt.Println(a)                         // 15
 free(a)                            // блок освобождён; дальнейшее чтение a — panic: nil pointer dereference
 ```
 
@@ -642,10 +663,12 @@ API пакета `memory`:
 | `KB(n int) int`, `MB(n int) int`, `GB(n int) int64` | Размеры в байтах |
 
 ```pgt
+#use "fmt"
+
 var& := x = malloc(free[int] 4)
-println(memory.Live(), " ", memory.LiveBytes())   // 1 16
+fmt.Println(memory.Live(), " ", memory.LiveBytes())   // 1 16
 free(x)
-println(memory.Live())                           // 0
+fmt.Println(memory.Live())                           // 0
 ```
 
 ## Встроенные функции
@@ -692,10 +715,11 @@ extern fn getenv(name string) string
     "strings"
     "math"
 )
+#use "fmt"
 
 fn main() {
-    println(strings.Join(strings.Split("a,b,c", ","), " | "))
-    println(math.Hypot(3, 4))
+    fmt.Println(strings.Join(strings.Split("a,b,c", ","), " | "))
+    fmt.Println(math.Hypot(3, 4))
 }
 ```
 

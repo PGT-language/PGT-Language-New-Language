@@ -17,15 +17,16 @@
 
 ```pgt
 #use "strings"
+#use "fmt"
 
 var* words = strings.Fields("  to be  or not ")   // [to be or not]
-println(strings.Join(words, "-"))                 // to-be-or-not
-println(strings.PadLeft("7", 3, '0'))             // 007
+fmt.Println(strings.Join(words, "-"))                 // to-be-or-not
+fmt.Println(strings.PadLeft("7", 3, '0'))             // 007
 
 var* b strings.Builder
 b.Write("Hello, ")
 b.Write("PGT")
-println(b.String())
+fmt.Println(b.String())
 ```
 
 | Функция | Описание |
@@ -82,9 +83,10 @@ println(b.String())
 
 ```pgt
 #use "math"
+#use "fmt"
 
-println(math.Pi, " ", math.Hypot(3, 4))    // 3.14159 5
-println(math.Gcd(84, 36), " ", math.IsPrime(97))
+fmt.Println(math.Pi, " ", math.Hypot(3, 4))    // 3.14159 5
+fmt.Println(math.Gcd(84, 36), " ", math.IsPrime(97))
 ```
 
 Константы: `Pi`, `E`, `Sqrt2`, `Ln2`, `Ln10`, `MaxInt`, `MinInt`, `MaxInt64`, `MinInt64`.
@@ -144,10 +146,11 @@ println(math.Gcd(84, 36), " ", math.IsPrime(97))
 
 ```pgt
 #use "arrays"
+#use "fmt"
 
 var* a = [5, 3, 9, 1]
 arrays.Sort(a)                          // [1 3 5 9]
-println(arrays.BinarySearch(a, 5))      // 2
+fmt.Println(arrays.BinarySearch(a, 5))      // 2
 ```
 
 | Функция | Описание |
@@ -186,8 +189,9 @@ println(arrays.BinarySearch(a, 5))      // 2
 
 ```pgt
 #use "conv"
+#use "fmt"
 
-println(conv.ToHex(255), " ", conv.FormatFloat(2.0 / 3, 2))   // ff 0.67
+fmt.Println(conv.ToHex(255), " ", conv.FormatFloat(2.0 / 3, 2))   // ff 0.67
 if conv.IsInt(text) { var* n = conv.Atoi(text) }
 ```
 
@@ -212,10 +216,11 @@ if conv.IsInt(text) { var* n = conv.Atoi(text) }
 
 ```pgt
 #use "io"
+#use "fmt"
 
 var* line = io.ReadLine()
 while !io.EOF() {
-    println("> ", line)
+    fmt.Println("> ", line)
     line = io.ReadLine()
 }
 ```
@@ -235,8 +240,9 @@ while !io.EOF() {
 
 ```pgt
 #use "os"
+#use "fmt"
 
-for arg in os.Args() { println(arg) }
+for arg in os.Args() { fmt.Println(arg) }
 os.WriteFile("out.txt", "hello\n")
 ```
 
@@ -262,10 +268,11 @@ os.WriteFile("out.txt", "hello\n")
 
 ```pgt
 #use "time"
+#use "fmt"
 
 var* sw = time.StartStopwatch()
 time.Sleep(100)
-println(sw.ElapsedMs(), " ms; ", time.Format(time.Now(), time.DateTime))
+fmt.Println(sw.ElapsedMs(), " ms; ", time.Format(time.Now(), time.DateTime))
 ```
 
 Константы: `DateTime`, `Date`, `Clock`.
@@ -290,8 +297,9 @@ println(sw.ElapsedMs(), " ms; ", time.Format(time.Now(), time.DateTime))
 
 ```pgt
 #use "rand"
+#use "fmt"
 
-println(rand.Range(1, 6))       // бросок кубика
+fmt.Println(rand.Range(1, 6))       // бросок кубика
 rand.Seed(42)                   // одна и та же последовательность при каждом запуске
 ```
 
@@ -314,20 +322,23 @@ rand.Seed(42)                   // одна и та же последовате�
 
 ```pgt
 #use "pgt/std/memory"
+#use "fmt"
 
 var& := buf = malloc(free[byte] memory.KB(4))
 memory.Set(buf, 7)
 var* head = [byte(1), byte(2)]
-println(memory.Copy(buf, head), " ", buf[0], " ", buf[2])   // 2 1 7
+fmt.Println(memory.Copy(buf, head), " ", buf[0], " ", buf[2])   // 2 1 7
 free(buf)
 ```
 
 Сама выделение и освобождение для `var&` написаны на PGT в этом пакете (поверх `calloc`/`free` из libc); компилятор только разбирает синтаксис и вызывает внутренние функции пакета. Те же блоки можно получать напрямую как `[]byte`.
 
 ```pgt
+#use "fmt"
+
 var* buf = memory.Malloc(4)
 buf = memory.Grow(buf, 4)          // 8 байт, старые данные сохранены, новые нули
-println(memory.Live(), " ", memory.LiveBytes())   // 1 8
+fmt.Println(memory.Live(), " ", memory.LiveBytes())   // 1 8
 memory.Free(buf)                   // Live() == 0
 ```
 
