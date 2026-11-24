@@ -36,6 +36,7 @@ add_executable(pgt
     src/codegen/CodeGenMulti.cpp
     src/codegen/ObjectEmitter.cpp
     src/driver/Driver.cpp
+    src/driver/BuildCache.cpp
     src/debug/Dump.cpp
     src/lsp/Json.cpp
     src/lsp/Index.cpp

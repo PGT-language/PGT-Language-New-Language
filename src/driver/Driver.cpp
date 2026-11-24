@@ -1,5 +1,7 @@
 #include "driver/Driver.h"
 
+#include "driver/BuildCache.h"
+
 #include "codegen/CodeGen.h"
 #include "codegen/ObjectEmitter.h"
 #include "common/Error.h"
@@ -127,7 +129,10 @@ namespace pgt
             CodeGen codegen(workspace.root->importPath);
             codegen.generate(workspace);
 
-            optimizeModule(codegen.module(), opts.optLevel);
+            auto cacheDir = buildCacheDir();
+            bool cached = isMain && !opts.emitIr && cacheDir;
+            if (!cached)
+                optimizeModule(codegen.module(), opts.optLevel);
 
             if (opts.emitIr)
             {
@@ -156,13 +161,24 @@ namespace pgt
                 return 1;
             }
 
-            std::string objPath = output + ".o";
-            emitObjectFile(codegen.module(), objPath, opts.optLevel);
+            std::vector<std::string> objects;
+            std::string objPath;
+            if (cached)
+                objects = emitCachedObjects(codegen.module(), workspace, opts.optLevel, *cacheDir);
+            else
+            {
+                objPath = output + ".o";
+                emitObjectFile(codegen.module(), objPath, opts.optLevel);
+                objects.push_back(objPath);
+            }
 
-            std::string cmd = "cc " + shellQuote(objPath) + " " + shellQuote(runtime->string()) +
-                              " -lm -o " + shellQuote(output);
+            std::string cmd = "cc";
+            for (const std::string &o : objects)
+                cmd += " " + shellQuote(o);
+            cmd += " " + shellQuote(runtime->string()) + " -lm -o " + shellQuote(output);
             int rc = std::system(cmd.c_str());
-            std::remove(objPath.c_str());
+            if (!objPath.empty())
+                std::remove(objPath.c_str());
             if (rc != 0)
             {
                 std::cerr << "pgt: error: linking failed\n";

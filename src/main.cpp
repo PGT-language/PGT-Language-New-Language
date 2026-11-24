@@ -1,5 +1,6 @@
 #include "driver/Driver.h"
 #include "lsp/Server.h"
+#include "driver/BuildCache.h"
 #include "scaffold/ProjectGenerator.h"
 #include "scaffold/Templates.h"
 
@@ -27,6 +28,7 @@ static void printUsage(std::ostream& os) {
           "  pgt run [dir|file.pgt] [-- args...]   build, run and delete the program\n"
           "  pgt <dir|file.pgt>                    same as pgt build\n"
           "  pgt lsp                               run the language server on stdin/stdout\n"
+          "  pgt cache dir | pgt cache clean       show or empty the build cache (PGT_CACHE=off disables it)\n"
           "  pgt build [dir|file.pgt] --emit-ir    write LLVM IR (.ll) instead\n"
           "  pgt build|run [...] -O0|-O1|-O2|-O3   optimization level (default -O0)\n"
           "  pgt build [dir|file.pgt|-] --debug    print the tokens and the syntax tree of every file,\n"
@@ -125,6 +127,22 @@ static int runNew(int argc, char** argv) {
     return 0;
 }
 
+static int runCache(int argc, char** argv) {
+    std::string_view sub = argc > 2 ? argv[2] : "";
+    auto dir = pgt::buildCacheDir();
+    if (sub == "dir") {
+        std::cout << (dir ? dir->string() : std::string("off")) << "\n";
+        return 0;
+    }
+    if (sub == "clean") {
+        size_t n = dir ? pgt::cleanCache(*dir) : 0;
+        std::cout << "removed " << n << " cached object(s)\n";
+        return 0;
+    }
+    std::cerr << "usage: pgt cache dir | pgt cache clean\n";
+    return 1;
+}
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         printUsage(std::cerr);
@@ -144,6 +162,7 @@ int main(int argc, char** argv) {
     if (cmd == "run") return runBuild(argc, argv, 2, true);
     if (cmd == "new") return runNew(argc, argv);
     if (cmd == "lsp") return pgt::lsp::runServer();
+    if (cmd == "cache") return runCache(argc, argv);
 
     if (cmd[0] != '-' && std::filesystem::exists(cmd)) return runBuild(argc, argv, 1);
 
