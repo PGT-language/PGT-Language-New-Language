@@ -29,6 +29,7 @@ fmt.Input("n? ", &n)
 | `Print(args ...any)` / `Println(args ...any)` | Печатает аргументы без пробелов между ними (`Println` добавляет перевод строки) |
 | `Sprint(args ...any) string` / `Sprintln(args ...any) string` | То же, но возвращает строку |
 | `Printf(format string, args ...any)` / `Sprintf(format string, args ...any) string` | Форматирование: `%v %d %s %f %g %c %t %q %x %X %%`, флаги `- 0 +`, ширина и точность |
+| `Eprint(args ...any)` / `Eprintln(args ...any)` / `Eprintf(format string, args ...any)` | То же, но в stderr (перед записью stdout сбрасывается, чтобы порядок строк сохранялся) |
 | `Input(prompt string, p any)` | Печатает подсказку и читает значение по указателю (`int`, `int64`, `float`, `char`, `bool`, слово в `string`); при неудаче значение не меняется |
 | `InputLine(prompt string, p any)` | Печатает подсказку и читает строку целиком в `*string` |
 | `Scan(args ...any) int` | Читает слова, разделённые пробелами, в указатели; возвращает число прочитанных |
