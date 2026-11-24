@@ -1,0 +1,28 @@
+package main
+
+#use "fmt"
+#use "asm"
+
+fn main() {
+    var* src = ""
+    var* line = ""
+    for {
+        line = fmt.ReadLine()
+        if line == "" {
+            break
+        }
+        if line == "---" {
+            var* r = asm.Assemble(src)
+            if r.Ok() {
+                fmt.Println(asm.Hex(r.Code))
+            } else {
+                fmt.Println("ERR ", r.Error())
+            }
+            src = ""
+        } else {
+            src = src + line + "\n"
+        }
+    }
+}
+
+return 0
