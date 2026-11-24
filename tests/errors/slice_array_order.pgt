@@ -1,0 +1,10 @@
+// panic: slice bounds out of range [3:2] with capacity 5
+package main
+
+fn main() {
+    var* a []int = [1, 2, 3, 4, 5]
+    var* lo = 3
+    var* b = a[lo:2]
+}
+
+return 0

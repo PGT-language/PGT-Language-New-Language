@@ -13,6 +13,8 @@ namespace pgt
             return "int";
         case Kind::Int64:
             return "int64";
+        case Kind::Uint64:
+            return "uint64";
         case Kind::Float:
             return "float";
         case Kind::Char:
@@ -52,6 +54,7 @@ namespace pgt
         voidT = basic(Type::Kind::Void);
         intT = basic(Type::Kind::Int);
         int64T = basic(Type::Kind::Int64);
+        uint64T = basic(Type::Kind::Uint64);
         floatT = basic(Type::Kind::Float);
         charT = basic(Type::Kind::Char);
         byteT = basic(Type::Kind::Byte);

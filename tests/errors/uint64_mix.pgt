@@ -1,0 +1,10 @@
+// error: mismatched types uint64 and int64
+package main
+
+fn main() {
+    var* a uint64 = 1
+    var* b int64 = 2
+    var* c = a + b
+}
+
+return 0

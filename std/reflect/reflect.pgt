@@ -20,6 +20,7 @@ const KindStruct = 10
 const KindIface = 11
 const KindAny = 12
 const KindMap = 13
+const KindUint64 = 14
 
 struct Type {
     Kind int
@@ -72,6 +73,13 @@ fn Int(a any) int64 {
     }
     badKind("Int", a)
     return 0
+}
+
+fn Uint(a any) uint64 {
+    if Kind(a) != KindUint64 {
+        badKind("Uint", a)
+    }
+    return uint64(unsafe.LoadInt64(unsafe.DataOf(a)))
 }
 
 fn Float(a any) float {

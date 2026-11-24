@@ -1,0 +1,10 @@
+// panic: slice bounds out of range [2:9] with length 5
+package main
+
+fn main() {
+    var* s = "hello"
+    var* n = 9
+    var* t = s[2:n]
+}
+
+return 0

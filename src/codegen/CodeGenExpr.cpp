@@ -63,13 +63,18 @@ namespace pgt
         if (auto *lit = dynamic_cast<const IntLit *>(&expr))
         {
             TyP t = types_.intT;
-            if (hint && (hint->is(Type::Kind::Int64) || hint->is(Type::Kind::Float) ||
+            if (hint && (hint->is(Type::Kind::Int64) || hint->is(Type::Kind::Uint64) || hint->is(Type::Kind::Float) ||
                          hint->is(Type::Kind::Char) || hint->is(Type::Kind::Byte)))
                 t = hint;
             switch (t->kind)
             {
             case Type::Kind::Int64:
-                return {builder_.getInt64(static_cast<uint64_t>(lit->value)), t};
+                if (lit->value > static_cast<unsigned long long>(INT64_MAX))
+                    fail("constant " + std::to_string(lit->value) + " overflows int64", lit->line,
+                         lit->col);
+                return {builder_.getInt64(lit->value), t};
+            case Type::Kind::Uint64:
+                return {builder_.getInt64(lit->value), t};
             case Type::Kind::Float:
                 return {llvm::ConstantFP::get(builder_.getDoubleTy(), static_cast<double>(lit->value)),
                         t};
@@ -124,6 +129,8 @@ namespace pgt
             return genSelector(*sel);
         if (auto *idx = dynamic_cast<const Index *>(&expr))
             return genIndex(*idx);
+        if (auto *sl = dynamic_cast<const SliceExpr *>(&expr))
+            return genSlice(*sl);
         if (auto *lit = dynamic_cast<const ArrayLit *>(&expr))
             return genArrayLit(*lit, hint);
         if (auto *lit = dynamic_cast<const StructLit *>(&expr))
@@ -198,6 +205,8 @@ namespace pgt
             return v;
         case Type::Kind::Int:
             return owned({rt("pgt_str_int", ptr, {v.value}), types_.stringT});
+        case Type::Kind::Uint64:
+            return owned({rt("pgt_str_uint64", ptr, {v.value}), types_.stringT});
         case Type::Kind::Int64:
             return owned({rt("pgt_str_int64", ptr, {v.value}), types_.stringT});
         case Type::Kind::Float:
@@ -803,6 +812,42 @@ namespace pgt
         fail("cannot index " + base.type->name(), idx.line, idx.col);
     }
 
+    CodeGen::Value CodeGen::genSlice(const SliceExpr &sl)
+    {
+        Value base = genExpr(*sl.base);
+        bool isArray = base.type->is(Type::Kind::Array);
+        if (!isArray && !base.type->is(Type::Kind::String))
+            fail("cannot slice " + base.type->name(), sl.line, sl.col);
+        auto *i64 = builder_.getInt64Ty();
+        auto bound = [&](const Expr *e, llvm::Value *dflt) -> llvm::Value *
+        {
+            if (!e)
+                return dflt;
+            Value v = genExpr(*e, types_.intT);
+            if (!v.type->isIntegral())
+                fail("a slice bound must be an integer, found " + v.type->name(), e->line, e->col);
+            return builder_.CreateIntCast(v.value, i64, !v.type->isUnsigned());
+        };
+        llvm::Value *len = isArray ? builder_.CreateExtractValue(base.value, 1)
+                                   : builder_.CreateSExt(rt("pgt_strlen", builder_.getInt32Ty(), {base.value}), i64);
+        llvm::Value *limit = isArray ? builder_.CreateExtractValue(base.value, 2) : len;
+        llvm::Value *lo = bound(sl.lo.get(), builder_.getInt64(0));
+        llvm::Value *hi = bound(sl.hi.get(), len);
+        llvm::Value *bad = builder_.CreateOr(builder_.CreateICmpUGT(hi, limit), builder_.CreateICmpUGT(lo, hi));
+        panicIf(bad, isArray ? "panicSliceCap" : "panicSlice", {lo, hi, limit});
+        llvm::Value *n = builder_.CreateSub(hi, lo);
+        if (!isArray)
+            return owned({rt("pgt_substr", builder_.getPtrTy(),
+                             {base.value, builder_.CreateTrunc(lo, builder_.getInt32Ty()),
+                              builder_.CreateTrunc(n, builder_.getInt32Ty())}),
+                          types_.stringT});
+        llvm::Value *data = builder_.CreateExtractValue(base.value, 0);
+        llvm::Value *res = builder_.CreateInsertValue(base.value, builder_.CreateGEP(llvmType(base.type->elem), data, lo), 0);
+        res = builder_.CreateInsertValue(res, n, 1);
+        res = builder_.CreateInsertValue(res, builder_.CreateSub(limit, lo), 2);
+        return {res, base.type};
+    }
+
     CodeGen::Value CodeGen::genArrayLit(const ArrayLit &lit, TyP hint)
     {
         TyP elemTy = nullptr;
@@ -847,6 +892,7 @@ namespace pgt
         arr = builder_.CreateInsertValue(arr, data, 0);
         arr = builder_.CreateInsertValue(arr, n, 1);
         arr = builder_.CreateInsertValue(arr, n, 2);
+        arr = builder_.CreateInsertValue(arr, data, 3);
         return owned({arr, arrTy});
     }
 
@@ -947,13 +993,13 @@ namespace pgt
                 fail("'...' can only be used when calling a variadic function", call.line, call.col);
 
             static const std::pair<const char *, int> conversions[] = {
-                {"int", 0}, {"int64", 1}, {"float", 2}, {"char", 3}, {"bool", 4}, {"string", 5}, {"byte", 6}};
+                {"int", 0}, {"int64", 1}, {"float", 2}, {"char", 3}, {"bool", 4}, {"string", 5}, {"byte", 6}, {"uint64", 7}};
             for (const auto &[conv, k] : conversions)
             {
                 if (name != conv)
                     continue;
                 TyP targets[] = {types_.intT,  types_.int64T, types_.floatT,
-                                 types_.charT, types_.boolT,  types_.stringT, types_.byteT};
+                                 types_.charT, types_.boolT,  types_.stringT, types_.byteT, types_.uint64T};
                 return genConversion(call, targets[k]);
             }
             if (auto v = genBuiltin(call, name, hint))
@@ -1221,6 +1267,9 @@ namespace pgt
             break;
         case Type::Kind::Int64:
             kind = 2;
+            break;
+        case Type::Kind::Uint64:
+            kind = 14;
             break;
         case Type::Kind::Float:
             kind = 3;

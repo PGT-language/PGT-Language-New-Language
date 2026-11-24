@@ -174,6 +174,16 @@ namespace pgt
                 n.kids.push_back(expr(x->index.get()));
                 return n;
             }
+            if (auto *x = dynamic_cast<const SliceExpr *>(e))
+            {
+                Node n = node("Slice", "[:]", *x);
+                n.kids.push_back(expr(x->base.get()));
+                if (x->lo)
+                    n.kids.push_back(expr(x->lo.get()));
+                if (x->hi)
+                    n.kids.push_back(expr(x->hi.get()));
+                return n;
+            }
             if (auto *x = dynamic_cast<const ArrayLit *>(e))
             {
                 Node n = node("ArrayLit", "[" + std::to_string(x->elems.size()) + " elements]", *x);

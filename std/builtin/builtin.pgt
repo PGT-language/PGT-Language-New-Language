@@ -19,12 +19,19 @@
 // fn len(x) int
 // len returns the length of a string, array or slice.
 
+// fn cap(a []T) int
+// cap returns the capacity of an array or slice.
+
+// a[i:j], a[i:], a[:j], a[:]
+// Slicing an array shares its data (len j-i, cap cap(a)-i, j may reach cap(a)) and keeps the underlying block alive;
+// slicing a string copies the bytes into a new string. Out-of-range bounds panic with "slice bounds out of range".
+
 // fn append(a []T, items ...T) []T
 // append returns the array with the items added; if capacity is insufficient it allocates a new block.
 
 // fn make(map[K]V) map[K]V
 // make creates an empty map. Map types are temporary syntax; the table itself is written in PGT in std/maps,
-// which the loader always loads implicitly. K is int, int64, char, byte, bool or string.
+// which the loader always loads implicitly. K is int, int64, uint64, char, byte, bool or string.
 // m[k] reads a value (the zero value when the key is missing, also for a nil map), m[k] = v and m[k] += v write
 // (writing to a nil map panics with "assignment to entry in nil map"), len(m) is the number of entries,
 // for k, v in m and for k in m iterate in insertion order. fmt prints a map with sorted keys: map[a:1 b:2].

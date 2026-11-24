@@ -396,8 +396,6 @@ namespace pgt
             {
                 throw CompileError("integer literal is too large", line, col);
             }
-            if (v > 0x7fffffffffffffffULL)
-                throw CompileError("integer literal is too large", line, col);
             return make(Tok::Int, std::to_string(v), line, col);
         }
         while (std::isdigit(static_cast<unsigned char>(peek())))

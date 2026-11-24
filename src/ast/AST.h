@@ -159,7 +159,7 @@ namespace pgt
 
     struct IntLit : Expr
     {
-        long long value = 0;
+        unsigned long long value = 0;
     };
 
     struct FloatLit : Expr
@@ -221,6 +221,13 @@ namespace pgt
     {
         ExprPtr base;
         ExprPtr index;
+    };
+
+    struct SliceExpr : Expr
+    {
+        ExprPtr base;
+        ExprPtr lo;
+        ExprPtr hi;
     };
 
     struct ArrayLit : Expr

@@ -407,7 +407,7 @@ memory.Free(buf)                   // Live() == 0
 | Функция | Описание |
 |---|---|
 | `TypeOf(a any) *Type`, `Kind(a any) int`, `TypeName(a any) string` | Описатель типа, вид (`KindInt`, `KindStruct`, ...), имя |
-| `Int`, `Float`, `Bool`, `String` | Значение базового типа (`Int` принимает int, int64, char, byte) |
+| `Int`, `Float`, `Bool`, `String` | Значение базового типа (`Int` принимает int, int64, char, byte; `Uint` — uint64) |
 | `Len(a)`, `Index(a, i) any` | Длина и элемент массива |
 | `NumField(a)`, `FieldName(a, i)`, `Field(a, i) any` | Поля структуры |
 | `Elem(a) any`, `IsNil(a)`, `Addr(a) int64`, `SlotIface(a, i)` | Указатели и интерфейсные слоты |

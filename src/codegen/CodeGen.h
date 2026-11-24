@@ -162,6 +162,7 @@ namespace pgt
         Value genSelector(const Selector &sel);
         Value genIndex(const Index &idx);
         llvm::Value *elementAddr(Value arr, const Expr &index, int line, int col);
+        Value genSlice(const SliceExpr &sl);
         Value genArrayLit(const ArrayLit &lit, TyP hint);
         Value genStructLit(const StructLit &lit);
         Value genCall(const Call &call, TyP hint);

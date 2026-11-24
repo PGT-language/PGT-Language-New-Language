@@ -85,7 +85,7 @@ fn hashKey(m *Map, k *byte) int64 {
         case reflect.KindInt {
             return hashInt(int64(pgt_i_load_int(k)))
         }
-        case reflect.KindInt64 {
+        case reflect.KindInt64, reflect.KindUint64 {
             return hashInt(pgt_i_load_int64(k))
         }
         case reflect.KindString {
@@ -109,7 +109,7 @@ fn keysEqual(m *Map, a *byte, b *byte) bool {
         case reflect.KindInt {
             return pgt_i_load_int(a) == pgt_i_load_int(b)
         }
-        case reflect.KindInt64 {
+        case reflect.KindInt64, reflect.KindUint64 {
             return pgt_i_load_int64(a) == pgt_i_load_int64(b)
         }
         case reflect.KindString {

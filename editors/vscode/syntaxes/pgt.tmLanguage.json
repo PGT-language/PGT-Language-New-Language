@@ -105,7 +105,7 @@
       ]
     },
     "types": {
-      "match": "\\b(int|int64|float|char|byte|string|bool|void|any)\\b",
+      "match": "\\b(int|int64|uint64|float|char|byte|string|bool|void|any)\\b",
       "name": "support.type.primitive.pgt"
     },
     "constants": {
