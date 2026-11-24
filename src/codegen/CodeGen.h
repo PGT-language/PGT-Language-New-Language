@@ -40,6 +40,8 @@ namespace pgt
             TyP type = nullptr;
             bool isConst = false;
             bool isManual = false;
+            bool indirect = false;
+            llvm::Value *countSlot = nullptr;
         };
         struct Global
         {
@@ -132,6 +134,7 @@ namespace pgt
         void genStmt(const Stmt &stmt);
         void genVarDecl(const VarDecl &decl);
         void genManualVarDecl(const VarDecl &decl);
+        void handOverToManual(const VarDecl &decl, Var &var, size_t scopeIndex);
         const FuncInfo &runtimeFn(const std::string &name);
         const FuncInfo &memoryFn(const std::string &name);
         void genAssign(const Assign &assign);

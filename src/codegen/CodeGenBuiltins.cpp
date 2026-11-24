@@ -202,6 +202,15 @@ namespace pgt
             arity(1);
             if (auto *ref = dynamic_cast<const VarRef *>(call.args[0].get()))
             {
+                if (Var *var = lookupLocal(ref->name); var && var->isManual && var->indirect)
+                {
+                    llvm::Value *p = builder_.CreateLoad(builder_.getPtrTy(), var->addr);
+                    llvm::Value *n = builder_.CreateLoad(builder_.getInt64Ty(), var->countSlot);
+                    builder_.CreateCall(memoryFn("release").fn,
+                                        {p, builder_.CreateMul(n, sizeOf(var->type))});
+                    builder_.CreateStore(llvm::ConstantPointerNull::get(builder_.getPtrTy()), var->addr);
+                    return voidV;
+                }
                 if (Var *var = lookupLocal(ref->name); var && var->isManual)
                 {
                     llvm::Value *cur = builder_.CreateLoad(arrayTy_, var->addr);

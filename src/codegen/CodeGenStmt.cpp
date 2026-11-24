@@ -1,5 +1,7 @@
 #include "codegen/CodeGen.h"
 
+#include <algorithm>
+
 #include "common/Error.h"
 
 namespace pgt
@@ -90,6 +92,14 @@ namespace pgt
         if (!hasMemory)
             fail("malloc needs #use \"pgt/std/memory\"", m.line, m.col);
 
+        for (size_t i = scopes_.size(); i-- > 0;)
+        {
+            auto found = scopes_[i].vars.find(decl.name);
+            if (found == scopes_[i].vars.end())
+                continue;
+            return handOverToManual(decl, found->second, i);
+        }
+
         TyP elem = resolveType(m.elem);
         Value n = genExpr(*m.count, types_.intT);
         if (!n.type->isIntegral())
@@ -107,6 +117,90 @@ namespace pgt
         llvm::Value *slot = newVarSlot(ty, decl.name);
         builder_.CreateStore(arr, slot);
         declare(decl.name, Var{slot, ty, false, true}, decl.line, decl.col);
+    }
+
+    void CodeGen::handOverToManual(const VarDecl &decl, Var &var, size_t scopeIndex)
+    {
+        const auto &m = static_cast<const MallocExpr &>(*decl.init);
+        if (var.isManual)
+            fail("'" + decl.name + "' is already manually managed", decl.line, decl.col);
+        if (var.isConst)
+            fail("cannot hand the constant '" + decl.name + "' over to malloc", decl.line, decl.col);
+        if (heapVars_.count(decl.name))
+            fail("cannot hand '" + decl.name + "' over to malloc: its address is taken with '&'", decl.line,
+                 decl.col);
+        if (scopeIndex + 1 != scopes_.size())
+            fail("'var& := " + decl.name + "' must be in the same block where '" + decl.name +
+                     "' is declared",
+                 decl.line, decl.col);
+
+        TyP elem = resolveType(m.elem);
+        bool isArray = var.type->is(Type::Kind::Array);
+        TyP want = isArray ? var.type->elem : var.type;
+        if (elem != want)
+            fail("cannot hand '" + decl.name + "' (" + var.type->name() + ") over to malloc(free[" +
+                     elem->name() + "] ...): the element type must be " + want->name(),
+                 decl.line, decl.col);
+
+        Value n = genExpr(*m.count, types_.intT);
+        if (!n.type->isIntegral())
+            fail("the size in 'malloc' must be an integer, found " + n.type->name(), m.count->line,
+                 m.count->col);
+        auto *i64 = builder_.getInt64Ty();
+        llvm::Value *count = builder_.CreateIntCast(n.value, i64, !n.type->isUnsigned());
+        llvm::Type *elemLl = llvmType(elem);
+
+        auto &owned = scopes_[scopeIndex].owned;
+        owned.erase(std::remove_if(owned.begin(), owned.end(),
+                                   [&](const OwnedLocal &o) { return o.slot == var.addr; }),
+                    owned.end());
+
+        if (isArray)
+        {
+            llvm::Value *data = builder_.CreateCall(memoryFn("alloc").fn, {count, sizeOf(elem)});
+            llvm::Value *old = builder_.CreateLoad(arrayTy_, var.addr);
+            llvm::Value *oldData = builder_.CreateExtractValue(old, 0);
+            llvm::Value *oldLen = builder_.CreateExtractValue(old, 1);
+            llvm::Value *copyN = builder_.CreateSelect(builder_.CreateICmpSLT(oldLen, count), oldLen, count);
+
+            llvm::Function *f = builder_.GetInsertBlock()->getParent();
+            llvm::BasicBlock *pre = builder_.GetInsertBlock();
+            llvm::BasicBlock *loop = llvm::BasicBlock::Create(ctx_, "handover.copy", f);
+            llvm::BasicBlock *done = llvm::BasicBlock::Create(ctx_, "handover.done", f);
+            builder_.CreateCondBr(builder_.CreateICmpSGT(copyN, builder_.getInt64(0)), loop, done);
+            builder_.SetInsertPoint(loop);
+            llvm::PHINode *i = builder_.CreatePHI(i64, 2);
+            i->addIncoming(builder_.getInt64(0), pre);
+            llvm::Value *v = builder_.CreateLoad(elemLl, builder_.CreateGEP(elemLl, oldData, i));
+            emitRetain(v, elem);
+            builder_.CreateStore(v, builder_.CreateGEP(elemLl, data, i));
+            llvm::Value *next = builder_.CreateAdd(i, builder_.getInt64(1));
+            i->addIncoming(next, builder_.GetInsertBlock());
+            builder_.CreateCondBr(builder_.CreateICmpSLT(next, copyN), loop, done);
+            builder_.SetInsertPoint(done);
+
+            emitRelease(old, var.type);
+            llvm::Value *arr = zeroValue(var.type);
+            arr = builder_.CreateInsertValue(arr, data, 0);
+            arr = builder_.CreateInsertValue(arr, count, 1);
+            arr = builder_.CreateInsertValue(arr, count, 2);
+            builder_.CreateStore(arr, var.addr);
+            var.isManual = true;
+            return;
+        }
+
+        llvm::Value *slots = builder_.CreateSelect(builder_.CreateICmpSLT(count, builder_.getInt64(1)),
+                                                   builder_.getInt64(1), count);
+        llvm::Value *data = builder_.CreateCall(memoryFn("alloc").fn, {slots, sizeOf(elem)});
+        builder_.CreateStore(builder_.CreateLoad(elemLl, var.addr), data);
+        llvm::Value *ptrSlot = entryAlloca(builder_.getPtrTy(), decl.name + ".manual");
+        builder_.CreateStore(data, ptrSlot);
+        llvm::Value *countSlot = entryAlloca(i64, decl.name + ".count");
+        builder_.CreateStore(slots, countSlot);
+        var.addr = ptrSlot;
+        var.indirect = true;
+        var.countSlot = countSlot;
+        var.isManual = true;
     }
 
     void CodeGen::genVarDecl(const VarDecl &decl)
@@ -145,7 +239,7 @@ namespace pgt
     void CodeGen::genAssign(const Assign &assign)
     {
         if (auto *ref = dynamic_cast<const VarRef *>(assign.target.get()))
-            if (Var *v = lookupLocal(ref->name); v && v->isManual)
+            if (Var *v = lookupLocal(ref->name); v && v->isManual && !v->indirect)
                 fail("cannot assign to '" + ref->name +
                          "': a 'var&' variable is manually managed and cannot be reassigned "
                          "(release it with free(" + ref->name + "))",

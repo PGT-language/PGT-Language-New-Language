@@ -217,7 +217,7 @@ namespace pgt
         }
         if (auto *ref = dynamic_cast<const VarRef *>(e))
             if (Var *v = lookupLocal(ref->name))
-                return indexed && v->isManual;
+                return v->isManual && (indexed || v->indirect);
         return false;
     }
 

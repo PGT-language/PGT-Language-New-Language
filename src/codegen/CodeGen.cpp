@@ -294,7 +294,16 @@ namespace pgt
     std::optional<CodeGen::Var> CodeGen::lookupVar(const std::string &name)
     {
         if (Var *v = lookupLocal(name))
-            return *v;
+        {
+            if (!v->indirect)
+                return *v;
+            llvm::Value *p = builder_.CreateLoad(builder_.getPtrTy(), v->addr);
+            nilCheck(p);
+            Var direct = *v;
+            direct.addr = p;
+            direct.indirect = false;
+            return direct;
+        }
         auto g = pkg_->globals.find(name);
         if (g != pkg_->globals.end())
             return Var{g->second.gv, g->second.type, g->second.isConst};
