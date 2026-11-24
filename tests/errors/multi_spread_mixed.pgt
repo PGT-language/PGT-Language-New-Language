@@ -1,0 +1,16 @@
+// error: multi-value call
+package main
+
+fn two() (string, string) {
+    return "a", "b"
+}
+
+fn cat(a string, b string) string {
+    return a + b
+}
+
+fn main() {
+    cat(two(), "x")
+}
+
+return 0

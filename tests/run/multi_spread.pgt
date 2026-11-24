@@ -1,0 +1,92 @@
+// memstats
+package main
+
+#use "fmt"
+
+struct Pair {
+    A string
+    B string
+}
+
+struct Sink {
+    Log string
+}
+
+interface Joiner {
+    Join(a string, b string) string
+}
+
+fn (p Pair) Join(a string, b string) string {
+    return p.A + a + p.B + b
+}
+
+fn (s *Sink) Add(a string, n int) {
+    s.Log = s.Log + a + fmt.Sprint(n) + ";"
+}
+
+fn (p Pair) Two() (string, string) {
+    return p.A + "1", p.B + "2"
+}
+
+fn two(prefix string) (string, string) {
+    return prefix + "x", prefix + "y"
+}
+
+fn sn() (string, int) {
+    return "k", 7
+}
+
+fn cat(a string, b string) string {
+    return a + "-" + b
+}
+
+fn many(sep string, parts ...string) string {
+    var* out = sep
+    for p in parts {
+        out = out + p + sep
+    }
+    return out
+}
+
+fn only(parts ...string) int {
+    return len(parts)
+}
+
+fn show(a any, b any) {
+    fmt.Println(a, b)
+}
+
+fn three() (int, int, int) {
+    return 1, 2, 3
+}
+
+fn sum(xs ...int) int {
+    var* t = 0
+    for x in xs {
+        t = t + x
+    }
+    return t
+}
+
+fn id(s string) string {
+    return s
+}
+
+fn main() {
+    fmt.Println(cat(two("p")))
+    fmt.Println(only(two("q")))
+    fmt.Println(sum(three()))
+    show(sn())
+    var* s Sink
+    s.Add(sn())
+    s.Add(sn())
+    fmt.Println(s.Log)
+    var* p = Pair{A: "a", B: "b"}
+    fmt.Println(cat(p.Two()))
+    var* j Joiner = p
+    fmt.Println(j.Join(two("z")))
+    fmt.Println(id(id("one")))
+    fmt.Println(p.Join(p.Two()))
+}
+
+return 0

@@ -1,0 +1,16 @@
+// error: takes 1 argument(s), got 2
+package main
+
+fn two() (string, string) {
+    return "a", "b"
+}
+
+fn one(a string) string {
+    return a
+}
+
+fn main() {
+    one(two())
+}
+
+return 0

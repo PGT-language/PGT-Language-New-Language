@@ -129,7 +129,7 @@ namespace pgt
                 fail("this call does not return a value", call->line, call->col);
             if (v.type->is(Type::Kind::Tuple))
                 fail("multi-value call (returns " + v.type->name() +
-                         ") used in a single-value context",
+                         ") used in a single-value context (a multi-value call can only be the sole argument of a call)",
                      call->line, call->col);
             return v;
         }
