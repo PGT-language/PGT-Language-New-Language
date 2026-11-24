@@ -1,7 +1,10 @@
 // memstats
 package main
 
-#use "fmt"
+#use (
+    "fmt"
+    "reflect"
+)
 
 struct Point {
     X int
@@ -64,39 +67,39 @@ fn count(items ...any) int {
 }
 
 fn describe(a any) string {
-    switch typeKind(a) {
+    switch reflect.Kind(a) {
         case 0 {
             return "nil"
         }
         case 1, 2, 4, 5 {
-            return typeName(a) + ":" + str(anyInt(a))
+            return reflect.TypeName(a) + ":" + str(reflect.Int(a))
         }
         case 3 {
-            return "float:" + str(anyFloat(a))
+            return "float:" + str(reflect.Float(a))
         }
         case 6 {
-            return "bool:" + str(anyBool(a))
+            return "bool:" + str(reflect.Bool(a))
         }
         case 7 {
-            return "string:" + anyString(a)
+            return "string:" + reflect.String(a)
         }
         case 8 {
-            var* s = "array" + str(anyLen(a)) + "["
-            for i in 0..anyLen(a) {
-                s += describe(anyIndex(a, i)) + ","
+            var* s = "array" + str(reflect.Len(a)) + "["
+            for i in 0..reflect.Len(a) {
+                s += describe(reflect.Index(a, i)) + ","
             }
             return s + "]"
         }
         case 9 {
-            if anyIsNil(a) {
+            if reflect.IsNil(a) {
                 return "nilptr"
             }
-            return "ptr->" + describe(anyElem(a))
+            return "ptr->" + describe(reflect.Elem(a))
         }
         case 10 {
-            var* s = typeName(a) + "{"
-            for i in 0..anyNumField(a) {
-                s += anyFieldName(a, i) + "=" + describe(anyField(a, i)) + ";"
+            var* s = reflect.TypeName(a) + "{"
+            for i in 0..reflect.NumField(a) {
+                s += reflect.FieldName(a, i) + "=" + describe(reflect.Field(a, i)) + ";"
             }
             return s + "}"
         }
@@ -161,26 +164,26 @@ fn main() {
 
     var* a any = 7
     var* b any
-    fmt.Println(a == nil, " ", b == nil, " ", anyIsNil(a), " ", anyIsNil(b), " ", anyIsNil(nilp))
+    fmt.Println(a == nil, " ", b == nil, " ", reflect.IsNil(a), " ", reflect.IsNil(b), " ", reflect.IsNil(nilp))
     var* target = 1
     var* pa any = &target
-    anySetInt(pa, 99)
-    fmt.Println(target, " ", typeName(pa), " ", typeKind(pa), " ", anyAddr(pa) != 0, " ", anyAddr(a))
+    reflect.SetInt(pa, 99)
+    fmt.Println(target, " ", reflect.TypeName(pa), " ", reflect.Kind(pa), " ", reflect.Addr(pa) != 0, " ", reflect.Addr(a))
     var* fl = 1.5
     var* name = "old"
     var* flag = false
     var* ch = 'a'
     var* big int64 = 1
     var* by byte = 1
-    anySetFloat(&fl, 2.5)
-    anySetString(&name, "new")
-    anySetBool(&flag, true)
-    anySetChar(&ch, 'z')
-    anySetInt(&big, 5000000000)
-    anySetInt(&by, 200)
+    reflect.SetFloat(&fl, 2.5)
+    reflect.SetString(&name, "new")
+    reflect.SetBool(&flag, true)
+    reflect.SetChar(&ch, 'z')
+    reflect.SetInt(&big, 5000000000)
+    reflect.SetInt(&by, 200)
     fmt.Println(fl, " ", name, " ", flag, " ", ch, " ", big, " ", by)
-    fmt.Println(typeName(1), " ", typeName(p), " ", typeName([sh]), " ", typeName(&p), " ", typeName(sh), " ", typeName(sd))
-    fmt.Println(anyFieldName(p, 1), " ", anySlotIface(Holder{}, 0), " ", anySlotIface(Holder{}, 1), " ", anySlotIface(p, 0), " ", anySlotIface([sh], 0))
+    fmt.Println(reflect.TypeName(1), " ", reflect.TypeName(p), " ", reflect.TypeName([sh]), " ", reflect.TypeName(&p), " ", reflect.TypeName(sh), " ", reflect.TypeName(sd))
+    fmt.Println(reflect.FieldName(p, 1), " ", reflect.SlotIface(Holder{}, 0), " ", reflect.SlotIface(Holder{}, 1), " ", reflect.SlotIface(p, 0), " ", reflect.SlotIface([sh], 0))
 }
 
 return 0

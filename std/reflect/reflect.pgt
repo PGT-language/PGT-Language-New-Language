@@ -1,0 +1,257 @@
+package reflect
+
+#use "unsafe"
+
+extern fn pgt_i_desc_type(a any) *Type
+extern fn pgt_i_cast_type(p *byte) *Type
+extern fn pgt_i_cast_byte(t *Type) *byte
+
+const KindNil = 0
+const KindInt = 1
+const KindInt64 = 2
+const KindFloat = 3
+const KindChar = 4
+const KindByte = 5
+const KindBool = 6
+const KindString = 7
+const KindArray = 8
+const KindPointer = 9
+const KindStruct = 10
+const KindIface = 11
+const KindAny = 12
+
+struct Type {
+    Kind int
+    NumField int
+    Name string
+    Elem *Type
+    Size int64
+    Drop *byte
+    Retain *byte
+    Fields *byte
+}
+
+const fieldStride int64 = 24
+
+fn TypeOf(a any) *Type {
+    return pgt_i_desc_type(a)
+}
+
+fn Kind(a any) int {
+    var* t = pgt_i_desc_type(a)
+    if t == nil {
+        return KindNil
+    }
+    return t.Kind
+}
+
+fn TypeName(a any) string {
+    var* t = pgt_i_desc_type(a)
+    if t == nil {
+        return "nil"
+    }
+    return t.Name
+}
+
+fn badKind(fname string, a any) {
+    panic("reflect." + fname + ": unsupported value of type " + TypeName(a))
+}
+
+fn Int(a any) int64 {
+    switch Kind(a) {
+        case KindInt {
+            return int64(unsafe.LoadInt(unsafe.DataOf(a)))
+        }
+        case KindInt64 {
+            return unsafe.LoadInt64(unsafe.DataOf(a))
+        }
+        case KindChar, KindByte {
+            return int64(unsafe.LoadByte(unsafe.DataOf(a)))
+        }
+    }
+    badKind("Int", a)
+    return 0
+}
+
+fn Float(a any) float {
+    if Kind(a) != KindFloat {
+        badKind("Float", a)
+    }
+    return unsafe.LoadFloat(unsafe.DataOf(a))
+}
+
+fn Bool(a any) bool {
+    if Kind(a) != KindBool {
+        badKind("Bool", a)
+    }
+    return unsafe.LoadBool(unsafe.DataOf(a))
+}
+
+fn String(a any) string {
+    if Kind(a) != KindString {
+        badKind("String", a)
+    }
+    return unsafe.LoadString(unsafe.DataOf(a))
+}
+
+fn Len(a any) int {
+    if Kind(a) != KindArray {
+        badKind("Len", a)
+    }
+    return int(unsafe.LoadInt64(unsafe.Add(unsafe.DataOf(a), 8)))
+}
+
+fn NumField(a any) int {
+    if Kind(a) != KindStruct {
+        badKind("NumField", a)
+    }
+    return pgt_i_desc_type(a).NumField
+}
+
+fn fieldEntry(t *Type, i int) *byte {
+    return unsafe.Add(t.Fields, int64(i) * fieldStride)
+}
+
+fn FieldName(a any, i int) string {
+    if Kind(a) != KindStruct {
+        badKind("FieldName", a)
+    }
+    var* t = pgt_i_desc_type(a)
+    if i < 0 || i >= t.NumField {
+        panic("reflect.FieldName: field index out of range")
+    }
+    return unsafe.LoadString(fieldEntry(t, i))
+}
+
+fn wrap(t *Type, src *byte) any {
+    switch t.Kind {
+        case KindIface {
+            var* vt = unsafe.LoadPtr(unsafe.Add(src, 8))
+            if vt == nil {
+                return unsafe.MakeAny(nil, nil)
+            }
+            return unsafe.MakeAny(unsafe.LoadPtr(src), unsafe.LoadPtr(vt))
+        }
+        case KindAny {
+            return unsafe.MakeAny(unsafe.LoadPtr(src), unsafe.LoadPtr(unsafe.Add(src, 8)))
+        }
+        case KindPointer {
+            return unsafe.MakeAny(unsafe.LoadPtr(src), pgt_i_cast_byte(t))
+        }
+    }
+    var* box = unsafe.Alloc(t.Size, t.Drop)
+    unsafe.Copy(box, src, t.Size)
+    if t.Retain != nil {
+        unsafe.CallPtr(t.Retain, box)
+    }
+    return unsafe.MakeAny(box, pgt_i_cast_byte(t))
+}
+
+fn Index(a any, i int) any {
+    if Kind(a) != KindArray {
+        badKind("Index", a)
+    }
+    var* t = pgt_i_desc_type(a)
+    var* header = unsafe.DataOf(a)
+    if i < 0 || int64(i) >= unsafe.LoadInt64(unsafe.Add(header, 8)) {
+        panic("reflect.Index: index out of range")
+    }
+    return wrap(t.Elem, unsafe.Add(unsafe.LoadPtr(header), int64(i) * t.Elem.Size))
+}
+
+fn Field(a any, i int) any {
+    if Kind(a) != KindStruct {
+        badKind("Field", a)
+    }
+    var* t = pgt_i_desc_type(a)
+    if i < 0 || i >= t.NumField {
+        panic("reflect.Field: field index out of range")
+    }
+    var* entry = fieldEntry(t, i)
+    var* ft = pgt_i_cast_type(unsafe.LoadPtr(unsafe.Add(entry, 8)))
+    return wrap(ft, unsafe.Add(unsafe.DataOf(a), unsafe.LoadInt64(unsafe.Add(entry, 16))))
+}
+
+fn Elem(a any) any {
+    if Kind(a) != KindPointer {
+        badKind("Elem", a)
+    }
+    var* data = unsafe.DataOf(a)
+    if data == nil {
+        return unsafe.MakeAny(nil, nil)
+    }
+    return wrap(pgt_i_desc_type(a).Elem, data)
+}
+
+fn IsNil(a any) bool {
+    var* k = Kind(a)
+    if k == KindNil {
+        return true
+    }
+    return k == KindPointer && unsafe.DataOf(a) == nil
+}
+
+fn Addr(a any) int64 {
+    if Kind(a) != KindPointer {
+        return 0
+    }
+    return unsafe.Addr(unsafe.DataOf(a))
+}
+
+fn SlotIface(a any, i int) bool {
+    var* k = Kind(a)
+    if k == KindArray {
+        return pgt_i_desc_type(a).Elem.Kind >= KindIface
+    }
+    if k == KindStruct {
+        var* t = pgt_i_desc_type(a)
+        if i >= 0 && i < t.NumField {
+            var* ft = pgt_i_cast_type(unsafe.LoadPtr(unsafe.Add(fieldEntry(t, i), 8)))
+            return ft.Kind >= KindIface
+        }
+    }
+    return false
+}
+
+fn target(fname string, a any, want int, wantName string) *byte {
+    var* t = pgt_i_desc_type(a)
+    if t == nil || t.Kind != KindPointer || t.Elem.Kind != want {
+        panic("reflect." + fname + ": expected *" + wantName + ", got " + TypeName(a))
+    }
+    var* data = unsafe.DataOf(a)
+    if data == nil {
+        panic("nil pointer dereference")
+    }
+    return data
+}
+
+fn SetInt(a any, v int64) {
+    var* t = pgt_i_desc_type(a)
+    if t != nil && t.Kind == KindPointer && unsafe.DataOf(a) != nil {
+        if t.Elem.Kind == KindInt64 {
+            unsafe.StoreInt64(unsafe.DataOf(a), v)
+            return
+        }
+        if t.Elem.Kind == KindByte {
+            unsafe.StoreByte(unsafe.DataOf(a), byte(v))
+            return
+        }
+    }
+    unsafe.StoreInt(target("SetInt", a, KindInt, "int"), int(v))
+}
+
+fn SetFloat(a any, v float) {
+    unsafe.StoreFloat(target("SetFloat", a, KindFloat, "float"), v)
+}
+
+fn SetBool(a any, v bool) {
+    unsafe.StoreBool(target("SetBool", a, KindBool, "bool"), v)
+}
+
+fn SetChar(a any, v char) {
+    unsafe.StoreChar(target("SetChar", a, KindChar, "char"), v)
+}
+
+fn SetString(a any, v string) {
+    unsafe.StoreString(target("SetString", a, KindString, "string"), v)
+}

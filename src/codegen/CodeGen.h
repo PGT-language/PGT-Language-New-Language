@@ -184,6 +184,7 @@ namespace pgt
                                     std::vector<llvm::Type *> params, bool noReturn = false);
         void panicIf(llvm::Value *cond, const std::string &fn, std::vector<llvm::Value *> args);
         llvm::Value *arrayToPtr(llvm::Value *arr);
+        Value genIntrinsic(const FuncInfo &info, const std::vector<llvm::Value *> &args);
         std::optional<Value> genBuiltin(const Call &call, const std::string &name, TyP hint);
         Value genConversion(const Call &call, TyP target);
         Value genMath(const Call &call, const std::string &name);

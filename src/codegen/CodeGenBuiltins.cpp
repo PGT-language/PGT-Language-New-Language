@@ -379,115 +379,57 @@ namespace pgt
             startDeadBlock();
             return voidV;
         }
-        if (name.rfind("any", 0) == 0 || name == "typeKind" || name == "typeName")
-        {
-            auto anyOf = [&](size_t i) -> llvm::Value *
-            {
-                const Expr &a = *call.args[i];
-                return coerce(genExpr(a), types_.anyT, a.line, a.col,
-                              "argument " + std::to_string(i + 1) + " of '" + name + "'")
-                    .value;
-            };
-            auto dataOf = [&](llvm::Value *a)
-            { return builder_.CreateExtractValue(a, 0); };
-            auto descOf = [&](llvm::Value *a)
-            { return builder_.CreateExtractValue(a, 1); };
-            auto viaOut = [&](const char *fn, std::vector<llvm::Value *> args) -> Value
-            {
-                llvm::Value *tmp = entryAlloca(ifaceTy_, "any.tmp");
-                args.insert(args.begin(), tmp);
-                rt(fn, builder_.getVoidTy(), args);
-                return owned(Value{builder_.CreateLoad(ifaceTy_, tmp), types_.anyT});
-            };
-
-            if (name == "typeKind")
-            {
-                arity(1);
-                return Value{rt("pgt_any_kind", i32, {descOf(anyOf(0))}), types_.intT};
-            }
-            if (name == "typeName")
-            {
-                arity(1);
-                return Value{rt("pgt_any_name", ptr, {descOf(anyOf(0))}), types_.stringT};
-            }
-            struct Getter
-            {
-                const char *builtin;
-                const char *fn;
-                int ret;
-            };
-            static const Getter getters[] = {{"anyInt", "pgt_any_int", 0},   {"anyFloat", "pgt_any_float", 1},
-                                             {"anyBool", "pgt_any_bool", 2}, {"anyLen", "pgt_any_len", 3},
-                                             {"anyNumField", "pgt_any_numfield", 3},
-                                             {"anyIsNil", "pgt_any_isnil", 2}, {"anyAddr", "pgt_any_addr", 0}};
-            for (const Getter &g : getters)
-            {
-                if (name != g.builtin)
-                    continue;
-                arity(1);
-                llvm::Value *a = anyOf(0);
-                llvm::Type *rty[] = {i64, builder_.getDoubleTy(), i1, i32};
-                TyP rtys[] = {types_.int64T, types_.floatT, types_.boolT, types_.intT};
-                return Value{rt(g.fn, rty[g.ret], {dataOf(a), descOf(a)}), rtys[g.ret]};
-            }
-            if (name == "anyString")
-            {
-                arity(1);
-                llvm::Value *a = anyOf(0);
-                return owned(Value{rt("pgt_any_string", ptr, {dataOf(a), descOf(a)}), types_.stringT});
-            }
-            if (name == "anyFieldName")
-            {
-                arity(2);
-                llvm::Value *a = anyOf(0);
-                return Value{rt("pgt_any_fieldname", ptr, {descOf(a), argOf(1, types_.intT)}),
-                             types_.stringT};
-            }
-            if (name == "anySlotIface")
-            {
-                arity(2);
-                llvm::Value *a = anyOf(0);
-                return Value{rt("pgt_any_slotiface", i1, {descOf(a), argOf(1, types_.intT)}),
-                             types_.boolT};
-            }
-            if (name == "anyIndex" || name == "anyField")
-            {
-                arity(2);
-                llvm::Value *a = anyOf(0);
-                return viaOut(name == "anyIndex" ? "pgt_any_index" : "pgt_any_field",
-                              {dataOf(a), descOf(a), argOf(1, types_.intT)});
-            }
-            if (name == "anyElem")
-            {
-                arity(1);
-                llvm::Value *a = anyOf(0);
-                return viaOut("pgt_any_elem", {dataOf(a), descOf(a)});
-            }
-            struct Setter
-            {
-                const char *builtin;
-                const char *fn;
-                int arg;
-            };
-            static const Setter setters[] = {{"anySetInt", "pgt_any_set_int", 0},
-                                             {"anySetFloat", "pgt_any_set_float", 1},
-                                             {"anySetBool", "pgt_any_set_bool", 2},
-                                             {"anySetString", "pgt_any_set_string", 3},
-                                             {"anySetChar", "pgt_any_set_char", 4}};
-            for (const Setter &s : setters)
-            {
-                if (name != s.builtin)
-                    continue;
-                arity(2);
-                llvm::Value *a = anyOf(0);
-                TyP want[] = {types_.int64T, types_.floatT, types_.boolT, types_.stringT, types_.charT};
-                llvm::Value *v = argOf(1, want[s.arg]);
-                rt(s.fn, builder_.getVoidTy(), {dataOf(a), descOf(a), v});
-                return voidV;
-            }
-        }
-
         return std::nullopt;
+    }
+
+    CodeGen::Value CodeGen::genIntrinsic(const FuncInfo &info, const std::vector<llvm::Value *> &args)
+    {
+        const std::string &op = info.intrinsic;
+        auto *ptr = builder_.getPtrTy();
+        if (op == "add")
+            return Value{builder_.CreateGEP(builder_.getInt8Ty(), args[0], {args[1]}), info.ret};
+        if (op == "load")
+        {
+            llvm::Value *v = builder_.CreateLoad(llvmType(info.ret), args[0]);
+            emitRetain(v, info.ret);
+            return owned(Value{v, info.ret});
+        }
+        if (op == "store")
+        {
+            TyP t = info.params[1];
+            storeValue(args[0], t, Value{args[1], t}, false);
+            return Value{nullptr, info.ret};
+        }
+        if (op == "copy")
+        {
+            builder_.CreateMemCpy(args[0], llvm::MaybeAlign(1), args[1], llvm::MaybeAlign(1), args[2]);
+            return Value{nullptr, info.ret};
+        }
+        if (op == "alloc")
+            return owned(Value{rt("pgt_alloc", ptr, {args[0], args[1]}), info.ret});
+        if (op == "call1")
+        {
+            auto *fty = llvm::FunctionType::get(builder_.getVoidTy(), {ptr}, false);
+            builder_.CreateCall(fty, args[0], {args[1]});
+            return Value{nullptr, info.ret};
+        }
+        if (op == "desc")
+            return Value{builder_.CreateExtractValue(args[0], 1), info.ret};
+        if (op == "data")
+            return Value{builder_.CreateExtractValue(args[0], 0), info.ret};
+        if (op == "ptoi")
+            return Value{builder_.CreatePtrToInt(args[0], builder_.getInt64Ty()), info.ret};
+        if (op == "cast")
+            return Value{args[0], info.ret};
+        if (op == "mkany")
+        {
+            rt("pgt_retain", builder_.getVoidTy(), {args[0]});
+            llvm::Value *res = llvm::UndefValue::get(ifaceTy_);
+            res = builder_.CreateInsertValue(res, args[0], 0);
+            res = builder_.CreateInsertValue(res, args[1], 1);
+            return owned(Value{res, types_.anyT});
+        }
+        fail("unknown intrinsic '" + op + "'", info.line, info.col);
     }
 
 }

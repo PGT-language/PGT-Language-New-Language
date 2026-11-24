@@ -79,6 +79,7 @@ namespace pgt
         std::vector<TyP> params;
         TyP ret = nullptr;
         bool isExtern = false;
+        std::string intrinsic;
         bool ptrRecv = false;
         bool variadic = false;
         int line = 0, col = 0;

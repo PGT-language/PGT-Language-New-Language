@@ -1,0 +1,148 @@
+package unsafe
+
+extern fn pgt_i_add(p *byte, n int64) *byte
+extern fn pgt_i_copy(dst *byte, src *byte, n int64)
+extern fn pgt_i_alloc(size int64, drop *byte) *byte
+extern fn pgt_i_call1(f *byte, arg *byte)
+extern fn pgt_i_desc(a any) *byte
+extern fn pgt_i_ptoi(p *byte) int64
+extern fn pgt_i_data(a any) *byte
+extern fn pgt_i_mkany(data *byte, desc *byte) any
+extern fn pgt_i_cast_string(p *byte) string
+extern fn pgt_i_cast_ptr(s string) *byte
+extern fn pgt_i_load_int(p *byte) int
+extern fn pgt_i_load_int64(p *byte) int64
+extern fn pgt_i_load_float(p *byte) float
+extern fn pgt_i_load_char(p *byte) char
+extern fn pgt_i_load_byte(p *byte) byte
+extern fn pgt_i_load_bool(p *byte) bool
+extern fn pgt_i_load_string(p *byte) string
+extern fn pgt_i_load_ptr(p *byte) *byte
+extern fn pgt_i_store_int(p *byte, v int)
+extern fn pgt_i_store_int64(p *byte, v int64)
+extern fn pgt_i_store_float(p *byte, v float)
+extern fn pgt_i_store_char(p *byte, v char)
+extern fn pgt_i_store_byte(p *byte, v byte)
+extern fn pgt_i_store_bool(p *byte, v bool)
+extern fn pgt_i_store_string(p *byte, v string)
+extern fn pgt_i_store_ptr(p *byte, v *byte)
+
+fn Add(p *byte, n int64) *byte {
+    return pgt_i_add(p, n)
+}
+
+fn Addr(p *byte) int64 {
+    return pgt_i_ptoi(p)
+}
+
+fn Copy(dst *byte, src *byte, n int64) {
+    pgt_i_copy(dst, src, n)
+}
+
+fn Alloc(size int64, drop *byte) *byte {
+    return pgt_i_alloc(size, drop)
+}
+
+fn CallPtr(f *byte, arg *byte) {
+    pgt_i_call1(f, arg)
+}
+
+fn TypeOf(a any) *byte {
+    return pgt_i_desc(a)
+}
+
+fn DataOf(a any) *byte {
+    return pgt_i_data(a)
+}
+
+fn MakeAny(data *byte, desc *byte) any {
+    return pgt_i_mkany(data, desc)
+}
+
+fn StringAt(p *byte) string {
+    return pgt_i_cast_string(p)
+}
+
+fn StringData(s string) *byte {
+    return pgt_i_cast_ptr(s)
+}
+
+fn BytesAt(p *byte, n int) []byte {
+    return unsafeSlice(p, int64(n))
+}
+
+fn BytesData(b []byte) *byte {
+    return unsafeData(b)
+}
+
+fn LoadInt(p *byte) int {
+    return pgt_i_load_int(p)
+}
+
+fn LoadInt64(p *byte) int64 {
+    return pgt_i_load_int64(p)
+}
+
+fn LoadFloat(p *byte) float {
+    return pgt_i_load_float(p)
+}
+
+fn LoadChar(p *byte) char {
+    return pgt_i_load_char(p)
+}
+
+fn LoadByte(p *byte) byte {
+    return pgt_i_load_byte(p)
+}
+
+fn LoadBool(p *byte) bool {
+    return pgt_i_load_bool(p)
+}
+
+fn LoadString(p *byte) string {
+    return pgt_i_load_string(p)
+}
+
+fn LoadPtr(p *byte) *byte {
+    return pgt_i_load_ptr(p)
+}
+
+fn StoreInt(p *byte, v int) {
+    pgt_i_store_int(p, v)
+}
+
+fn StoreInt64(p *byte, v int64) {
+    pgt_i_store_int64(p, v)
+}
+
+fn StoreFloat(p *byte, v float) {
+    pgt_i_store_float(p, v)
+}
+
+fn StoreChar(p *byte, v char) {
+    pgt_i_store_char(p, v)
+}
+
+fn StoreByte(p *byte, v byte) {
+    pgt_i_store_byte(p, v)
+}
+
+fn StoreBool(p *byte, v bool) {
+    pgt_i_store_bool(p, v)
+}
+
+fn StoreString(p *byte, v string) {
+    pgt_i_store_string(p, v)
+}
+
+fn StorePtr(p *byte, v *byte) {
+    pgt_i_store_ptr(p, v)
+}
+
+fn Sizeof(a any) int64 {
+    var* t = pgt_i_desc(a)
+    if t == nil {
+        return 0
+    }
+    return pgt_i_load_int64(pgt_i_add(t, 24))
+}

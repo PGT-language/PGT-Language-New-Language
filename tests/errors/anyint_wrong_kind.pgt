@@ -1,9 +1,11 @@
-// panic: anyInt: unsupported value of type string
+// panic: reflect.Int: unsupported value of type string
 package main
+
+#use "reflect"
 
 fn main() {
     var* a any = "text"
-    var* n = anyInt(a)
+    var* n = reflect.Int(a)
 }
 
 return 0

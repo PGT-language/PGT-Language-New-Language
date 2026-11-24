@@ -559,6 +559,12 @@ namespace pgt
         info.line = fn.line;
         info.col = fn.col;
         std::vector<llvm::Type *> llvmParams;
+        bool intrinsic = fn.isExtern && symbol.rfind("pgt_i_", 0) == 0;
+        if (intrinsic)
+        {
+            std::string rest = symbol.substr(6);
+            info.intrinsic = rest.substr(0, rest.find('_'));
+        }
         if (recvType)
         {
             info.params.push_back(recvType);
@@ -567,7 +573,7 @@ namespace pgt
         for (const Param &param : fn.params)
         {
             TyP t = resolveType(param.type);
-            if (fn.isExtern && (t->is(Type::Kind::Struct) || t->is(Type::Kind::Interface) ||
+            if (fn.isExtern && !intrinsic && (t->is(Type::Kind::Struct) || t->is(Type::Kind::Interface) ||
                                 t->is(Type::Kind::Any)))
                 fail("external functions cannot take struct or interface parameters", param.type.line,
                      param.type.col);
@@ -577,10 +583,12 @@ namespace pgt
         }
         info.ret = fn.ret ? resolveType(*fn.ret, true) : types_.voidT;
         info.variadic = !fn.params.empty() && fn.params.back().variadic;
-        if (fn.isExtern && (info.ret->is(Type::Kind::Struct) || info.ret->is(Type::Kind::Interface) ||
+        if (fn.isExtern && !intrinsic && (info.ret->is(Type::Kind::Struct) || info.ret->is(Type::Kind::Interface) ||
                             info.ret->is(Type::Kind::Any) || info.ret->is(Type::Kind::Array)))
             fail("external functions can only return scalars, strings and pointers", fn.line, fn.col);
 
+        if (intrinsic)
+            return info;
         auto *fnTy = llvm::FunctionType::get(llvmType(info.ret), llvmParams, false);
         if (fn.isExtern)
         {

@@ -897,7 +897,7 @@ namespace pgt
             const Expr &a = *call.args[i];
             Value v = coerce(genExpr(a, pt), pt, a.line, a.col,
                              "argument " + ordinal(i + 1) + " of '" + name + "'");
-            args.push_back(info.isExtern && pt->is(Type::Kind::Array) ? arrayToPtr(v.value) : v.value);
+            args.push_back(info.isExtern && info.intrinsic.empty() && pt->is(Type::Kind::Array) ? arrayToPtr(v.value) : v.value);
         }
         if (info.variadic)
         {
@@ -921,6 +921,8 @@ namespace pgt
                 args.push_back(packArray(arrTy->elem, extra).value);
             }
         }
+        if (!info.intrinsic.empty())
+            return genIntrinsic(info, args);
         llvm::Value *result = builder_.CreateCall(info.fn, args);
         if (info.ret->is(Type::Kind::Void))
             return {nullptr, info.ret};
@@ -1159,7 +1161,21 @@ namespace pgt
         llvm::Value *desc;
         if (v.type->is(Type::Kind::Interface))
         {
-            desc = rt("pgt_iface_type", ptr, {builder_.CreateExtractValue(v.value, 1)});
+            llvm::Value *vt = builder_.CreateExtractValue(v.value, 1);
+            llvm::Value *isNil = builder_.CreateIsNull(vt);
+            llvm::Function *cur = builder_.GetInsertBlock()->getParent();
+            auto *loadBB = llvm::BasicBlock::Create(ctx_, "vt.load", cur);
+            auto *doneBB = llvm::BasicBlock::Create(ctx_, "vt.done", cur);
+            llvm::BasicBlock *from = builder_.GetInsertBlock();
+            builder_.CreateCondBr(isNil, doneBB, loadBB);
+            builder_.SetInsertPoint(loadBB);
+            llvm::Value *loaded = builder_.CreateLoad(ptr, vt);
+            builder_.CreateBr(doneBB);
+            builder_.SetInsertPoint(doneBB);
+            auto *phi = builder_.CreatePHI(ptr, 2);
+            phi->addIncoming(llvm::ConstantPointerNull::get(ptr), from);
+            phi->addIncoming(loaded, loadBB);
+            desc = phi;
             data = builder_.CreateExtractValue(take(v), 0);
         }
         else if (v.type->is(Type::Kind::Pointer))

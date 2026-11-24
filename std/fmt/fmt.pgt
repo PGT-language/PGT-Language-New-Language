@@ -2,6 +2,7 @@ package fmt
 
 #use (
     "conv"
+    "reflect"
     "strings"
 )
 
@@ -19,60 +20,49 @@ extern fn pgt_read_word(cur string) string
 extern fn pgt_read_line(cur string) string
 extern fn pgt_read_raw_line(ok *bool) string
 
-const kindNil = 0
-const kindInt = 1
-const kindInt64 = 2
-const kindFloat = 3
-const kindChar = 4
-const kindByte = 5
-const kindBool = 6
-const kindString = 7
-const kindArray = 8
-const kindPointer = 9
-const kindStruct = 10
 
 fn formatAny(a any, top bool) string {
-    switch typeKind(a) {
-        case kindNil {
+    switch reflect.Kind(a) {
+        case reflect.KindNil {
             return "<nil>"
         }
-        case kindInt, kindInt64, kindByte {
-            return str(anyInt(a))
+        case reflect.KindInt, reflect.KindInt64, reflect.KindByte {
+            return str(reflect.Int(a))
         }
-        case kindFloat {
-            return str(anyFloat(a))
+        case reflect.KindFloat {
+            return str(reflect.Float(a))
         }
-        case kindChar {
-            return string(char(anyInt(a)))
+        case reflect.KindChar {
+            return string(char(reflect.Int(a)))
         }
-        case kindBool {
-            return str(anyBool(a))
+        case reflect.KindBool {
+            return str(reflect.Bool(a))
         }
-        case kindString {
-            return anyString(a)
+        case reflect.KindString {
+            return reflect.String(a)
         }
-        case kindArray {
+        case reflect.KindArray {
             var* parts + {[]string} = []
-            for i in 0..anyLen(a) {
-                parts = append(parts, formatAny(anyIndex(a, i), anySlotIface(a, i)))
+            for i in 0..reflect.Len(a) {
+                parts = append(parts, formatAny(reflect.Index(a, i), reflect.SlotIface(a, i)))
             }
             return "[" + pgt_join(parts, " ") + "]"
         }
-        case kindStruct {
+        case reflect.KindStruct {
             var* parts + {[]string} = []
-            for i in 0..anyNumField(a) {
-                parts = append(parts, formatAny(anyField(a, i), anySlotIface(a, i)))
+            for i in 0..reflect.NumField(a) {
+                parts = append(parts, formatAny(reflect.Field(a, i), reflect.SlotIface(a, i)))
             }
             return "{" + pgt_join(parts, " ") + "}"
         }
-        case kindPointer {
-            if anyIsNil(a) {
+        case reflect.KindPointer {
+            if reflect.IsNil(a) {
                 return "<nil>"
             }
-            if top && typeKind(anyElem(a)) == kindStruct {
-                return "&" + formatAny(anyElem(a), false)
+            if top && reflect.Kind(reflect.Elem(a)) == reflect.KindStruct {
+                return "&" + formatAny(reflect.Elem(a), false)
             }
-            return "0x" + conv.FormatInt(anyAddr(a), 16)
+            return "0x" + conv.FormatInt(reflect.Addr(a), 16)
         }
     }
     return "<nil>"
@@ -99,14 +89,14 @@ fn Println(args ...any) {
 }
 
 fn badVerb(verb char, a any) string {
-    if typeKind(a) == kindNil {
+    if reflect.Kind(a) == reflect.KindNil {
         return "%!" + string(verb) + "(<nil>)"
     }
-    return "%!" + string(verb) + "(" + typeName(a) + "=" + formatAny(a, true) + ")"
+    return "%!" + string(verb) + "(" + reflect.TypeName(a) + "=" + formatAny(a, true) + ")"
 }
 
 fn isIntKind(k int) bool {
-    return k == kindInt || k == kindInt64 || k == kindByte || k == kindChar
+    return k == reflect.KindInt || k == reflect.KindInt64 || k == reflect.KindByte || k == reflect.KindChar
 }
 
 fn quote(s string) string {
@@ -170,14 +160,14 @@ fn hexString(s string) string {
 }
 
 fn formatVerb(verb char, a any, prec int, hasPrec bool, plus bool) string {
-    var* k = typeKind(a)
+    var* k = reflect.Kind(a)
     switch verb {
         case 'v' {
             return formatAny(a, true)
         }
         case 'd' {
             if isIntKind(k) {
-                var* v = anyInt(a)
+                var* v = reflect.Int(a)
                 if plus && v >= 0 {
                     return "+" + str(v)
                 }
@@ -185,63 +175,63 @@ fn formatVerb(verb char, a any, prec int, hasPrec bool, plus bool) string {
             }
         }
         case 's' {
-            if k == kindString {
-                return anyString(a)
+            if k == reflect.KindString {
+                return reflect.String(a)
             }
-            if k == kindChar {
-                return string(char(anyInt(a)))
+            if k == reflect.KindChar {
+                return string(char(reflect.Int(a)))
             }
         }
         case 'f', 'F' {
-            if k == kindFloat {
+            if k == reflect.KindFloat {
                 var* p = 6
                 if hasPrec {
                     p = prec
                 }
-                var* text = pgt_str_float_prec(anyFloat(a), p)
-                if plus && anyFloat(a) >= 0.0 {
+                var* text = pgt_str_float_prec(reflect.Float(a), p)
+                if plus && reflect.Float(a) >= 0.0 {
                     return "+" + text
                 }
                 return text
             }
         }
         case 'g' {
-            if k == kindFloat {
-                return str(anyFloat(a))
+            if k == reflect.KindFloat {
+                return str(reflect.Float(a))
             }
         }
         case 'c' {
             if isIntKind(k) {
-                return string(char(anyInt(a)))
+                return string(char(reflect.Int(a)))
             }
         }
         case 't' {
-            if k == kindBool {
-                return str(anyBool(a))
+            if k == reflect.KindBool {
+                return str(reflect.Bool(a))
             }
         }
         case 'q' {
-            if k == kindString {
-                return quote(anyString(a))
+            if k == reflect.KindString {
+                return quote(reflect.String(a))
             }
-            if k == kindChar {
-                return quoteChar(char(anyInt(a)))
+            if k == reflect.KindChar {
+                return quoteChar(char(reflect.Int(a)))
             }
         }
         case 'x' {
             if isIntKind(k) {
-                return conv.FormatInt(anyInt(a), 16)
+                return conv.FormatInt(reflect.Int(a), 16)
             }
-            if k == kindString {
-                return hexString(anyString(a))
+            if k == reflect.KindString {
+                return hexString(reflect.String(a))
             }
         }
         case 'X' {
             if isIntKind(k) {
-                return upper(conv.FormatInt(anyInt(a), 16))
+                return upper(conv.FormatInt(reflect.Int(a), 16))
             }
-            if k == kindString {
-                return upper(hexString(anyString(a)))
+            if k == reflect.KindString {
+                return upper(hexString(reflect.String(a)))
             }
         }
     }
@@ -350,7 +340,7 @@ fn Sprintf(format string, args ...any) string {
     if next < len(args) {
         var* extra + {[]string} = []
         for j in next..len(args) {
-            extra = append(extra, typeName(args[j]) + "=" + formatAny(args[j], true))
+            extra = append(extra, reflect.TypeName(args[j]) + "=" + formatAny(args[j], true))
         }
         parts = append(parts, "%!(EXTRA " + pgt_join(extra, ", ") + ")")
     }
@@ -362,43 +352,43 @@ fn Printf(format string, args ...any) {
 }
 
 fn pointerKind(fnName string, p any) int {
-    if typeKind(p) != kindPointer || anyIsNil(p) {
-        panic("fmt." + fnName + " needs a non-nil pointer, found " + typeName(p))
+    if reflect.Kind(p) != reflect.KindPointer || reflect.IsNil(p) {
+        panic("fmt." + fnName + " needs a non-nil pointer, found " + reflect.TypeName(p))
     }
-    return typeKind(anyElem(p))
+    return reflect.Kind(reflect.Elem(p))
 }
 
 fn readInto(fnName string, p any, wholeLine bool) {
     var* k = pointerKind(fnName, p)
-    if wholeLine && k != kindString {
-        panic("fmt." + fnName + " needs a pointer to a string, found " + typeName(p))
+    if wholeLine && k != reflect.KindString {
+        panic("fmt." + fnName + " needs a pointer to a string, found " + reflect.TypeName(p))
     }
-    var* e = anyElem(p)
+    var* e = reflect.Elem(p)
     switch k {
-        case kindInt {
-            anySetInt(p, int64(pgt_read_int(int(anyInt(e)))))
+        case reflect.KindInt {
+            reflect.SetInt(p, int64(pgt_read_int(int(reflect.Int(e)))))
         }
-        case kindInt64 {
-            anySetInt(p, pgt_read_int64(anyInt(e)))
+        case reflect.KindInt64 {
+            reflect.SetInt(p, pgt_read_int64(reflect.Int(e)))
         }
-        case kindFloat {
-            anySetFloat(p, pgt_read_float(anyFloat(e)))
+        case reflect.KindFloat {
+            reflect.SetFloat(p, pgt_read_float(reflect.Float(e)))
         }
-        case kindChar {
-            anySetChar(p, pgt_read_char(char(anyInt(e))))
+        case reflect.KindChar {
+            reflect.SetChar(p, pgt_read_char(char(reflect.Int(e))))
         }
-        case kindBool {
-            anySetBool(p, pgt_read_bool(anyBool(e)))
+        case reflect.KindBool {
+            reflect.SetBool(p, pgt_read_bool(reflect.Bool(e)))
         }
-        case kindString {
+        case reflect.KindString {
             if wholeLine {
-                anySetString(p, pgt_read_line(anyString(e)))
+                reflect.SetString(p, pgt_read_line(reflect.String(e)))
             } else {
-                anySetString(p, pgt_read_word(anyString(e)))
+                reflect.SetString(p, pgt_read_word(reflect.String(e)))
             }
         }
         default {
-            panic("fmt." + fnName + " cannot read a value of type " + typeName(p))
+            panic("fmt." + fnName + " cannot read a value of type " + reflect.TypeName(p))
         }
     }
 }
@@ -415,42 +405,42 @@ fn InputLine(prompt string, p any) {
 
 fn assignWord(p any, w string) bool {
     switch pointerKind("Scan", p) {
-        case kindInt {
+        case reflect.KindInt {
             if !pgt_is_int(w) {
                 return false
             }
-            anySetInt(p, parseInt64(w))
+            reflect.SetInt(p, parseInt64(w))
         }
-        case kindInt64 {
+        case reflect.KindInt64 {
             if !pgt_is_int(w) {
                 return false
             }
-            anySetInt(p, parseInt64(w))
+            reflect.SetInt(p, parseInt64(w))
         }
-        case kindFloat {
+        case reflect.KindFloat {
             if !pgt_is_float(w) {
                 return false
             }
-            anySetFloat(p, parseFloat(w))
+            reflect.SetFloat(p, parseFloat(w))
         }
-        case kindChar {
-            anySetChar(p, w[0])
+        case reflect.KindChar {
+            reflect.SetChar(p, w[0])
         }
-        case kindBool {
+        case reflect.KindBool {
             var* l = lower(w)
             if l == "true" || l == "1" || l == "yes" || l == "y" {
-                anySetBool(p, true)
+                reflect.SetBool(p, true)
             } else if l == "false" || l == "0" || l == "no" || l == "n" {
-                anySetBool(p, false)
+                reflect.SetBool(p, false)
             } else {
                 return false
             }
         }
-        case kindString {
-            anySetString(p, w)
+        case reflect.KindString {
+            reflect.SetString(p, w)
         }
         default {
-            panic("fmt.Scan cannot read a value of type " + typeName(p))
+            panic("fmt.Scan cannot read a value of type " + reflect.TypeName(p))
         }
     }
     return true
