@@ -38,6 +38,7 @@ namespace pgt
             llvm::Value *addr = nullptr;
             TyP type = nullptr;
             bool isConst = false;
+            bool isManual = false; // `var&`: memory is released by free(x); never tracked automatically
         };
         struct Global
         {
@@ -103,6 +104,7 @@ namespace pgt
         void genBlock(const Block &block);
         void genStmt(const Stmt &stmt);
         void genVarDecl(const VarDecl &decl);
+        void genManualVarDecl(const VarDecl &decl);
         void genAssign(const Assign &assign);
         void genReturn(const Return &ret);
         void genIf(const If &node);

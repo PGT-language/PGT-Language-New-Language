@@ -239,6 +239,14 @@ namespace pgt
         std::vector<FieldInit> fields;
     };
 
+    // `malloc(free[T] N)`: a manually managed block of N elements of type T.
+    // Only valid as the initializer of `var&`.
+    struct MallocExpr : Expr
+    {
+        TypeExpr elem;
+        ExprPtr count;
+    };
+
     struct Stmt
     {
         int line = 0, col = 0;
@@ -253,6 +261,7 @@ namespace pgt
         std::optional<TypeExpr> type;
         ExprPtr init;
         bool isConst = false;
+        bool isManual = false; // `var& := x = malloc(free[T] N)`
     };
 
     struct Assign : Stmt

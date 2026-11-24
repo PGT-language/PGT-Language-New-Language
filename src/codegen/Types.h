@@ -24,6 +24,7 @@ namespace pgt
             Int64,
             Float,
             Char,
+            Byte,
             Bool,
             String,
             Nil,
@@ -43,7 +44,12 @@ namespace pgt
         }
         bool isIntegral() const
         {
-            return kind == Kind::Int || kind == Kind::Int64 || kind == Kind::Char;
+            return kind == Kind::Int || kind == Kind::Int64 || kind == Kind::Char || kind == Kind::Byte;
+        }
+        // char and byte are unsigned 8-bit integers; int and int64 are signed.
+        bool isUnsigned() const
+        {
+            return kind == Kind::Char || kind == Kind::Byte;
         }
         bool isNumeric() const
         {
@@ -134,7 +140,7 @@ namespace pgt
     {
     public:
         TypeTable();
-        TyP voidT, intT, int64T, floatT, charT, boolT, stringT, nilT;
+        TyP voidT, intT, int64T, floatT, charT, byteT, boolT, stringT, nilT;
 
         TyP arrayOf(TyP elem);
         TyP pointerTo(TyP elem);

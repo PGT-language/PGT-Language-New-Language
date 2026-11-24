@@ -29,6 +29,8 @@ namespace pgt
             return "'fn'";
         case Tok::KwVar:
             return "'var*'";
+        case Tok::KwVarManual:
+            return "'var&'";
         case Tok::KwReturn:
             return "'return'";
         case Tok::KwUse:
@@ -73,6 +75,8 @@ namespace pgt
             return "']'";
         case Tok::Colon:
             return "':'";
+        case Tok::ColonAssign:
+            return "':='";
         case Tok::Amp:
             return "'&'";
         case Tok::Pipe:
@@ -171,6 +175,8 @@ namespace pgt
             return "KwFn";
         case Tok::KwVar:
             return "KwVar";
+        case Tok::KwVarManual:
+            return "KwVarManual";
         case Tok::KwReturn:
             return "KwReturn";
         case Tok::KwUse:
@@ -225,6 +231,8 @@ namespace pgt
             return "Comma";
         case Tok::Colon:
             return "Colon";
+        case Tok::ColonAssign:
+            return "ColonAssign";
         case Tok::Semi:
             return "Semi";
         case Tok::Dot:
@@ -502,6 +510,11 @@ namespace pgt
             advance();
             return make(Tok::KwVar, "var*", line, col);
         }
+        if (word == "var" && peek() == '&')
+        {
+            advance();
+            return make(Tok::KwVarManual, "var&", line, col);
+        }
         if (word == "package")
             return make(Tok::KwPackage, word, line, col);
         if (word == "fn")
@@ -611,7 +624,7 @@ namespace pgt
                     kind = Tok::RBracket;
                     break;
                 case ':':
-                    kind = Tok::Colon;
+                    kind = match('=') ? Tok::ColonAssign : Tok::Colon;
                     break;
                 case '^':
                     kind = Tok::Caret;

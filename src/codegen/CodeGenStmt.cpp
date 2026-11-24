@@ -56,8 +56,40 @@ namespace pgt
         fail("internal error: unknown statement", stmt.line, stmt.col);
     }
 
+    // `var& := x = malloc(free[T] N)`: x is a zeroed []T with len = cap = N, released by free(x).
+    void CodeGen::genManualVarDecl(const VarDecl &decl)
+    {
+        const auto &m = static_cast<const MallocExpr &>(*decl.init);
+        bool hasMemory = false;
+        for (const auto &[name, syms] : fileImports_)
+            hasMemory = hasMemory || syms->pkg->importPath == "memory";
+        if (!hasMemory)
+            fail("malloc needs #use \"pgt/std/memory\"", m.line, m.col);
+
+        TyP elem = resolveType(m.elem);
+        Value n = genExpr(*m.count, types_.intT);
+        if (!n.type->isIntegral())
+            fail("the size in 'malloc' must be an integer, found " + n.type->name(), m.count->line,
+                 m.count->col);
+        auto *i64 = builder_.getInt64Ty();
+        llvm::Value *count = builder_.CreateIntCast(n.value, i64, !n.type->isUnsigned());
+        llvm::Value *bytes = builder_.CreateMul(count, sizeOf(elem));
+        llvm::Value *data = rt("pgt_manual_alloc", builder_.getPtrTy(), {bytes});
+
+        TyP ty = types_.arrayOf(elem);
+        llvm::Value *arr = zeroValue(ty);
+        arr = builder_.CreateInsertValue(arr, data, 0);
+        arr = builder_.CreateInsertValue(arr, count, 1);
+        arr = builder_.CreateInsertValue(arr, count, 2);
+        llvm::Value *slot = newVarSlot(ty, decl.name);
+        builder_.CreateStore(arr, slot);
+        declare(decl.name, Var{slot, ty, false, true}, decl.line, decl.col);
+    }
+
     void CodeGen::genVarDecl(const VarDecl &decl)
     {
+        if (decl.isManual)
+            return genManualVarDecl(decl);
         TyP ty = decl.type ? resolveType(*decl.type) : nullptr;
         llvm::Value *init = nullptr;
         if (decl.init)
@@ -85,6 +117,12 @@ namespace pgt
 
     void CodeGen::genAssign(const Assign &assign)
     {
+        if (auto *ref = dynamic_cast<const VarRef *>(assign.target.get()))
+            if (Var *v = lookupLocal(ref->name); v && v->isManual)
+                fail("cannot assign to '" + ref->name +
+                         "': a 'var&' variable is manually managed and cannot be reassigned "
+                         "(release it with free(" + ref->name + "))",
+                     assign.line, assign.col);
         Addr target = requireAddress(*assign.target, true);
         Value rhs = genExpr(*assign.value, target.type);
 
@@ -220,7 +258,7 @@ namespace pgt
         {
             Value from = genExpr(*loop.iterable, types_.intT);
             Value to = genExpr(*loop.rangeEnd, from.type);
-            if (!from.type->isIntegral() || from.type->is(Type::Kind::Char) || to.type != from.type)
+            if (!from.type->isIntegral() || from.type->isUnsigned() || to.type != from.type)
                 fail("the bounds of a range must be integers of the same type", loop.line, loop.col);
             TyP ty = from.type;
             llvm::Value *slot = newVarSlot(ty, loop.value);

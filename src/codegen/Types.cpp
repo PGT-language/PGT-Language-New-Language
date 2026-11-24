@@ -17,6 +17,8 @@ namespace pgt
             return "float";
         case Kind::Char:
             return "char";
+        case Kind::Byte:
+            return "byte";
         case Kind::Bool:
             return "bool";
         case Kind::String:
@@ -48,6 +50,7 @@ namespace pgt
         int64T = basic(Type::Kind::Int64);
         floatT = basic(Type::Kind::Float);
         charT = basic(Type::Kind::Char);
+        byteT = basic(Type::Kind::Byte);
         boolT = basic(Type::Kind::Bool);
         stringT = basic(Type::Kind::String);
         nilT = basic(Type::Kind::Nil);

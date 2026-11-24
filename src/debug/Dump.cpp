@@ -154,6 +154,13 @@ namespace pgt
                     n.kids.push_back(expr(a.get()));
                 return n;
             }
+            if (auto *x = dynamic_cast<const MallocExpr *>(e))
+            {
+                Node n = node("Malloc", "malloc", *x);
+                n.kids.push_back(node("Type", x->elem.text(), x->elem));
+                n.kids.push_back(expr(x->count.get()));
+                return n;
+            }
             if (auto *x = dynamic_cast<const Selector *>(e))
             {
                 Node n = node("Selector", "." + x->name, *x);
@@ -190,7 +197,7 @@ namespace pgt
 
         Node varDecl(const VarDecl &d)
         {
-            std::string label = (d.isConst ? "const " : "var* ") + d.name;
+            std::string label = (d.isConst ? "const " : d.isManual ? "var& " : "var* ") + d.name;
             if (d.type)
                 label += " " + d.type->text();
             Node n = node(d.isConst ? "Const" : "VarDecl", label, d);

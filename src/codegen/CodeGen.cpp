@@ -158,6 +158,7 @@ namespace pgt
         case Type::Kind::Float:
             return builder_.getDoubleTy();
         case Type::Kind::Char:
+        case Type::Kind::Byte:
             return builder_.getInt8Ty();
         case Type::Kind::Bool:
             return builder_.getInt1Ty();
@@ -222,6 +223,8 @@ namespace pgt
             t = types_.floatT;
         else if (n == "char")
             t = types_.charT;
+        else if (n == "byte")
+            t = types_.byteT;
         else if (n == "string")
             t = types_.stringT;
         else if (n == "bool")
@@ -573,9 +576,10 @@ namespace pgt
                 info.fn = llvm::Function::Create(fnTy, llvm::Function::ExternalLinkage, symbol,
                                                  module_.get());
                 for (unsigned i = 0; i < llvmParams.size(); ++i)
-                    if (llvmParams[i]->isIntegerTy(1))
+                    if (llvmParams[i]->isIntegerTy(1) || llvmParams[i]->isIntegerTy(8))
                         info.fn->addParamAttr(i, llvm::Attribute::ZExt);
-                if (info.ret->is(Type::Kind::Bool))
+                if (info.ret->is(Type::Kind::Bool) || info.ret->is(Type::Kind::Char) ||
+                    info.ret->is(Type::Kind::Byte))
                     info.fn->addRetAttr(llvm::Attribute::ZExt);
             }
             return info;

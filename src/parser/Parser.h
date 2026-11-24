@@ -54,6 +54,8 @@ namespace pgt
         Block parseBlock(const char *context);
         StmtPtr parseStatement();
         std::unique_ptr<VarDecl> parseVarDecl();
+        std::unique_ptr<VarDecl> parseManualVarDecl();
+        ExprPtr parseMalloc();
         StmtPtr parseSimpleStatement();
         StmtPtr parseIf();
         StmtPtr parseWhile();
@@ -82,6 +84,8 @@ namespace pgt
         size_t pos_ = 0;
         // Inside `if`/`for`/`switch` headers `Name {` starts the body, not a struct literal.
         bool noStructLit_ = false;
+        // `malloc(...)` is only legal as the initializer of `var&`.
+        bool allowMalloc_ = false;
     };
 
 }

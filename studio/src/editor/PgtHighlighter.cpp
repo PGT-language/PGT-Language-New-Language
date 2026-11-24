@@ -27,7 +27,7 @@ PgtHighlighter::PgtHighlighter(QTextDocument *doc) : QSyntaxHighlighter(doc)
     const QStringList keywords = {"package", "fn",     "return", "if",      "else",   "while",
                                   "for",     "in",     "break",  "continue", "struct", "interface",
                                   "const",   "switch", "case",   "default", "extern"};
-    const QStringList types = {"int", "int64", "float", "char", "string", "bool", "void"};
+    const QStringList types = {"int", "int64", "float", "char", "byte", "string", "bool", "void"};
     const QStringList constants = {"true", "false", "nil"};
     const QStringList builtins = {
         "print",    "println",   "input",      "inputln",    "len",      "append",     "make",
@@ -44,7 +44,8 @@ PgtHighlighter::PgtHighlighter(QTextDocument *doc) : QSyntaxHighlighter(doc)
     rules_.push_back({QRegularExpression(words(builtins) + "(?=\\s*\\()"), makeFormat(Theme::synBuiltin)});
     rules_.push_back({QRegularExpression(words(types)), makeFormat(Theme::synType)});
     rules_.push_back({QRegularExpression(words(keywords)), makeFormat(Theme::synKeyword, true)});
-    rules_.push_back({QRegularExpression("\\bvar\\*"), makeFormat(Theme::synKeyword, true)});
+    rules_.push_back({QRegularExpression("\\bvar[*&]"), makeFormat(Theme::synKeyword, true)});
+    rules_.push_back({QRegularExpression("\\bmalloc(?=\\s*\\()"), makeFormat(Theme::synKeyword, true)});
     rules_.push_back({QRegularExpression("#use\\b"), makeFormat(Theme::synDirective, true)});
     rules_.push_back({QRegularExpression(words(constants)), makeFormat(Theme::synConstant)});
     rules_.push_back({QRegularExpression("\\b(?:0[xX][0-9a-fA-F]+|0[bB][01]+|\\d+(?:\\.\\d+)?)\\b"),

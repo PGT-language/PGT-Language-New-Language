@@ -302,3 +302,24 @@ rand.Seed(42)                   // одна и та же последовате�
 | `ShuffleStrings(a []string)` | Перемешивает массив строк |
 | `Pick(a []string) string` | Случайный элемент массива |
 
+## memory
+
+Блоки памяти для переменных `var&` (`var& := buf = malloc(free[byte] n)`, освобождение — `free(buf)`). Подключается как `#use "pgt/std/memory"` (также работает `"memory"`).
+
+```pgt
+#use "pgt/std/memory"
+
+var& := buf = malloc(free[byte] memory.KB(4))
+memory.Set(buf, 7)
+var* head = [byte(1), byte(2)]
+println(memory.Copy(buf, head), " ", buf[0], " ", buf[2])   // 2 1 7
+free(buf)
+```
+
+| Функция | Описание |
+|---|---|
+| `Copy(dst []byte, src []byte) int` | Копирует min(len(dst), len(src)) байт из src в dst, возвращает их число |
+| `Set(buf []byte, v byte)` | Записывает v во все байты buf |
+| `Zero(buf []byte)` | Обнуляет buf |
+| `KB(n int) int` | n килобайт в байтах |
+| `MB(n int) int` | n мегабайт в байтах |

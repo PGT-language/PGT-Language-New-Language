@@ -66,6 +66,37 @@ void pgt_free(void *p)
     free(p);
 }
 
+// Blocks of `var& := x = malloc(free[T] N)`: zeroed, released only by free(x).
+void *pgt_manual_alloc(int64_t bytes)
+{
+    if (bytes < 0)
+        pgt_panic("malloc: negative size");
+    void *p = calloc(1, bytes > 0 ? (size_t)bytes : 1);
+    if (!p)
+        pgt_panic("out of memory");
+    return p;
+}
+
+void pgt_manual_free(void *p)
+{
+    free(p);
+}
+
+// std/memory
+int32_t pgt_mem_copy(PgtArray *dst, PgtArray *src)
+{
+    int64_t n = dst->len < src->len ? dst->len : src->len;
+    if (n > 0)
+        memmove(dst->data, src->data, (size_t)n);
+    return (int32_t)n;
+}
+
+void pgt_mem_set(PgtArray *buf, uint8_t v)
+{
+    if (buf->len > 0)
+        memset(buf->data, v, (size_t)buf->len);
+}
+
 void pgt_array_reserve(PgtArray *a, int64_t need, int64_t elemSize)
 {
     if (need <= a->cap)

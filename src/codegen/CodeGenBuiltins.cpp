@@ -178,6 +178,17 @@ namespace pgt
         if (name == "free")
         {
             arity(1);
+            if (auto *ref = dynamic_cast<const VarRef *>(call.args[0].get()))
+            {
+                // A `var&` block: release it and leave an empty array behind.
+                if (Var *var = lookupLocal(ref->name); var && var->isManual)
+                {
+                    llvm::Value *cur = builder_.CreateLoad(arrayTy_, var->addr);
+                    rt("pgt_manual_free", builder_.getVoidTy(), {builder_.CreateExtractValue(cur, 0)});
+                    builder_.CreateStore(zeroValue(var->type), var->addr);
+                    return voidV;
+                }
+            }
             Value v = genExpr(*call.args[0]);
             if (v.type->is(Type::Kind::Pointer))
                 rt("pgt_free", builder_.getVoidTy(), {v.value});
@@ -369,6 +380,9 @@ namespace pgt
         case Type::Kind::Char:
             rt("pgt_print_char", voidTy, {v.value});
             return;
+        case Type::Kind::Byte:
+            rt("pgt_print_int", voidTy, {builder_.CreateZExt(v.value, builder_.getInt32Ty())});
+            return;
         case Type::Kind::Bool:
             rt("pgt_print_bool", voidTy, {v.value});
             return;
@@ -552,6 +566,9 @@ namespace pgt
         case Type::Kind::Char:
             reader = "pgt_read_char";
             break;
+        case Type::Kind::Byte:
+            fail("'" + name + "' cannot read a byte; read an int and convert it with byte(...)",
+                 targetExpr.line, targetExpr.col);
         case Type::Kind::Bool:
             reader = "pgt_read_bool";
             break;

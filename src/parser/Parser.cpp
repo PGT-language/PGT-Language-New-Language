@@ -23,6 +23,18 @@ namespace pgt
             }
         };
 
+        // "pgt/std/memory" and "std/memory" are the standard package "memory".
+        std::string normalizeImportPath(const std::string &path)
+        {
+            for (const char *prefix : {"pgt/std/", "std/"})
+            {
+                size_t n = std::string(prefix).size();
+                if (path.size() > n && path.compare(0, n, prefix) == 0)
+                    return path.substr(n);
+            }
+            return path;
+        }
+
         bool isAssignOp(Tok k)
         {
             switch (k)
@@ -133,6 +145,8 @@ namespace pgt
             case Tok::KwVar:
                 prog.globals.push_back(parseVarDecl());
                 continue;
+            case Tok::KwVarManual:
+                errorHere("'var&' is only allowed inside functions");
             case Tok::KwUse:
                 errorHere("'#use' must come before all declarations");
             default:
@@ -166,7 +180,7 @@ namespace pgt
             const Token &t = expect(Tok::String, "as the package path");
             if (t.text.empty())
                 throw CompileError("empty import path", t.line, t.col);
-            prog.imports.push_back(Import{t.text, t.line, t.col});
+            prog.imports.push_back(Import{normalizeImportPath(t.text), t.line, t.col});
         };
         if (check(Tok::LParen))
         {
@@ -421,10 +435,57 @@ namespace pgt
         return decl;
     }
 
+    // `var& := name = malloc(free[T] N)`
+    std::unique_ptr<VarDecl> Parser::parseManualVarDecl()
+    {
+        auto decl = make<VarDecl>(cur());
+        decl->isManual = true;
+        advance();
+        expect(Tok::ColonAssign, "after 'var&' (write: var& := name = malloc(free[T] N))");
+        decl->name = expect(Tok::Ident, "after 'var& :='").text;
+        expect(Tok::Assign, "after the variable name (write: var& := name = malloc(free[T] N))");
+        const Token &initTok = cur();
+        {
+            FlagGuard guard(allowMalloc_, true);
+            decl->init = parseExpr();
+        }
+        if (!dynamic_cast<MallocExpr *>(decl->init.get()))
+            throw CompileError("'var&' must be initialized with malloc(free[T] N)", initTok.line,
+                               initTok.col);
+        return decl;
+    }
+
+    // `malloc(free[T] N)`; the current token is `malloc`.
+    ExprPtr Parser::parseMalloc()
+    {
+        const Token &at = cur();
+        if (!allowMalloc_)
+            errorHere("'malloc' can only be used as the initializer of 'var&': "
+                      "var& := name = malloc(free[T] N)");
+        auto node = make<MallocExpr>(at);
+        advance();
+        expect(Tok::LParen, "after 'malloc'");
+        if (!(check(Tok::Ident) && cur().text == "free" && peekTok().kind == Tok::LBracket))
+            errorHere("'malloc' needs a block description: malloc(free[T] N)");
+        advance();
+        advance();
+        node->elem = parseType("as the element type in 'free[T]'");
+        expect(Tok::RBracket, "after the element type in 'free[T]'");
+        {
+            FlagGuard guard(allowMalloc_, false);
+            FlagGuard structGuard(noStructLit_, false);
+            node->count = parseExpr();
+        }
+        expect(Tok::RParen, "after the size in 'malloc'");
+        return node;
+    }
+
     StmtPtr Parser::parseSimpleStatement()
     {
         if (check(Tok::KwVar))
             return parseVarDecl();
+        if (check(Tok::KwVarManual))
+            return parseManualVarDecl();
 
         const Token &start = cur();
         ExprPtr target = parseExpr();
@@ -490,6 +551,8 @@ namespace pgt
         {
         case Tok::KwVar:
             return parseVarDecl();
+        case Tok::KwVarManual:
+            return parseManualVarDecl();
         case Tok::KwConst:
             errorHere("constants can only be declared at the top level of a file");
         case Tok::KwIf:
@@ -605,6 +668,8 @@ namespace pgt
                 first = nullptr;
             else if (check(Tok::KwVar))
                 first = parseVarDecl();
+            else if (check(Tok::KwVarManual))
+                first = parseManualVarDecl();
             else
             {
                 size_t start = pos_;
@@ -876,6 +941,8 @@ namespace pgt
         }
         case Tok::Ident:
         {
+            if (t.text == "malloc" && peekTok().kind == Tok::LParen)
+                return parseMalloc();
             advance();
             // `Name{...}` and `pkg.Name{...}` are struct literals.
             if (atStructLitBody())

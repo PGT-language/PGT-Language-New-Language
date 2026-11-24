@@ -63,7 +63,7 @@ namespace pgt
         {
             TyP t = types_.intT;
             if (hint && (hint->is(Type::Kind::Int64) || hint->is(Type::Kind::Float) ||
-                         hint->is(Type::Kind::Char)))
+                         hint->is(Type::Kind::Char) || hint->is(Type::Kind::Byte)))
                 t = hint;
             switch (t->kind)
             {
@@ -73,9 +73,10 @@ namespace pgt
                 return {llvm::ConstantFP::get(builder_.getDoubleTy(), static_cast<double>(lit->value)),
                         t};
             case Type::Kind::Char:
+            case Type::Kind::Byte:
                 if (lit->value > 255)
-                    fail("constant " + std::to_string(lit->value) + " overflows char", lit->line,
-                         lit->col);
+                    fail("constant " + std::to_string(lit->value) + " overflows " + t->name(),
+                         lit->line, lit->col);
                 return {builder_.getInt8(static_cast<uint8_t>(lit->value)), t};
             default:
                 if (lit->value > INT_MAX)
@@ -160,13 +161,13 @@ namespace pgt
         if (to->is(Type::Kind::String))
             return toStringValue(v, line, col);
         if (from->isIntegral() && to->isIntegral())
-            return {builder_.CreateIntCast(v.value, llvmType(to), !from->is(Type::Kind::Char)), to};
+            return {builder_.CreateIntCast(v.value, llvmType(to), !from->isUnsigned()), to};
         if (from->isIntegral() && to->is(Type::Kind::Float))
-            return {from->is(Type::Kind::Char) ? builder_.CreateUIToFP(v.value, llvmType(to))
+            return {from->isUnsigned() ? builder_.CreateUIToFP(v.value, llvmType(to))
                                                : builder_.CreateSIToFP(v.value, llvmType(to)),
                     to};
         if (from->is(Type::Kind::Float) && to->isIntegral())
-            return {to->is(Type::Kind::Char) ? builder_.CreateFPToUI(v.value, llvmType(to))
+            return {to->isUnsigned() ? builder_.CreateFPToUI(v.value, llvmType(to))
                                              : builder_.CreateFPToSI(v.value, llvmType(to)),
                     to};
         if (from->is(Type::Kind::Bool) && to->isIntegral())
@@ -197,6 +198,9 @@ namespace pgt
             return {rt("pgt_str_float", ptr, {v.value}), types_.stringT};
         case Type::Kind::Char:
             return {rt("pgt_str_char", ptr, {v.value}), types_.stringT};
+        case Type::Kind::Byte:
+            return {rt("pgt_str_int", ptr, {builder_.CreateZExt(v.value, builder_.getInt32Ty())}),
+                    types_.stringT};
         case Type::Kind::Bool:
             return {rt("pgt_str_bool", ptr, {v.value}), types_.stringT};
         case Type::Kind::Array:
@@ -438,7 +442,7 @@ namespace pgt
             return {res, types_.boolT};
         }
 
-        bool isSigned = !t->is(Type::Kind::Char);
+        bool isSigned = !t->isUnsigned();
         switch (op)
         {
         case BinOp::Eq:
@@ -484,7 +488,7 @@ namespace pgt
             llvm::Value *amount = builder_.CreateIntCast(r.value, llvmType(l.type), false);
             if (op == BinOp::Shl)
                 return {builder_.CreateShl(l.value, amount), l.type};
-            return {l.type->is(Type::Kind::Char) ? builder_.CreateLShr(l.value, amount)
+            return {l.type->isUnsigned() ? builder_.CreateLShr(l.value, amount)
                                                  : builder_.CreateAShr(l.value, amount),
                     l.type};
         }
@@ -529,7 +533,7 @@ namespace pgt
             }
         }
 
-        bool isSigned = !t->is(Type::Kind::Char);
+        bool isSigned = !t->isUnsigned();
         switch (op)
         {
         case BinOp::Add:
@@ -619,7 +623,7 @@ namespace pgt
         if (!i.type->isIntegral())
             fail("an index must be an integer, found " + i.type->name(), index.line, index.col);
         llvm::Value *idx = builder_.CreateIntCast(i.value, builder_.getInt64Ty(),
-                                                  !i.type->is(Type::Kind::Char));
+                                                  !i.type->isUnsigned());
         llvm::Value *len = builder_.CreateExtractValue(arr.value, 1, "len");
         panicIf(builder_.CreateICmpUGE(idx, len), "pgt_panic_index", {idx, len});
         llvm::Value *data = builder_.CreateExtractValue(arr.value, 0, "data");
@@ -782,7 +786,7 @@ namespace pgt
                 fail("an index must be an integer, found " + i.type->name(), idx.index->line,
                      idx.index->col);
             llvm::Value *at = builder_.CreateIntCast(i.value, builder_.getInt64Ty(),
-                                                     !i.type->is(Type::Kind::Char));
+                                                     !i.type->isUnsigned());
             llvm::Value *len = builder_.CreateSExt(rt("pgt_strlen", builder_.getInt32Ty(), {base.value}),
                                                    builder_.getInt64Ty());
             panicIf(builder_.CreateICmpUGE(at, len), "pgt_panic_index", {at, len});
@@ -903,13 +907,13 @@ namespace pgt
                 return callFunction(it->second, name, call, {}, 0);
 
             static const std::pair<const char *, int> conversions[] = {
-                {"int", 0}, {"int64", 1}, {"float", 2}, {"char", 3}, {"bool", 4}, {"string", 5}};
+                {"int", 0}, {"int64", 1}, {"float", 2}, {"char", 3}, {"bool", 4}, {"string", 5}, {"byte", 6}};
             for (const auto &[conv, k] : conversions)
             {
                 if (name != conv)
                     continue;
                 TyP targets[] = {types_.intT,  types_.int64T, types_.floatT,
-                                 types_.charT, types_.boolT,  types_.stringT};
+                                 types_.charT, types_.boolT,  types_.stringT, types_.byteT};
                 return genConversion(call, targets[k]);
             }
             if (auto v = genBuiltin(call, name, hint))
