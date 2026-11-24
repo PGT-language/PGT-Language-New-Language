@@ -1,6 +1,6 @@
 package main
 
-#use "std/memory"
+#use "memory"
 
 fn main() {
     var* a = 10
