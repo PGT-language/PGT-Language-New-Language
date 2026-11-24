@@ -1,6 +1,8 @@
 // memstats
 package main
 
+#use "fmt"
+
 struct Item {
     Name string
     Tags []string
@@ -38,16 +40,16 @@ fn makeItem(i int) Item {
 
 fn main() {
     var* a = squares(40)
-    println(len(a), " ", a[39], " ", firstBig(a, 100))
+    fmt.Println(len(a), " ", a[39], " ", firstBig(a, 100))
     var* b = a
     a = append(a, 1)
     b = append(b, 2)
-    println(a[len(a) - 1], " ", b[len(b) - 1], " ", len(a), " ", len(b))
+    fmt.Println(a[len(a) - 1], " ", b[len(b) - 1], " ", len(a), " ", len(b))
 
     var* ns = names(25)
     var* copy = ns
     ns = append(ns, "extra" + 1)
-    println(len(ns), " ", len(copy), " ", ns[25], " ", copy[24])
+    fmt.Println(len(ns), " ", len(copy), " ", ns[25], " ", copy[24])
 
     var* items + {[]Item} = []
     for i in 0..30 {
@@ -60,26 +62,26 @@ fn main() {
         }
         total += it.N + len(it.Tags)
     }
-    println(total, " ", items[29].Name, " ", items[3].Tags)
+    fmt.Println(total, " ", items[29].Name, " ", items[3].Tags)
     items[3] = makeItem(100)
     items[4].Name = "renamed" + 4
-    println(items[3].Name, " ", items[4].Name)
+    fmt.Println(items[3].Name, " ", items[4].Name)
 
     var* grid + {[][]int} = make([][]int, 5)
     for i in 0..5 {
         grid[i] = squares(i + 1)
     }
-    println(grid)
+    fmt.Println(grid)
     grid = nil
 
     var* m = make([]string, 3, 10)
     m[0] = "a" + "b"
     m[1] = m[0] + "c"
     m = append(m, "d" + "e")
-    println(m, " ", len(m))
-    println(squares(3), names(2))
+    fmt.Println(m, " ", len(m))
+    fmt.Println(squares(3), names(2))
     var* x = [squares(2), squares(3)]
-    println(x)
+    fmt.Println(x)
 }
 
 return 0

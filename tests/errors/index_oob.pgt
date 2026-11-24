@@ -1,7 +1,9 @@
 // panic: index out of range [5] with length 3
 package main
+
+#use "fmt"
 fn main() {
     var* a = [1, 2, 3]
-    println(a[5])
+    fmt.Println(a[5])
 }
 return 0

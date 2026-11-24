@@ -1,5 +1,7 @@
 package main
 
+#use "fmt"
+
 const PI = 3.14
 const (
     Answer = 42
@@ -40,7 +42,7 @@ fn (c *Circle) Area() float { return PI * c.R * c.R }
 fn (c *Circle) Name() string { return "circle" }
 
 fn describe(s Shape) {
-    println(s.Name(), " area=", s.Area())
+    fmt.Println(s.Name(), " area=", s.Area())
 }
 
 fn makeSquares(n int) []int {
@@ -65,62 +67,62 @@ fn bump() {
 }
 
 fn main() {
-    println("consts: ", PI, " ", Answer, " ", Name)
+    fmt.Println("consts: ", PI, " ", Answer, " ", Name)
     bump()
     bump()
-    println("global counter = ", counter, ", squares = ", squares)
+    fmt.Println("global counter = ", counter, ", squares = ", squares)
 
     var* a = 1
     var* b int64 = 3000000000
     var* c = 'x'
     var* d + {float} = 2
     var* e int
-    println(a, " ", b, " ", c, " ", d, " ", e)
+    fmt.Println(a, " ", b, " ", c, " ", d, " ", e)
 
-    println("bits: ", 6 & 3, " ", 6 | 3, " ", 6 ^ 3, " ", 1 << 10, " ", -16 >> 2, " ", ~0, " ", 0xFF, " ", 0b101)
-    println("concat: " + 5 + " " + true + " " + 'c' + " " + 2.5)
-    println("strings: ", "abc" == "abc", " ", "abc" < "abd", " ", len("hello"), " ", "hey"[1])
+    fmt.Println("bits: ", 6 & 3, " ", 6 | 3, " ", 6 ^ 3, " ", 1 << 10, " ", -16 >> 2, " ", ~0, " ", 0xFF, " ", 0b101)
+    fmt.Println("concat: " + 5 + " " + true + " " + 'c' + " " + 2.5)
+    fmt.Println("strings: ", "abc" == "abc", " ", "abc" < "abd", " ", len("hello"), " ", "hey"[1])
 
     var* arr = [1, 2, 3]
     arr[0] = 10
     arr = append(arr, 4, 5)
     arr[1]++
-    println(len(arr), " ", arr)
+    fmt.Println(len(arr), " ", arr)
     var* grid = make([]int, 3)
-    println("make: ", grid)
+    fmt.Println("make: ", grid)
     var* names + {[]string} = []
     names = append(names, "ann", "bob")
-    println(names, " nil? ", names == nil)
+    fmt.Println(names, " nil? ", names == nil)
 
     for x in arr {
-        print(x, ";")
+        fmt.Print(x, ";")
     }
-    println("")
+    fmt.Println("")
     for i, x in names {
-        print(i, "=", x, " ")
+        fmt.Print(i, "=", x, " ")
     }
-    println("")
+    fmt.Println("")
     for ch in "hi!" {
-        print("[", ch, "]")
+        fmt.Print("[", ch, "]")
     }
-    println("")
+    fmt.Println("")
     for var* i = 0; i < 3; i++ {
-        print(i)
+        fmt.Print(i)
     }
-    println("")
+    fmt.Println("")
 
     switch a {
-        case 1, 2 { println("one or two") }
-        case 3 { println("three") }
-        default { println("other") }
+        case 1, 2 { fmt.Println("one or two") }
+        case 3 { fmt.Println("three") }
+        default { fmt.Println("other") }
     }
     switch Name {
-        case "Go" { println("go") }
-        case "PGT" { println("it's PGT") }
+        case "Go" { fmt.Println("go") }
+        case "PGT" { fmt.Println("it's PGT") }
     }
     switch {
-        case a > 5 { println("big") }
-        default { println("small") }
+        case a > 5 { fmt.Println("big") }
+        default { fmt.Println("small") }
     }
     for i in 0..10 {
         switch i {
@@ -128,30 +130,30 @@ fn main() {
             case 4 { break }
         }
         if i == 5 { break }
-        print(i)
+        fmt.Print(i)
     }
-    println("")
+    fmt.Println("")
 
     var* p = Point{X: 1, Y: 2}
     p.Move(5)
     p.Y--
-    println(p, " sum=", p.Sum())
+    fmt.Println(p, " sum=", p.Sum())
     var* pp = &p
     pp.Move(1)
     pp.X *= 2
-    println(p, " ", pp, " ", pp.Sum())
+    fmt.Println(p, " ", pp, " ", pp.Sum())
 
     var* x = 1
     var* px = &x
     *px = 5
-    println("x = ", x, ", *px = ", *px)
+    fmt.Println("x = ", x, ", *px = ", *px)
     var* q = &Point{X: 1}
     var* h = new(Point)
     h.Y = 9
-    println(q, " ", h, " ", *h)
+    fmt.Println(q, " ", h, " ", *h)
     free(h)
     var* none *Point = nil
-    println("nil ptr: ", none, " ", none == nil, " ", q != nil)
+    fmt.Println("nil ptr: ", none, " ", none == nil, " ", q != nil)
 
     describe(Rect{W: 2, H: 3})
     describe(&Circle{R: 1})
@@ -161,9 +163,9 @@ fn main() {
     for s in shapes {
         total += s.Area()
     }
-    println("shapes: ", shapes, " total=", total)
+    fmt.Println("shapes: ", shapes, " total=", total)
     var* empty Shape
-    println("nil iface: ", empty, " ", empty == nil)
+    fmt.Println("nil iface: ", empty, " ", empty == nil)
 
     var* list *Node = nil
     for i in 1..4 {
@@ -173,18 +175,18 @@ fn main() {
     for var* n = list; n != nil; n = n.Next {
         sum += n.Val
     }
-    print("list:")
+    fmt.Print("list:")
     var* cur = list
     while cur != nil {
-        print(" ", cur.Val)
+        fmt.Print(" ", cur.Val)
         cur = cur.Next
     }
-    println(" sum=", sum)
+    fmt.Println(" sum=", sum)
 
-    println("conv: ", int(3.9), " ", float(7) / 2, " ", string(42), " ", str(1.5), " ", char(65), " ", string(chars("abc")))
-    println("builtins: ", substr("hello world", 6, 5), " ", contains("abc", "b"), " ", indexOf("abc", "c"), " ", upper("abc"), " ", lower("ABC"))
-    println("math: ", abs(-3), " ", min(2, 7), " ", max(2.5, 1.0), " ", sqrt(16), " ", pow(2, 10), " ", floor(2.7), " ", ceil(2.1))
-    println("parse: ", parseInt("123") + 1, " ", parseFloat("2.5") * 2, " ", startsWith("hello", "he"), " ", endsWith("hello", "lo"))
+    fmt.Println("conv: ", int(3.9), " ", float(7) / 2, " ", string(42), " ", str(1.5), " ", char(65), " ", string(chars("abc")))
+    fmt.Println("builtins: ", substr("hello world", 6, 5), " ", contains("abc", "b"), " ", indexOf("abc", "c"), " ", upper("abc"), " ", lower("ABC"))
+    fmt.Println("math: ", abs(-3), " ", min(2, 7), " ", max(2.5, 1.0), " ", sqrt(16), " ", pow(2, 10), " ", floor(2.7), " ", ceil(2.1))
+    fmt.Println("parse: ", parseInt("123") + 1, " ", parseFloat("2.5") * 2, " ", startsWith("hello", "he"), " ", endsWith("hello", "lo"))
 }
 
 return 0

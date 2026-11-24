@@ -1,16 +1,18 @@
 // panic: index out of range [5] with length 3
 package main
 
+#use "fmt"
+
 fn panicString(msg string) {
-    println("hijacked")
+    fmt.Println("hijacked")
 }
 
 fn panicIndex(i int64, n int64) {
-    println("hijacked index")
+    fmt.Println("hijacked index")
 }
 
 fn emit(s string) {
-    println("hijacked emit")
+    fmt.Println("hijacked emit")
     panic("hijacked panic")
 }
 
@@ -21,12 +23,12 @@ var* strlen = 7
 var* fflush = 8
 
 fn main() {
-    println("before")
+    fmt.Println("before")
     var* xs = [1, 2, 3]
     var* i = 5
     if i == 9 {
         panicString("x")
     }
-    println(xs[i])
+    fmt.Println(xs[i])
 }
 return 0

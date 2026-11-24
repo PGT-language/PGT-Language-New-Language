@@ -1,6 +1,7 @@
 package main
 
 #use "test/mathx"
+#use "fmt"
 
 fn square(x) {
     return x * x
@@ -45,19 +46,19 @@ fn collatzLength(start int) int {
 
 fn describe(n int) {
     if n < 0 {
-        println(n, " is negative")
+        fmt.Println(n, " is negative")
         return
     }
-    println(n, " is non-negative")
+    fmt.Println(n, " is non-negative")
 }
 
 fn demoFunctions() {
-    println("square(9) with inferred int result = ", square(9))
-    println("add(2, 3)           = ", add(2, 3))
-    println("power(2, 40)        = ", power(2, 40))
-    println("fib(60)             = ", fib(60))
-    println("collatzLength(97)   = ", collatzLength(97))
-    println("recursion: mathx.Factorial(20) = ", mathx.Factorial(20))
+    fmt.Println("square(9) with inferred int result = ", square(9))
+    fmt.Println("add(2, 3)           = ", add(2, 3))
+    fmt.Println("power(2, 40)        = ", power(2, 40))
+    fmt.Println("fib(60)             = ", fib(60))
+    fmt.Println("collatzLength(97)   = ", collatzLength(97))
+    fmt.Println("recursion: mathx.Factorial(20) = ", mathx.Factorial(20))
     describe(-3)
     describe(8)
 }

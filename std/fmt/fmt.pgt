@@ -1,0 +1,497 @@
+package fmt
+
+#use (
+    "conv"
+    "strings"
+)
+
+extern fn pgt_print_str(s string)
+extern fn pgt_join(parts []string, sep string) string
+extern fn pgt_str_float_prec(x float, prec int) string
+extern fn pgt_is_int(s string) bool
+extern fn pgt_is_float(s string) bool
+extern fn pgt_read_int(cur int) int
+extern fn pgt_read_int64(cur int64) int64
+extern fn pgt_read_float(cur float) float
+extern fn pgt_read_char(cur char) char
+extern fn pgt_read_bool(cur bool) bool
+extern fn pgt_read_word(cur string) string
+extern fn pgt_read_line(cur string) string
+extern fn pgt_read_raw_line(ok *bool) string
+
+const kindNil = 0
+const kindInt = 1
+const kindInt64 = 2
+const kindFloat = 3
+const kindChar = 4
+const kindByte = 5
+const kindBool = 6
+const kindString = 7
+const kindArray = 8
+const kindPointer = 9
+const kindStruct = 10
+
+fn formatAny(a any, top bool) string {
+    switch typeKind(a) {
+        case kindNil {
+            return "<nil>"
+        }
+        case kindInt, kindInt64, kindByte {
+            return str(anyInt(a))
+        }
+        case kindFloat {
+            return str(anyFloat(a))
+        }
+        case kindChar {
+            return string(char(anyInt(a)))
+        }
+        case kindBool {
+            return str(anyBool(a))
+        }
+        case kindString {
+            return anyString(a)
+        }
+        case kindArray {
+            var* parts + {[]string} = []
+            for i in 0..anyLen(a) {
+                parts = append(parts, formatAny(anyIndex(a, i), anySlotIface(a, i)))
+            }
+            return "[" + pgt_join(parts, " ") + "]"
+        }
+        case kindStruct {
+            var* parts + {[]string} = []
+            for i in 0..anyNumField(a) {
+                parts = append(parts, formatAny(anyField(a, i), anySlotIface(a, i)))
+            }
+            return "{" + pgt_join(parts, " ") + "}"
+        }
+        case kindPointer {
+            if anyIsNil(a) {
+                return "<nil>"
+            }
+            if top && typeKind(anyElem(a)) == kindStruct {
+                return "&" + formatAny(anyElem(a), false)
+            }
+            return "0x" + conv.FormatInt(anyAddr(a), 16)
+        }
+    }
+    return "<nil>"
+}
+
+fn Sprint(args ...any) string {
+    var* parts + {[]string} = []
+    for i in 0..len(args) {
+        parts = append(parts, formatAny(args[i], true))
+    }
+    return pgt_join(parts, "")
+}
+
+fn Sprintln(args ...any) string {
+    return Sprint(args...) + "\n"
+}
+
+fn Print(args ...any) {
+    pgt_print_str(Sprint(args...))
+}
+
+fn Println(args ...any) {
+    pgt_print_str(Sprintln(args...))
+}
+
+fn badVerb(verb char, a any) string {
+    if typeKind(a) == kindNil {
+        return "%!" + string(verb) + "(<nil>)"
+    }
+    return "%!" + string(verb) + "(" + typeName(a) + "=" + formatAny(a, true) + ")"
+}
+
+fn isIntKind(k int) bool {
+    return k == kindInt || k == kindInt64 || k == kindByte || k == kindChar
+}
+
+fn quote(s string) string {
+    var* parts + {[]string} = []
+    parts = append(parts, "\"")
+    for ch in s {
+        switch ch {
+            case '"' {
+                parts = append(parts, "\\\"")
+            }
+            case '\\' {
+                parts = append(parts, "\\\\")
+            }
+            case '\n' {
+                parts = append(parts, "\\n")
+            }
+            case '\t' {
+                parts = append(parts, "\\t")
+            }
+            case '\r' {
+                parts = append(parts, "\\r")
+            }
+            default {
+                parts = append(parts, string(ch))
+            }
+        }
+    }
+    parts = append(parts, "\"")
+    return pgt_join(parts, "")
+}
+
+fn quoteChar(c char) string {
+    switch c {
+        case '\'' {
+            return "'\\''"
+        }
+        case '\\' {
+            return "'\\\\'"
+        }
+        case '\n' {
+            return "'\\n'"
+        }
+        case '\t' {
+            return "'\\t'"
+        }
+        case '\r' {
+            return "'\\r'"
+        }
+    }
+    return "'" + string(c) + "'"
+}
+
+fn hexString(s string) string {
+    var* digits = "0123456789abcdef"
+    var* parts + {[]string} = []
+    for ch in s {
+        var* b = int(ch)
+        parts = append(parts, string(digits[b / 16]) + string(digits[b % 16]))
+    }
+    return pgt_join(parts, "")
+}
+
+fn formatVerb(verb char, a any, prec int, hasPrec bool, plus bool) string {
+    var* k = typeKind(a)
+    switch verb {
+        case 'v' {
+            return formatAny(a, true)
+        }
+        case 'd' {
+            if isIntKind(k) {
+                var* v = anyInt(a)
+                if plus && v >= 0 {
+                    return "+" + str(v)
+                }
+                return str(v)
+            }
+        }
+        case 's' {
+            if k == kindString {
+                return anyString(a)
+            }
+            if k == kindChar {
+                return string(char(anyInt(a)))
+            }
+        }
+        case 'f', 'F' {
+            if k == kindFloat {
+                var* p = 6
+                if hasPrec {
+                    p = prec
+                }
+                var* text = pgt_str_float_prec(anyFloat(a), p)
+                if plus && anyFloat(a) >= 0.0 {
+                    return "+" + text
+                }
+                return text
+            }
+        }
+        case 'g' {
+            if k == kindFloat {
+                return str(anyFloat(a))
+            }
+        }
+        case 'c' {
+            if isIntKind(k) {
+                return string(char(anyInt(a)))
+            }
+        }
+        case 't' {
+            if k == kindBool {
+                return str(anyBool(a))
+            }
+        }
+        case 'q' {
+            if k == kindString {
+                return quote(anyString(a))
+            }
+            if k == kindChar {
+                return quoteChar(char(anyInt(a)))
+            }
+        }
+        case 'x' {
+            if isIntKind(k) {
+                return conv.FormatInt(anyInt(a), 16)
+            }
+            if k == kindString {
+                return hexString(anyString(a))
+            }
+        }
+        case 'X' {
+            if isIntKind(k) {
+                return upper(conv.FormatInt(anyInt(a), 16))
+            }
+            if k == kindString {
+                return upper(hexString(anyString(a)))
+            }
+        }
+    }
+    return badVerb(verb, a)
+}
+
+fn isNumericVerb(verb char) bool {
+    return verb == 'd' || verb == 'f' || verb == 'F' || verb == 'g' || verb == 'x' || verb == 'X'
+}
+
+fn pad(text string, width int, left bool, zero bool) string {
+    var* n = len(text)
+    if n >= width {
+        return text
+    }
+    if left {
+        return text + strings.Repeat(" ", width - n)
+    }
+    if zero {
+        if n > 0 && (text[0] == '-' || text[0] == '+') {
+            return substr(text, 0, 1) + strings.Repeat("0", width - n) + substr(text, 1, n - 1)
+        }
+        return strings.Repeat("0", width - n) + text
+    }
+    return strings.Repeat(" ", width - n) + text
+}
+
+fn Sprintf(format string, args ...any) string {
+    var* parts + {[]string} = []
+    var* lit + {[]char} = []
+    var* next = 0
+    var* i = 0
+    var* n = len(format)
+    while i < n {
+        var* c = format[i]
+        if c != '%' {
+            lit = append(lit, c)
+            i++
+            continue
+        }
+        parts = append(parts, string(lit))
+        lit = []
+        i++
+        if i >= n {
+            parts = append(parts, "%!(NOVERB)")
+            break
+        }
+        var* left = false
+        var* zero = false
+        var* plus = false
+        var* flags = true
+        while flags && i < n {
+            switch format[i] {
+                case '-' {
+                    left = true
+                    i++
+                }
+                case '0' {
+                    zero = true
+                    i++
+                }
+                case '+' {
+                    plus = true
+                    i++
+                }
+                default {
+                    flags = false
+                }
+            }
+        }
+        var* width = 0
+        while i < n && format[i] >= '0' && format[i] <= '9' {
+            width = width * 10 + int(format[i] - '0')
+            i++
+        }
+        var* prec = 0
+        var* hasPrec = false
+        if i < n && format[i] == '.' {
+            hasPrec = true
+            i++
+            while i < n && format[i] >= '0' && format[i] <= '9' {
+                prec = prec * 10 + int(format[i] - '0')
+                i++
+            }
+        }
+        if i >= n {
+            parts = append(parts, "%!(NOVERB)")
+            break
+        }
+        var* verb = format[i]
+        i++
+        if verb == '%' {
+            parts = append(parts, "%")
+            continue
+        }
+        if next >= len(args) {
+            parts = append(parts, "%!" + string(verb) + "(MISSING)")
+            continue
+        }
+        var* arg = args[next]
+        next++
+        var* text = formatVerb(verb, arg, prec, hasPrec, plus)
+        parts = append(parts, pad(text, width, left, zero && !left && isNumericVerb(verb)))
+    }
+    parts = append(parts, string(lit))
+    if next < len(args) {
+        var* extra + {[]string} = []
+        for j in next..len(args) {
+            extra = append(extra, typeName(args[j]) + "=" + formatAny(args[j], true))
+        }
+        parts = append(parts, "%!(EXTRA " + pgt_join(extra, ", ") + ")")
+    }
+    return pgt_join(parts, "")
+}
+
+fn Printf(format string, args ...any) {
+    pgt_print_str(Sprintf(format, args...))
+}
+
+fn pointerKind(fnName string, p any) int {
+    if typeKind(p) != kindPointer || anyIsNil(p) {
+        panic("fmt." + fnName + " needs a non-nil pointer, found " + typeName(p))
+    }
+    return typeKind(anyElem(p))
+}
+
+fn readInto(fnName string, p any, wholeLine bool) {
+    var* k = pointerKind(fnName, p)
+    if wholeLine && k != kindString {
+        panic("fmt." + fnName + " needs a pointer to a string, found " + typeName(p))
+    }
+    var* e = anyElem(p)
+    switch k {
+        case kindInt {
+            anySetInt(p, int64(pgt_read_int(int(anyInt(e)))))
+        }
+        case kindInt64 {
+            anySetInt(p, pgt_read_int64(anyInt(e)))
+        }
+        case kindFloat {
+            anySetFloat(p, pgt_read_float(anyFloat(e)))
+        }
+        case kindChar {
+            anySetChar(p, pgt_read_char(char(anyInt(e))))
+        }
+        case kindBool {
+            anySetBool(p, pgt_read_bool(anyBool(e)))
+        }
+        case kindString {
+            if wholeLine {
+                anySetString(p, pgt_read_line(anyString(e)))
+            } else {
+                anySetString(p, pgt_read_word(anyString(e)))
+            }
+        }
+        default {
+            panic("fmt." + fnName + " cannot read a value of type " + typeName(p))
+        }
+    }
+}
+
+fn Input(prompt string, p any) {
+    pgt_print_str(prompt)
+    readInto("Input", p, false)
+}
+
+fn InputLine(prompt string, p any) {
+    pgt_print_str(prompt)
+    readInto("InputLine", p, true)
+}
+
+fn assignWord(p any, w string) bool {
+    switch pointerKind("Scan", p) {
+        case kindInt {
+            if !pgt_is_int(w) {
+                return false
+            }
+            anySetInt(p, parseInt64(w))
+        }
+        case kindInt64 {
+            if !pgt_is_int(w) {
+                return false
+            }
+            anySetInt(p, parseInt64(w))
+        }
+        case kindFloat {
+            if !pgt_is_float(w) {
+                return false
+            }
+            anySetFloat(p, parseFloat(w))
+        }
+        case kindChar {
+            anySetChar(p, w[0])
+        }
+        case kindBool {
+            var* l = lower(w)
+            if l == "true" || l == "1" || l == "yes" || l == "y" {
+                anySetBool(p, true)
+            } else if l == "false" || l == "0" || l == "no" || l == "n" {
+                anySetBool(p, false)
+            } else {
+                return false
+            }
+        }
+        case kindString {
+            anySetString(p, w)
+        }
+        default {
+            panic("fmt.Scan cannot read a value of type " + typeName(p))
+        }
+    }
+    return true
+}
+
+fn Scan(args ...any) int {
+    var* count = 0
+    for i in 0..len(args) {
+        var* w = pgt_read_word(nil)
+        if w == nil {
+            break
+        }
+        if !assignWord(args[i], w) {
+            break
+        }
+        count++
+    }
+    return count
+}
+
+fn Scanln(args ...any) int {
+    var* ok = false
+    var* line = pgt_read_raw_line(&ok)
+    if !ok {
+        return 0
+    }
+    var* fields = strings.Fields(line)
+    var* count = 0
+    for i in 0..len(args) {
+        if i >= len(fields) {
+            break
+        }
+        if !assignWord(args[i], fields[i]) {
+            break
+        }
+        count++
+    }
+    return count
+}
+
+fn ReadLine() string {
+    var* ok = false
+    return pgt_read_raw_line(&ok)
+}

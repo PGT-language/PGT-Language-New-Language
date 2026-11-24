@@ -1,6 +1,7 @@
 package main
 
 #use "pgt/std/memory"
+#use "fmt"
 
 struct Point {
     X int
@@ -10,40 +11,40 @@ struct Point {
 fn main() {
     var* a = 10
     var& := a = malloc(free[int] 1)
-    println(a)
+    fmt.Println(a)
     a = a + 5
-    println(a, " ", memory.Live())
+    fmt.Println(a, " ", memory.Live())
     free(a)
-    println(memory.Live())
+    fmt.Println(memory.Live())
 
     var* b = 7
     var& := b = malloc(free[byte] 4)
     b *= 3
-    println(b, " ", memory.LiveBytes())
+    fmt.Println(b, " ", memory.LiveBytes())
     free(b)
 
     var* s = "hello"
     var& := s = malloc(free[string] 1)
     s = s + " world"
-    println(s)
+    fmt.Println(s)
     free(s)
 
     var* p = Point{X: 1, Name: "p"}
     var& := p = malloc(free[Point] 1)
     p.X = 42
-    println(p)
+    fmt.Println(p)
     free(p)
 
     var* nums = [1, 2, 3]
     var& := nums = malloc(free[int] 5)
     nums[4] = 9
-    println(nums, " ", len(nums))
+    fmt.Println(nums, " ", len(nums))
     free(nums)
 
     var& := fresh = malloc(free[byte] 3)
-    println(fresh)
+    fmt.Println(fresh)
     free(fresh)
-    println(memory.Live())
+    fmt.Println(memory.Live())
 }
 
 return 0

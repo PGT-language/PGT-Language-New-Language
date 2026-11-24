@@ -1,6 +1,8 @@
 // memstats
 package main
 
+#use "fmt"
+
 fn greet(name string) string {
     return "hello, " + name + "!"
 }
@@ -32,11 +34,11 @@ fn main() {
             break
         }
     }
-    println(len(acc))
-    println(greet("pgt"))
-    println(greet("a" + "b"))
-    println(pick("p" + "q", "r" + "s", true), pick("p" + "q", "r" + "s", false))
-    println(build(5), " ", build(20))
+    fmt.Println(len(acc))
+    fmt.Println(greet("pgt"))
+    fmt.Println(greet("a" + "b"))
+    fmt.Println(pick("p" + "q", "r" + "s", true), pick("p" + "q", "r" + "s", false))
+    fmt.Println(build(5), " ", build(20))
     var* words = ["a" + "1", "b" + "2", "c" + "3"]
     var* joined = ""
     for w in words {
@@ -45,28 +47,28 @@ fn main() {
         }
         joined += w
     }
-    println(joined, " ", upper(joined), " ", substr(joined, 1, 2))
+    fmt.Println(joined, " ", upper(joined), " ", substr(joined, 1, 2))
     for i in 0..3 {
         switch "k" + "ey" + i {
         case "key0", "key1" {
             if i == 1 {
                 break
             }
-            println("matched ", i)
+            fmt.Println("matched ", i)
         }
         default {
-            println("no ", i)
+            fmt.Println("no ", i)
             continue
         }
         }
-        println("after ", i)
+        fmt.Println("after ", i)
     }
     var* flag = len("ab" + "cd") == 4 && "x" + "y" == "xy" || "q" + "z" == "w"
-    println(flag)
-    println(str(12) + str(3.5) + str(true) + str('c'))
-    println(min("b" + "x", "a" + "y"), " ", max("b" + "x", "a" + "y"))
+    fmt.Println(flag)
+    fmt.Println(str(12) + str(3.5) + str(true) + str('c'))
+    fmt.Println(min("b" + "x", "a" + "y"), " ", max("b" + "x", "a" + "y"))
     var* cs = chars("hey" + "!")
-    println(len(cs), " ", string(cs))
+    fmt.Println(len(cs), " ", string(cs))
 }
 
 return 0

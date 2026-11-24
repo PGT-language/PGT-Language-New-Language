@@ -1,6 +1,8 @@
 // memstats
 package main
 
+#use "fmt"
+
 struct Point {
     X int
     Y int
@@ -62,9 +64,9 @@ fn main() {
     for i in 0..1000 {
         head = push(head, i)
     }
-    println(sum(head))
+    fmt.Println(sum(head))
     head = head.Next
-    println(sum(head))
+    fmt.Println(sum(head))
     head = nil
 
     var* st Stack
@@ -75,43 +77,43 @@ fn main() {
     for i in 0..20 {
         top += st.Pop()
     }
-    println(top, " ", st.Size)
+    fmt.Println(top, " ", st.Size)
     st.Head = nil
 
     var* p = newPerson("ann", 30)
     var* q = p
     q.Name = "bob"
     q.Friends = append(q.Friends, "x" + 1)
-    println(p.Name, " ", q.Name, " ", len(p.Friends), " ", len(q.Friends), " ", p.Home.X)
+    fmt.Println(p.Name, " ", q.Name, " ", len(p.Friends), " ", len(q.Friends), " ", p.Home.X)
 
     var* pt = new(Point)
     pt.X = 5
     mover(pt)
     var* alias = pt
     mover(alias)
-    println(pt.X, " ", alias.X)
+    fmt.Println(pt.X, " ", alias.X)
 
     var* local Point
     var* lp = &local
     mover(lp)
-    println(local.X)
+    fmt.Println(local.X)
 
     var* cell = 1
     var* cp = &cell
     cell = 5
-    println(*cp)
+    fmt.Println(*cp)
 
     var* people + {[]Person} = []
     for i in 0..5 {
         people = append(people, newPerson("p" + i, i))
     }
-    println(people[4].Name, " ", people[2].Home.X)
+    fmt.Println(people[4].Name, " ", people[2].Home.X)
 
     var* tmp = new(Point)
     free(tmp)
     var* arr = make([]int, 4)
     free(arr)
-    println(newPerson("zed", 1).Name)
+    fmt.Println(newPerson("zed", 1).Name)
 }
 
 return 0

@@ -1,5 +1,7 @@
 package main
 
+#use "fmt"
+
 struct Point {
     X int
     Y int
@@ -46,7 +48,7 @@ fn counterPtrs() []*int {
 }
 
 fn show(s Stringer) {
-    println("stringer: ", s.String())
+    fmt.Println("stringer: ", s.String())
 }
 
 fn fact(n int64) int64 {
@@ -56,29 +58,29 @@ fn fact(n int64) int64 {
 
 fn main() {
     var* e = escape()
-    println("escaped: ", *e)
+    fmt.Println("escaped: ", *e)
     var* ps = counterPtrs()
-    println("fresh cells: ", *ps[0], " ", *ps[1], " ", *ps[2])
+    fmt.Println("fresh cells: ", *ps[0], " ", *ps[1], " ", *ps[2])
 
-    println("temp value method: ", makePoint(2).Sum(), ", temp field: ", makePoint(3).Y)
+    fmt.Println("temp value method: ", makePoint(2).Sum(), ", temp field: ", makePoint(3).Y)
     makePoint(1).Move(5)
-    println("const: ", Origin, " ", Origin.Sum(), " ", Origin.String())
+    fmt.Println("const: ", Origin, " ", Origin.Sum(), " ", Origin.String())
 
     var* arr = [1, 2, 3]
     var* second = &arr[1]
     *second = 20
     var* alias = arr
     alias[2] = 30
-    println("shared data: ", arr, " ", alias)
+    fmt.Println("shared data: ", arr, " ", alias)
 
     var* t = Team{Name: "core", Members: ["ann", "bob"], Lead: &Point{X: 1, Y: 2}}
     t.Members = append(t.Members, "cid")
     t.Lead.Move(10)
     t.Tag = 7
-    println(t.Name, " ", t.Members, " ", t.Lead, " lead sum=", t.Lead.Sum(), " tag=", t.Tag)
+    fmt.Println(t.Name, " ", t.Members, " ", t.Lead, " lead sum=", t.Lead.Sum(), " tag=", t.Tag)
 
     var* things + {[]Any} = [1, "two", 3.5, 'c', true, Point{X: 1, Y: 1}, nil]
-    println("any: ", things, " ", len(things))
+    fmt.Println("any: ", things, " ", len(things))
 
     show(Point{X: 4, Y: 5})
     var* sp = &Point{X: 6, Y: 7}
@@ -93,36 +95,36 @@ fn main() {
         grid = append(grid, row)
     }
     grid[1][1] = -1
-    println("grid: ", grid, " ", grid[2][0])
+    fmt.Println("grid: ", grid, " ", grid[2][0])
 
     var* pts = [Point{X: 1}, Point{X: 2}]
     pts[0].Y = 5
     pts[1].Move(3)
-    println("struct array: ", pts)
+    fmt.Println("struct array: ", pts)
 
     var* letter = 'b'
     switch letter {
-        case 'a' { println("a") }
-        case 'b', 'c' { println("b or c") }
+        case 'a' { fmt.Println("a") }
+        case 'b', 'c' { fmt.Println("b or c") }
     }
 
     var* q = Point{}
-    input("", q.X)
-    input("", arr[0])
+    fmt.Input("", &q.X)
+    fmt.Input("", &arr[0])
     var* flag = false
-    input("", flag)
+    fmt.Input("", &flag)
     var* word = ""
-    input("", word)
-    println("read: ", q, " ", arr, " ", flag, " ", word)
+    fmt.Input("", &word)
+    fmt.Println("read: ", q, " ", arr, " ", flag, " ", word)
 
-    println("int64 math: ", fact(20), " ", int64(1) << 40, " ", 7 % -3, " ", -7 / 2)
+    fmt.Println("int64 math: ", fact(20), " ", int64(1) << 40, " ", 7 % -3, " ", -7 / 2)
     var* s = "x"
     s += "y" + 1
-    println("string +=: ", s, " ", "a" + 'b' + "c", " cmp: ", "apple" < "banana", " ", "b" >= "a")
+    fmt.Println("string +=: ", s, " ", "a" + 'b' + "c", " cmp: ", "apple" < "banana", " ", "b" >= "a")
     var* multi = 1 +
         2 +
         3
-    println("multiline expr: ", multi)
+    fmt.Println("multiline expr: ", multi)
 }
 
 return 0

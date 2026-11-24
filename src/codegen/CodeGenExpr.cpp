@@ -58,6 +58,8 @@ namespace pgt
 
     CodeGen::Value CodeGen::genExpr(const Expr &expr, TyP hint)
     {
+        if (hint && hint->is(Type::Kind::Any))
+            hint = nullptr;
         if (auto *lit = dynamic_cast<const IntLit *>(&expr))
         {
             TyP t = types_.intT;

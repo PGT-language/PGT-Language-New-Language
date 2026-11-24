@@ -1,5 +1,7 @@
 package main
 
+#use "fmt"
+
 fn grade(score int) char {
     if score >= 90 {
         return 'A'
@@ -12,26 +14,26 @@ fn grade(score int) char {
 }
 
 fn demoControl() {
-    println("if / else if / else:")
+    fmt.Println("if / else if / else:")
     for var* s = 95; s >= 50; s -= 15 {
-        println("  score ", s, " -> ", grade(s))
+        fmt.Println("  score ", s, " -> ", grade(s))
     }
 
-    println("range loop with nested loops (multiplication table):")
+    fmt.Println("range loop with nested loops (multiplication table):")
     for i in 1..4 {
         for j in 1..4 {
-            print(i * j, "\t")
+            fmt.Print(i * j, "\t")
         }
-        println("")
+        fmt.Println("")
     }
 
-    print("while loop: ")
+    fmt.Print("while loop: ")
     var* n = 5
     while n > 0 {
-        print(n, " ")
+        fmt.Print(n, " ")
         n--
     }
-    println("liftoff")
+    fmt.Println("liftoff")
 
     var* c = 27
     var* steps = 0
@@ -43,9 +45,9 @@ fn demoControl() {
         }
         steps++
     }
-    println("for-condition loop: collatz(27) takes ", steps, " steps")
+    fmt.Println("for-condition loop: collatz(27) takes ", steps, " steps")
 
-    print("infinite loop with continue and break: ")
+    fmt.Print("infinite loop with continue and break: ")
     var* k = 0
     for {
         k++
@@ -55,14 +57,14 @@ fn demoControl() {
         if k > 9 {
             break
         }
-        print(k, " ")
+        fmt.Print(k, " ")
     }
-    println("")
+    fmt.Println("")
 
     var* v = 1
     if true {
         var* v = 2
-        println("scopes: inner v = ", v)
+        fmt.Println("scopes: inner v = ", v)
     }
-    println("scopes: outer v = ", v)
+    fmt.Println("scopes: outer v = ", v)
 }

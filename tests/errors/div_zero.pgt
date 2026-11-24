@@ -1,7 +1,9 @@
 // panic: integer divide by zero
 package main
+
+#use "fmt"
 fn main() {
     var* z = 0
-    println(10 / z)
+    fmt.Println(10 / z)
 }
 return 0

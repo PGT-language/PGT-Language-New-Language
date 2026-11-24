@@ -1,5 +1,7 @@
 package main
 
+#use "fmt"
+
 struct P {
     X, Y int
 }
@@ -10,7 +12,7 @@ fn main() {
     var* p = &P{X: 1}
     switch p.X {
         case 1, 2 { p.Move(-1) }
-        default { println(p, 0xFF << 2, "a\tb") }
+        default { fmt.Println(p, 0xFF << 2, "a\tb") }
     }
 }
 

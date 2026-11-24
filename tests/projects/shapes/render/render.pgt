@@ -1,6 +1,7 @@
 package render
 
 #use (
+    "fmt"
     "shapes/geom"
     "strings"
     "conv"
@@ -12,7 +13,7 @@ fn Describe(s geom.Shape) string {
 
 fn Report(all []geom.Shape) {
     for i, s in all {
-        println(i + 1, ". ", Describe(s))
+        fmt.Println(i + 1, ". ", Describe(s))
     }
-    println("total: ", conv.FormatFloat(geom.Total(all), 2))
+    fmt.Println("total: ", conv.FormatFloat(geom.Total(all), 2))
 }

@@ -1,6 +1,7 @@
 package main
 
 #use (
+    "fmt"
     "shapes/render"
     "shapes/geom"
     "std/memory"
@@ -13,10 +14,10 @@ fn main() {
     var* all + {[]geom.Shape} = [c, big, geom.Square{Side: 2}]
     var& := x = malloc(free[byte] 1024)
     render.Report(all)
-    println("distance: ", c.Center.Dist(big.Center), " created: ", geom.Created(), " unit: ", geom.Unit)
+    fmt.Println("distance: ", c.Center.Dist(big.Center), " created: ", geom.Created(), " unit: ", geom.Unit)
     var* p = geom.Point{X: 1}
     p.Y = 2
-    println(p)
+    fmt.Println(p)
 }
 
 return 0

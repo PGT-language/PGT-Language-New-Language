@@ -1,6 +1,8 @@
 // memstats
 package main
 
+#use "fmt"
+
 interface Shape {
     Area() float
     Name() string
@@ -38,21 +40,21 @@ fn main() {
         shapes = append(shapes, mk(i))
     }
     for s in shapes {
-        println(describe(s))
+        fmt.Println(describe(s))
     }
     var* first = shapes[0]
     shapes = nil
-    println(describe(first))
+    fmt.Println(describe(first))
     var* s2 Shape = Rect{W: 1, H: 1, Label: "z" + "z"}
-    println(s2.Name())
+    fmt.Println(s2.Name())
     s2 = &Circle{R: 2}
-    println(s2.Name(), " ", describe(mk(3)))
+    fmt.Println(s2.Name(), " ", describe(mk(3)))
     var* none Shape
-    println(none == nil)
+    fmt.Println(none == nil)
     for i in 0..100 {
         var* t Shape = mk(i)
         if i == 50 {
-            println(t.Name())
+            fmt.Println(t.Name())
             break
         }
     }

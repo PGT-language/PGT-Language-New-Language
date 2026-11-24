@@ -1,5 +1,7 @@
 package io
 
+#use "fmt"
+
 extern fn pgt_read_raw_line(ok *bool) string
 
 var* atEnd = false
@@ -26,7 +28,7 @@ fn ReadLines() []string {
 }
 
 fn Prompt(text string) string {
-    print(text)
+    fmt.Print(text)
     return ReadLine()
 }
 

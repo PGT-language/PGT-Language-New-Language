@@ -1,8 +1,10 @@
 // panic: nil pointer dereference
 package main
+
+#use "fmt"
 struct N { V int }
 fn main() {
     var* p *N = nil
-    println(p.V)
+    fmt.Println(p.V)
 }
 return 0

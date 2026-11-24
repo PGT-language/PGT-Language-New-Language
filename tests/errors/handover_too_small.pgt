@@ -2,11 +2,12 @@
 package main
 
 #use "pgt/std/memory"
+#use "fmt"
 
 fn main() {
     var* a = 1
     var& := a = malloc(free[byte] 2)
-    println(a)
+    fmt.Println(a)
 }
 
 return 0

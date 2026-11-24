@@ -2,12 +2,13 @@
 package main
 
 #use (
+    "fmt"
     "math"
     "pgt/std/strings"
 )
 
 fn main() {
-    println(math.Pi)
+    fmt.Println(math.Pi)
 }
 
 return 0

@@ -1,23 +1,25 @@
 package main
 
+#use "fmt"
+
 fn demoInput() {
     var* name = ""
     var* age = 0
     var* height float
-    inputln("Your name: ", name)
-    input("Your age: ", age)
-    input("Your height in meters: ", height)
-    println("Hello, ", name, "! In 10 years you will be ", age + 10, ".")
-    println("Your height in centimeters: ", height * 100)
+    fmt.InputLine("Your name: ", &name)
+    fmt.Input("Your age: ", &age)
+    fmt.Input("Your height in meters: ", &height)
+    fmt.Println("Hello, ", name, "! In 10 years you will be ", age + 10, ".")
+    fmt.Println("Your height in centimeters: ", height * 100)
 
     var* sum = 0
     var* count = 0
     var* n = 1
-    println("Enter numbers to sum, 0 to stop:")
+    fmt.Println("Enter numbers to sum, 0 to stop:")
     while n != 0 && count < 100 {
-        input("> ", n)
+        fmt.Input("> ", &n)
         sum += n
         count++
     }
-    println("Sum: ", sum)
+    fmt.Println("Sum: ", sum)
 }

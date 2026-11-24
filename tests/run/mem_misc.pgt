@@ -2,6 +2,7 @@
 package main
 
 #use "pgt/std/memory"
+#use "fmt"
 
 struct Inner {
     Label string
@@ -63,8 +64,8 @@ fn isMatch(s string, want string) bool {
 }
 
 fn main() {
-    println(rename("a" + "b"))
-    println(fib(10))
+    fmt.Println(rename("a" + "b"))
+    fmt.Println(fib(10))
 
     var* o = mkOuter(1)
     o.Name = o.Name + "x"
@@ -72,26 +73,26 @@ fn main() {
     o.In.Vals = append(o.In.Vals, 9)
     var* o2 = o
     o2.In.Label = "changed"
-    println(label(o), " ", label(o2), " ", o.In.Vals, " ", o2.In.Vals)
+    fmt.Println(label(o), " ", label(o2), " ", o.In.Vals, " ", o2.In.Vals)
 
     var* os + {[]Outer} = make([]Outer, 3)
     for i in 0..3 {
         os[i] = mkOuter(i)
     }
     os[0] = os[2]
-    println(label(os[0]), " ", label(os[1]))
+    fmt.Println(label(os[0]), " ", label(os[1]))
     os = nil
 
     var* arr = ["a" + "1", "b" + "2", "c" + "3"]
     arr[0] = arr[1]
     arr[2] = arr[0] + arr[1]
-    println(arr)
+    fmt.Println(arr)
 
     var* n = 0
     while isMatch("k" + n, "k" + 3) == false && n < 10 {
         n++
     }
-    println(n)
+    fmt.Println(n)
 
     var* list = longList(200000)
     var* count = 0
@@ -100,37 +101,37 @@ fn main() {
         count++
         cur = cur.Next
     }
-    println(count)
+    fmt.Println(count)
     list = nil
     cur = nil
 
     var* nm Namer = Dog{N: "rex" + 1}
-    println(nm.Name())
+    fmt.Println(nm.Name())
     nm = Dog{N: "fido"}
-    println(nm.Name())
+    fmt.Println(nm.Name())
 
     var* ptrs + {[]*int} = []
     for i in 0..5 {
         var* v = i * 2
         ptrs = append(ptrs, &v)
     }
-    println(*ptrs[3], " ", *ptrs[4])
+    fmt.Println(*ptrs[3], " ", *ptrs[4])
 
     var* e = ""
     if e == nil {
-        println("empty is nil")
+        fmt.Println("empty is nil")
     }
     var* big = 0
     for i in 0..100000 {
         var* s = "k" + i
         big += len(s)
     }
-    println(big)
+    fmt.Println(big)
 
     var& := raw = malloc(free[byte] 8)
     raw[1] = byte(7)
     var* copy = raw
-    println(len(copy), " ", copy[1])
+    fmt.Println(len(copy), " ", copy[1])
     free(raw)
 }
 

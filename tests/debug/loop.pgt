@@ -1,11 +1,13 @@
 package main
 
+#use "fmt"
+
 const N = 3
 
 fn main() {
     for i in 0..N {
         if i % 2 == 0 {
-            println("even ", i)
+            fmt.Println("even ", i)
         }
     }
 }

@@ -1,27 +1,29 @@
 package greet
 
+#use "fmt"
+
 fn line() {
-    println("----------------------------------------")
+    fmt.Println("----------------------------------------")
 }
 
 fn Hello() {
     line()
-    println(" PGT showcase: everything the compiler can do")
+    fmt.Println(" PGT showcase: everything the compiler can do")
     line()
 }
 
 fn Banner(title string) {
-    println("")
-    println("=== ", title, " ===")
+    fmt.Println("")
+    fmt.Println("=== ", title, " ===")
 }
 
 fn TEST() {
-    println("TEST")
+    fmt.Println("TEST")
 }
 
 fn Goodbye() {
-    println("")
+    fmt.Println("")
     line()
-    println(" Done.")
+    fmt.Println(" Done.")
     line()
 }

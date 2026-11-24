@@ -1,8 +1,9 @@
 // panic: arrays.Min: empty array
 package main
 #use "arrays"
+#use "fmt"
 fn main() {
     var* a + {[]int} = []
-    println(arrays.Min(a))
+    fmt.Println(arrays.Min(a))
 }
 return 0

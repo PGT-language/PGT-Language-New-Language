@@ -1,18 +1,19 @@
 package main
 
 #use (
+    "fmt"
     "io"
     "strings"
 )
 
 fn main() {
     var* name = io.Prompt("name? ")
-    println("hi ", name)
+    fmt.Println("hi ", name)
     var* n = io.ReadInt("n? ")
-    println("n*2 = ", n * 2)
+    fmt.Println("n*2 = ", n * 2)
     var* rest = io.ReadLines()
-    println(len(rest), " more lines: ", rest)
-    println("upper: ", strings.Upper(strings.Join(rest, "|")), " eof=", io.EOF())
+    fmt.Println(len(rest), " more lines: ", rest)
+    fmt.Println("upper: ", strings.Upper(strings.Join(rest, "|")), " eof=", io.EOF())
 }
 
 return 0

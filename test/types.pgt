@@ -1,5 +1,7 @@
 package main
 
+#use "fmt"
+
 fn demoTypes() {
     var* i = 42
     var* big int64 = 3000000000
@@ -12,22 +14,22 @@ fn demoTypes() {
     var* nothing string
     var* off bool
 
-    println("int      : ", i)
-    println("int64    : ", big)
-    println("float    : ", pi)
-    println("char     : ", letter)
-    println("bool     : ", flag)
-    println("string   : ", name)
-    println("zero values: int=", empty, " string=[", nothing, "] bool=", off)
-    println("explicit float from literal 2: ", ratio)
+    fmt.Println("int      : ", i)
+    fmt.Println("int64    : ", big)
+    fmt.Println("float    : ", pi)
+    fmt.Println("char     : ", letter)
+    fmt.Println("bool     : ", flag)
+    fmt.Println("string   : ", name)
+    fmt.Println("zero values: int=", empty, " string=[", nothing, "] bool=", off)
+    fmt.Println("explicit float from literal 2: ", ratio)
 
-    println("int(pi)        = ", int(pi))
-    println("float(i) / 5   = ", float(i) / 5)
-    println("int64(i) * big = ", int64(i) * big)
-    println("int(letter)    = ", int(letter))
-    println("char(65)       = ", char(65))
-    println("bool(i), bool(0) = ", bool(i), " ", bool(0))
-    println("literals adapt: big + 1 = ", big + 1, ", ratio * 1.5 = ", ratio * 1.5)
-    println("7 / 2 = ", 7 / 2, ", 7.0 / 2 = ", 7.0 / 2)
-    println("digit value of '7' = ", int('7' - '0'))
+    fmt.Println("int(pi)        = ", int(pi))
+    fmt.Println("float(i) / 5   = ", float(i) / 5)
+    fmt.Println("int64(i) * big = ", int64(i) * big)
+    fmt.Println("int(letter)    = ", int(letter))
+    fmt.Println("char(65)       = ", char(65))
+    fmt.Println("bool(i), bool(0) = ", bool(i), " ", bool(0))
+    fmt.Println("literals adapt: big + 1 = ", big + 1, ", ratio * 1.5 = ", ratio * 1.5)
+    fmt.Println("7 / 2 = ", 7 / 2, ", 7.0 / 2 = ", 7.0 / 2)
+    fmt.Println("digit value of '7' = ", int('7' - '0'))
 }

@@ -1,8 +1,10 @@
 // error: mismatched types int and float
 package main
+
+#use "fmt"
 fn main() {
     var* a = 1
     var* b = 2.5
-    println(a + b)
+    fmt.Println(a + b)
 }
 return 0
