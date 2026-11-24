@@ -115,12 +115,14 @@ namespace pgt
         {
             Named,
             Array,
-            Pointer
+            Pointer,
+            Map
         };
         Kind kind = Kind::Named;
         std::string qualifier;
         std::string name;
         std::shared_ptr<TypeExpr> elem;
+        std::shared_ptr<TypeExpr> key;
         int line = 0, col = 0;
 
         static TypeExpr named(std::string name, int line, int col)
@@ -139,6 +141,8 @@ namespace pgt
                 return "[]" + elem->text();
             case Kind::Pointer:
                 return "*" + elem->text();
+            case Kind::Map:
+                return "map[" + key->text() + "]" + elem->text();
             case Kind::Named:
                 break;
             }
@@ -235,6 +239,13 @@ namespace pgt
     {
         TypeExpr type;
         std::vector<FieldInit> fields;
+    };
+
+    struct MapLit : Expr
+    {
+        TypeExpr type;
+        std::vector<ExprPtr> keys;
+        std::vector<ExprPtr> values;
     };
 
     struct MallocExpr : Expr

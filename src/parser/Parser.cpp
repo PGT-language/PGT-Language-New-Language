@@ -225,6 +225,19 @@ namespace pgt
             arr.elem = std::make_shared<TypeExpr>(parseType("as the array element type"));
             return arr;
         }
+        if (check(Tok::KwMap))
+        {
+            advance();
+            expect(Tok::LBracket, "after 'map'");
+            TypeExpr m;
+            m.kind = TypeExpr::Kind::Map;
+            m.line = t.line;
+            m.col = t.col;
+            m.key = std::make_shared<TypeExpr>(parseType("as the map key type"));
+            expect(Tok::RBracket, "after the map key type");
+            m.elem = std::make_shared<TypeExpr>(parseType("as the map value type"));
+            return m;
+        }
         if (check(Tok::Star))
         {
             advance();
@@ -994,6 +1007,23 @@ namespace pgt
             ExprPtr inner = parseExpr();
             expect(Tok::RParen, "to close the parenthesized expression");
             return inner;
+        }
+        case Tok::KwMap:
+        {
+            auto lit = make<MapLit>(t);
+            lit->type = parseType("as the map type");
+            expect(Tok::LBrace, "in the map literal");
+            FlagGuard guard(noStructLit_, false);
+            while (!check(Tok::RBrace))
+            {
+                lit->keys.push_back(parseExpr());
+                expect(Tok::Colon, "after the map key");
+                lit->values.push_back(parseExpr());
+                if (!accept(Tok::Comma))
+                    break;
+            }
+            expect(Tok::RBrace, "after the map entries");
+            return lit;
         }
         case Tok::LBracket:
         {

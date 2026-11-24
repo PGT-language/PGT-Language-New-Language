@@ -181,6 +181,16 @@ namespace pgt
                     n.kids.push_back(expr(a.get()));
                 return n;
             }
+            if (auto *x = dynamic_cast<const MapLit *>(e))
+            {
+                Node n = node("MapLit", x->type.text() + "{}", *x);
+                for (size_t i = 0; i < x->keys.size(); ++i)
+                {
+                    n.kids.push_back(expr(x->keys[i].get()));
+                    n.kids.push_back(expr(x->values[i].get()));
+                }
+                return n;
+            }
             if (auto *x = dynamic_cast<const StructLit *>(e))
             {
                 Node n = node("StructLit", x->type.text() + "{}", *x);

@@ -32,10 +32,12 @@ namespace pgt
             Pointer,
             Struct,
             Interface,
-            Any
+            Any,
+            Map
         };
         Kind kind = Kind::Void;
         const Type *elem = nullptr;
+        const Type *key = nullptr;
         StructInfo *st = nullptr;
         IfaceInfo *iface = nullptr;
 
@@ -62,7 +64,7 @@ namespace pgt
         bool isNillable() const
         {
             return kind == Kind::Pointer || kind == Kind::Array || kind == Kind::String ||
-                   kind == Kind::Interface || kind == Kind::Any;
+                   kind == Kind::Interface || kind == Kind::Any || kind == Kind::Map;
         }
         bool isPtrToStruct() const
         {
@@ -144,6 +146,7 @@ namespace pgt
 
         TyP arrayOf(TyP elem);
         TyP pointerTo(TyP elem);
+        TyP mapOf(TyP key, TyP elem);
         TyP structT(StructInfo *st);
         TyP ifaceT(IfaceInfo *iface);
 
@@ -151,6 +154,7 @@ namespace pgt
         TyP add(Type t);
         std::deque<Type> storage_;
         std::map<TyP, TyP> arrays_, pointers_;
+        std::map<std::pair<TyP, TyP>, TyP> maps_;
         std::map<const void *, TyP> named_;
     };
 

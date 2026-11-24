@@ -35,6 +35,8 @@ namespace pgt
             return iface->pkgName == "main" ? iface->name : iface->pkgName + "." + iface->name;
         case Kind::Any:
             return "any";
+        case Kind::Map:
+            return "map[" + key->name() + "]" + elem->name();
         }
         return "?";
     }
@@ -85,6 +87,20 @@ namespace pgt
         {
             Type t;
             t.kind = Type::Kind::Pointer;
+            t.elem = elem;
+            slot = add(t);
+        }
+        return slot;
+    }
+
+    TyP TypeTable::mapOf(TyP key, TyP elem)
+    {
+        auto &slot = maps_[{key, elem}];
+        if (!slot)
+        {
+            Type t;
+            t.kind = Type::Kind::Map;
+            t.key = key;
             t.elem = elem;
             slot = add(t);
         }

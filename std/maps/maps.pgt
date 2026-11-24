@@ -1,0 +1,325 @@
+package maps
+
+#use "reflect"
+
+extern fn pgt_i_cast_map(p *byte) *Map
+extern fn pgt_i_cast_type(p *byte) *reflect.Type
+extern fn pgt_i_add(p *byte, n int64) *byte
+extern fn pgt_i_copy(dst *byte, src *byte, n int64)
+extern fn pgt_i_alloc(size int64, drop *byte) *byte
+extern fn pgt_i_call1(f *byte, arg *byte)
+extern fn pgt_i_load_int(p *byte) int
+extern fn pgt_i_load_int64(p *byte) int64
+extern fn pgt_i_load_byte(p *byte) byte
+extern fn pgt_i_load_string(p *byte) string
+extern fn pgt_i_load_ptr(p *byte) *byte
+extern fn pgt_i_store_int(p *byte, v int)
+extern fn pgt_i_store_int64(p *byte, v int64)
+extern fn pgt_i_store_ptr(p *byte, v *byte)
+
+struct Map {
+    KeyType *reflect.Type
+    ValType *reflect.Type
+    KeyKind int
+    KeySize int64
+    ValSize int64
+    ValOff int64
+    EntrySize int64
+    Count int64
+    Used int64
+    EntCap int64
+    SlotCap int64
+    Entries *byte
+    Slots *byte
+}
+
+const headerSize int64 = 128
+const hashOffset int64 = 0
+const stateOffset int64 = 8
+const keyOffset int64 = 16
+const fnvPrime int64 = 1099511628211
+const fnvBasis int64 = -3750763034362895579
+const mixMul int64 = -7046029254386353131
+
+fn align8(n int64) int64 {
+    return (n + 7) / 8 * 8
+}
+
+fn New(keyDesc *byte, valDesc *byte, dropFn *byte) *byte {
+    var* raw = pgt_i_alloc(headerSize, dropFn)
+    var* kt = pgt_i_cast_type(keyDesc)
+    var* vt = pgt_i_cast_type(valDesc)
+    init(pgt_i_cast_map(raw), kt, vt)
+    return raw
+}
+
+fn init(m *Map, kt *reflect.Type, vt *reflect.Type) {
+    m.KeyType = kt
+    m.ValType = vt
+    m.KeyKind = kt.Kind
+    m.KeySize = kt.Size
+    m.ValSize = vt.Size
+    m.ValOff = align8(keyOffset + kt.Size)
+    m.EntrySize = align8(m.ValOff + vt.Size)
+}
+
+fn KeyType(p *byte) *reflect.Type {
+    return pgt_i_cast_map(p).KeyType
+}
+
+fn ValType(p *byte) *reflect.Type {
+    return pgt_i_cast_map(p).ValType
+}
+
+fn entry(m *Map, i int64) *byte {
+    return pgt_i_add(m.Entries, i * m.EntrySize)
+}
+
+fn hashInt(x int64) int64 {
+    var* h = x * mixMul
+    return h ^ (h >> 29)
+}
+
+fn hashKey(m *Map, k *byte) int64 {
+    switch m.KeyKind {
+        case reflect.KindInt {
+            return hashInt(int64(pgt_i_load_int(k)))
+        }
+        case reflect.KindInt64 {
+            return hashInt(pgt_i_load_int64(k))
+        }
+        case reflect.KindString {
+            var* s = pgt_i_load_string(k)
+            var* p = pgt_i_load_ptr(k)
+            var* n = int64(len(s))
+            var* h = fnvBasis
+            var* i int64 = 0
+            while i < n {
+                h = (h ^ int64(pgt_i_load_byte(pgt_i_add(p, i)))) * fnvPrime
+                i += 1
+            }
+            return h ^ (h >> 32)
+        }
+    }
+    return hashInt(int64(pgt_i_load_byte(k)))
+}
+
+fn keysEqual(m *Map, a *byte, b *byte) bool {
+    switch m.KeyKind {
+        case reflect.KindInt {
+            return pgt_i_load_int(a) == pgt_i_load_int(b)
+        }
+        case reflect.KindInt64 {
+            return pgt_i_load_int64(a) == pgt_i_load_int64(b)
+        }
+        case reflect.KindString {
+            return pgt_i_load_string(a) == pgt_i_load_string(b)
+        }
+    }
+    return pgt_i_load_byte(a) == pgt_i_load_byte(b)
+}
+
+fn find(m *Map, k *byte, h int64) int64 {
+    if m.Count == 0 {
+        return -1
+    }
+    var* mask = m.SlotCap - 1
+    var* i = h & mask
+    while true {
+        var* e = int64(pgt_i_load_int(pgt_i_add(m.Slots, i * 4)))
+        if e < 0 {
+            return -1
+        }
+        var* ent = entry(m, e)
+        if pgt_i_load_int64(pgt_i_add(ent, stateOffset)) == 1 && pgt_i_load_int64(ent) == h && keysEqual(m, pgt_i_add(ent, keyOffset), k) {
+            return e
+        }
+        i = (i + 1) & mask
+    }
+    return -1
+}
+
+fn dropCell(t *reflect.Type, p *byte) {
+    if t.Drop != nil {
+        pgt_i_call1(t.Drop, p)
+    }
+}
+
+fn retainCell(t *reflect.Type, p *byte) {
+    if t.Retain != nil {
+        pgt_i_call1(t.Retain, p)
+    }
+}
+
+fn slotInsert(slots *byte, mask int64, h int64, e int64) {
+    var* i = h & mask
+    while pgt_i_load_int(pgt_i_add(slots, i * 4)) >= 0 {
+        i = (i + 1) & mask
+    }
+    pgt_i_store_int(pgt_i_add(slots, i * 4), int(e))
+}
+
+fn rebuild(m *Map) {
+    var* newEnt = m.EntCap
+    if newEnt == 0 {
+        newEnt = 8
+    } else if m.Count * 2 >= m.EntCap {
+        newEnt = m.EntCap * 2
+    }
+    var* slotCap int64 = 16
+    while slotCap < newEnt * 2 {
+        slotCap *= 2
+    }
+    var* entries = pgt_i_alloc(newEnt * m.EntrySize, nil)
+    var* slots = pgt_i_alloc(slotCap * 4, nil)
+    var* i int64 = 0
+    while i < slotCap {
+        pgt_i_store_int(pgt_i_add(slots, i * 4), -1)
+        i += 1
+    }
+    var* n int64 = 0
+    var* j int64 = 0
+    while j < m.Used {
+        var* src = entry(m, j)
+        if pgt_i_load_int64(pgt_i_add(src, stateOffset)) == 1 {
+            var* dst = pgt_i_add(entries, n * m.EntrySize)
+            pgt_i_copy(dst, src, m.EntrySize)
+            slotInsert(slots, slotCap - 1, pgt_i_load_int64(src), n)
+            n += 1
+        }
+        j += 1
+    }
+    m.Entries = entries
+    m.Slots = slots
+    m.EntCap = newEnt
+    m.SlotCap = slotCap
+    m.Used = n
+}
+
+fn setImpl(m *Map, k *byte, v *byte) {
+    if m == nil {
+        panic("assignment to entry in nil map")
+    }
+    var* h = hashKey(m, k)
+    var* e = find(m, k, h)
+    if e >= 0 {
+        var* vp = pgt_i_add(entry(m, e), m.ValOff)
+        dropCell(m.ValType, vp)
+        pgt_i_copy(vp, v, m.ValSize)
+        retainCell(m.ValType, vp)
+        return
+    }
+    if m.Used >= m.EntCap {
+        rebuild(m)
+    }
+    var* ent = entry(m, m.Used)
+    pgt_i_store_int64(ent, h)
+    pgt_i_store_int64(pgt_i_add(ent, stateOffset), 1)
+    pgt_i_copy(pgt_i_add(ent, keyOffset), k, m.KeySize)
+    retainCell(m.KeyType, pgt_i_add(ent, keyOffset))
+    pgt_i_copy(pgt_i_add(ent, m.ValOff), v, m.ValSize)
+    retainCell(m.ValType, pgt_i_add(ent, m.ValOff))
+    slotInsert(m.Slots, m.SlotCap - 1, h, m.Used)
+    m.Used += 1
+    m.Count += 1
+}
+
+fn Set(p *byte, k *byte, v *byte) {
+    setImpl(pgt_i_cast_map(p), k, v)
+}
+
+fn getImpl(m *Map, k *byte, out *byte) {
+    if m == nil {
+        return
+    }
+    var* e = find(m, k, hashKey(m, k))
+    if e >= 0 {
+        pgt_i_copy(out, pgt_i_add(entry(m, e), m.ValOff), m.ValSize)
+    }
+}
+
+fn Get(p *byte, k *byte, out *byte) {
+    getImpl(pgt_i_cast_map(p), k, out)
+}
+
+fn hasImpl(m *Map, k *byte) bool {
+    if m == nil {
+        return false
+    }
+    return find(m, k, hashKey(m, k)) >= 0
+}
+
+fn Has(p *byte, k *byte) bool {
+    return hasImpl(pgt_i_cast_map(p), k)
+}
+
+fn deleteImpl(m *Map, k *byte) {
+    if m == nil {
+        return
+    }
+    var* e = find(m, k, hashKey(m, k))
+    if e < 0 {
+        return
+    }
+    var* ent = entry(m, e)
+    pgt_i_store_int64(pgt_i_add(ent, stateOffset), 0)
+    dropCell(m.KeyType, pgt_i_add(ent, keyOffset))
+    dropCell(m.ValType, pgt_i_add(ent, m.ValOff))
+    m.Count -= 1
+}
+
+fn Delete(p *byte, k *byte) {
+    deleteImpl(pgt_i_cast_map(p), k)
+}
+
+fn Len(p *byte) int {
+    if p == nil {
+        return 0
+    }
+    return int(pgt_i_cast_map(p).Count)
+}
+
+fn nextImpl(m *Map, i int64) int64 {
+    if m == nil {
+        return -1
+    }
+    var* at = i
+    while at < m.Used {
+        if pgt_i_load_int64(pgt_i_add(entry(m, at), stateOffset)) == 1 {
+            return at
+        }
+        at += 1
+    }
+    return -1
+}
+
+fn Next(p *byte, i int64) int64 {
+    return nextImpl(pgt_i_cast_map(p), i)
+}
+
+fn KeyAt(p *byte, i int64) *byte {
+    return pgt_i_add(entry(pgt_i_cast_map(p), i), keyOffset)
+}
+
+fn ValAt(p *byte, i int64) *byte {
+    var* m = pgt_i_cast_map(p)
+    return pgt_i_add(entry(m, i), m.ValOff)
+}
+
+fn dropEntries(m *Map) {
+    var* j int64 = 0
+    while j < m.Used {
+        var* ent = entry(m, j)
+        if pgt_i_load_int64(pgt_i_add(ent, stateOffset)) == 1 {
+            dropCell(m.KeyType, pgt_i_add(ent, keyOffset))
+            dropCell(m.ValType, pgt_i_add(ent, m.ValOff))
+        }
+        j += 1
+    }
+    m.Entries = nil
+    m.Slots = nil
+}
+
+fn Drop(p *byte) {
+    dropEntries(pgt_i_cast_map(p))
+}

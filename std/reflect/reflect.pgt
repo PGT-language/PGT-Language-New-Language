@@ -19,6 +19,7 @@ const KindPointer = 9
 const KindStruct = 10
 const KindIface = 11
 const KindAny = 12
+const KindMap = 13
 
 struct Type {
     Kind int
@@ -123,7 +124,7 @@ fn FieldName(a any, i int) string {
     return unsafe.LoadString(fieldEntry(t, i))
 }
 
-fn wrap(t *Type, src *byte) any {
+fn Wrap(t *Type, src *byte) any {
     switch t.Kind {
         case KindIface {
             var* vt = unsafe.LoadPtr(unsafe.Add(src, 8))
@@ -135,7 +136,7 @@ fn wrap(t *Type, src *byte) any {
         case KindAny {
             return unsafe.MakeAny(unsafe.LoadPtr(src), unsafe.LoadPtr(unsafe.Add(src, 8)))
         }
-        case KindPointer {
+        case KindPointer, KindMap {
             return unsafe.MakeAny(unsafe.LoadPtr(src), pgt_i_cast_byte(t))
         }
     }
@@ -156,7 +157,7 @@ fn Index(a any, i int) any {
     if i < 0 || int64(i) >= unsafe.LoadInt64(unsafe.Add(header, 8)) {
         panic("reflect.Index: index out of range")
     }
-    return wrap(t.Elem, unsafe.Add(unsafe.LoadPtr(header), int64(i) * t.Elem.Size))
+    return Wrap(t.Elem, unsafe.Add(unsafe.LoadPtr(header), int64(i) * t.Elem.Size))
 }
 
 fn Field(a any, i int) any {
@@ -169,7 +170,7 @@ fn Field(a any, i int) any {
     }
     var* entry = fieldEntry(t, i)
     var* ft = pgt_i_cast_type(unsafe.LoadPtr(unsafe.Add(entry, 8)))
-    return wrap(ft, unsafe.Add(unsafe.DataOf(a), unsafe.LoadInt64(unsafe.Add(entry, 16))))
+    return Wrap(ft, unsafe.Add(unsafe.DataOf(a), unsafe.LoadInt64(unsafe.Add(entry, 16))))
 }
 
 fn Elem(a any) any {
@@ -180,7 +181,7 @@ fn Elem(a any) any {
     if data == nil {
         return unsafe.MakeAny(nil, nil)
     }
-    return wrap(pgt_i_desc_type(a).Elem, data)
+    return Wrap(pgt_i_desc_type(a).Elem, data)
 }
 
 fn IsNil(a any) bool {
@@ -198,16 +199,24 @@ fn Addr(a any) int64 {
     return unsafe.Addr(unsafe.DataOf(a))
 }
 
+fn isSlotIface(k int) bool {
+    return k == KindIface || k == KindAny
+}
+
+fn Data(a any) *byte {
+    return unsafe.DataOf(a)
+}
+
 fn SlotIface(a any, i int) bool {
     var* k = Kind(a)
     if k == KindArray {
-        return pgt_i_desc_type(a).Elem.Kind >= KindIface
+        return isSlotIface(pgt_i_desc_type(a).Elem.Kind)
     }
     if k == KindStruct {
         var* t = pgt_i_desc_type(a)
         if i >= 0 && i < t.NumField {
             var* ft = pgt_i_cast_type(unsafe.LoadPtr(unsafe.Add(fieldEntry(t, i), 8)))
-            return ft.Kind >= KindIface
+            return isSlotIface(ft.Kind)
         }
     }
     return false

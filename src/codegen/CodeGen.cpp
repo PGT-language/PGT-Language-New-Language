@@ -110,6 +110,14 @@ namespace pgt
                 for (const ExprPtr &x : a->elems)
                     collectExpr(x.get(), out);
             }
+            else if (auto *ml = dynamic_cast<const MapLit *>(e))
+            {
+                for (size_t i = 0; i < ml->keys.size(); ++i)
+                {
+                    collectExpr(ml->keys[i].get(), out);
+                    collectExpr(ml->values[i].get(), out);
+                }
+            }
             else if (auto *sl = dynamic_cast<const StructLit *>(e))
             {
                 for (const FieldInit &f : sl->fields)
@@ -168,6 +176,7 @@ namespace pgt
         case Type::Kind::String:
         case Type::Kind::Nil:
         case Type::Kind::Pointer:
+        case Type::Kind::Map:
             return builder_.getPtrTy();
         case Type::Kind::Array:
             return arrayTy_;
@@ -197,6 +206,15 @@ namespace pgt
             return types_.arrayOf(resolveType(*type.elem));
         case TypeExpr::Kind::Pointer:
             return types_.pointerTo(resolveType(*type.elem));
+        case TypeExpr::Kind::Map:
+        {
+            TyP k = resolveType(*type.key);
+            if (!k->isIntegral() && !k->is(Type::Kind::Bool) && !k->is(Type::Kind::String))
+                fail("invalid map key type " + k->name() +
+                         " (keys can be int, int64, char, byte, bool or string)",
+                     type.key->line, type.key->col);
+            return types_.mapOf(k, resolveType(*type.elem));
+        }
         case TypeExpr::Kind::Named:
             break;
         }

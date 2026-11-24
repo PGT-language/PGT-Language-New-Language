@@ -31,6 +31,8 @@ namespace pgt
             return "'var*'";
         case Tok::KwVarManual:
             return "'var&'";
+        case Tok::KwMap:
+            return "'map'";
         case Tok::KwReturn:
             return "'return'";
         case Tok::KwUse:
@@ -179,6 +181,8 @@ namespace pgt
             return "KwVar";
         case Tok::KwVarManual:
             return "KwVarManual";
+        case Tok::KwMap:
+            return "KwMap";
         case Tok::KwReturn:
             return "KwReturn";
         case Tok::KwUse:
@@ -546,7 +550,7 @@ namespace pgt
         static const std::pair<const char *, Tok> more[] = {
             {"struct", Tok::KwStruct}, {"interface", Tok::KwInterface}, {"const", Tok::KwConst},
             {"switch", Tok::KwSwitch}, {"case", Tok::KwCase},           {"default", Tok::KwDefault},
-            {"nil", Tok::KwNil},       {"extern", Tok::KwExtern},
+            {"nil", Tok::KwNil},       {"extern", Tok::KwExtern}, {"map", Tok::KwMap},
         };
         for (const auto &[text, kind] : more)
             if (word == text)

@@ -16,6 +16,7 @@ namespace pgt
         KwFn,
         KwVar,
         KwVarManual,
+        KwMap,
         KwReturn,
         KwUse,
         KwIf,
