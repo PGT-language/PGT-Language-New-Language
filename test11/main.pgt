@@ -1,66 +1,29 @@
 package main
 
 #use (
-    "unsafe"
-    "fmt"
+    "memory"
     "asm"
+    "fmt"
 )
 
-extern fn calloc(count int64, size int64) *byte
-extern fn free(p *byte)
-
-fn load(src string) asm.Func {
-    return asm.Load(asm.MustAssemble(src))
-}
-
 fn main() {
-    var* c = load("mov rax, 42\nret")
-    fmt.Println("const: ", c.Call())
-
-    var* add = load("mov rax, rdi\nadd rax, rsi\nret")
-    fmt.Println("add: ", add.Call(40, 2), " ", add.Call(-5, 3), " ", add.Call(4000000000, 4000000000))
-
-    var* fact = load("    mov rax, 1\n    mov rcx, rdi\nloop:\n    cmp rcx, 1\n    jle done\n    imul rax, rcx\n    dec rcx\n    jmp loop\ndone:\n    ret\n")
-    fmt.Println("fact: ", fact.Call(1), " ", fact.Call(5), " ", fact.Call(10), " ", fact.Call(20))
-
-    var* sum = load("    xor eax, eax\n    xor ecx, ecx\nagain:\n    cmp rcx, rsi\n    jge finish\n    add rax, [rdi + rcx*8]\n    inc rcx\n    jmp again\nfinish:\n    ret\n")
-    var* arr = calloc(10, 8)
-    for i in 0..10 {
-        unsafe.StoreInt64(unsafe.Add(arr, int64(i * 8)), int64(i * i))
+    var* x = 5
+    var* y = 0
+    asm {
+        mov eax, {x}
+        add eax, 10
+        mov {y}, eax
     }
-    fmt.Println("sum: ", sum.Call(unsafe.Addr(arr), 10), " ", sum.Call(unsafe.Addr(arr), 4))
-    free(arr)
-
-    var* six = load("mov rax, rdi\nadd rax, rsi\nadd rax, rdx\nadd rax, rcx\nadd rax, r8\nadd rax, r9\nret")
-    fmt.Println("six: ", six.Call(1, 2, 3, 4, 5, 6))
-
-    var* sel = load("MOV RAX, RSI ; comment\n\n  cmp RDI, RSI\n  CMOVG rax, rdi ; max\n  ret ; done\n")
-    fmt.Println("max: ", sel.Call(3, 9), " ", sel.Call(12, 9), " ", sel.Call(-1, -7))
-
-    var* divf = load("mov rax, rdi\ncqo\nidiv rsi\nmov rax, rdx\nret")
-    fmt.Println("mod: ", divf.Call(17, 5), " ", divf.Call(-17, 5))
-
-    var* flags = load("xor eax, eax\ncmp rdi, rsi\nsetl al\nshl rax, 4\nret")
-    fmt.Println("setl: ", flags.Call(1, 2), " ", flags.Call(2, 1))
-
-    var* callee = load("lea rax, [rdi + rdi*2]\nret")
-    var* caller = load("sub rsp, 8\nmov rax, rsi\ncall rax\nadd rsp, 8\nret")
-    fmt.Println("indirect: ", caller.Call(0, callee.Addr()), " ", caller.Call(7, callee.Addr()))
-
-    var* nested = load("push rbp\nmov rbp, rsp\nsub rsp, 16\nmov [rbp - 8], rdi\nmov rax, [rbp - 8]\nshl rax, 1\nleave\nret")
-    fmt.Println("frame: ", nested.Call(21))
-
-    asm.Free(c)
-    asm.Free(add)
-    asm.Free(fact)
-    asm.Free(sum)
-    asm.Free(six)
-    asm.Free(sel)
-    asm.Free(divf)
-    asm.Free(flags)
-    asm.Free(callee)
-    asm.Free(caller)
-    asm.Free(nested)
+    fmt.Println(y)
+    var* n int64 = 7
+    var& := n = malloc(free[int64] 1)
+    asm {
+        mov rax, {n}
+        imul rax, rax
+        mov {n}, rax
+    }
+    fmt.Println(n)
+    free(n)
 }
 
 return 0
