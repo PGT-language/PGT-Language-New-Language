@@ -30,7 +30,7 @@ namespace pgt::lsp
         const char *const kKeywords[] = {"package", "fn",       "var*",    "var&",   "return", "#use",
                                          "if",      "else",     "while",   "for",    "in",     "break",
                                          "continue", "struct",  "interface", "const", "switch", "case",
-                                         "default", "extern",   "true",    "false",  "nil",    "malloc", "map"};
+                                         "default", "extern",   "true",    "false",  "nil",    "malloc", "map",    "asm"};
         const char *const kTypes[] = {"int", "int64", "float", "char", "byte", "string", "bool", "void", "any"};
 
         bool identChar(char c)

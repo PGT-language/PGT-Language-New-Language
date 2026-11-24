@@ -2,6 +2,7 @@
   "scopeName": "source.pgt",
   "name": "PGT",
   "patterns": [
+    { "include": "#asm-block" },
     { "include": "#comments" },
     { "include": "#strings" },
     { "include": "#chars" },
@@ -15,6 +16,25 @@
     { "include": "#operators" }
   ],
   "repository": {
+    "asm-block": {
+      "begin": "\\b(asm)\\s*(\\{)",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.pgt" },
+        "2": { "name": "punctuation.section.embedded.begin.pgt" }
+      },
+      "end": "\\}",
+      "endCaptures": { "0": { "name": "punctuation.section.embedded.end.pgt" } },
+      "name": "meta.embedded.block.assembly.pgt",
+      "patterns": [
+        { "match": ";.*$", "name": "comment.line.semicolon.asm.pgt" },
+        { "match": "\\{[A-Za-z_][A-Za-z0-9_]*\\}", "name": "variable.other.placeholder.pgt" },
+        { "match": "\\b(?i:[re]?(?:ax|bx|cx|dx|si|di|bp|sp)|r(?:[89]|1[0-5])[dwb]?|[abcd][lh]|[sd]il|[sb]pl|xmm(?:[0-9]|1[0-5]))\\b", "name": "variable.language.register.asm.pgt" },
+        { "match": "\\b(?i:byte|word|dword|qword|ptr)\\b", "name": "storage.type.asm.pgt" },
+        { "match": "\\b(?:0[xX][0-9a-fA-F]+|0[bB][01]+|[0-9]+)\\b", "name": "constant.numeric.asm.pgt" },
+        { "match": "^\\s*[A-Za-z_.$][A-Za-z0-9_.$]*(?=\\s*:)", "name": "entity.name.label.asm.pgt" },
+        { "match": "^\\s*(?:[A-Za-z_.$][A-Za-z0-9_.$]*\\s*:\\s*)?[A-Za-z][A-Za-z0-9]*", "name": "keyword.other.mnemonic.asm.pgt" }
+      ]
+    },
     "comments": {
       "patterns": [
         { "begin": "/\\*", "end": "\\*/", "name": "comment.block.pgt" },

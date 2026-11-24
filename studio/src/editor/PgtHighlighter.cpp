@@ -43,6 +43,7 @@ PgtHighlighter::PgtHighlighter(QTextDocument *doc) : QSyntaxHighlighter(doc)
     rules_.push_back({QRegularExpression(words(builtins) + "(?=\\s*\\()"), makeFormat(Theme::synBuiltin)});
     rules_.push_back({QRegularExpression(words(types)), makeFormat(Theme::synType)});
     rules_.push_back({QRegularExpression(words(keywords)), makeFormat(Theme::synKeyword, true)});
+    rules_.push_back({QRegularExpression("\\basm(?=\\s*\\{)"), makeFormat(Theme::synKeyword, true)});
     rules_.push_back({QRegularExpression("\\bvar[*&]"), makeFormat(Theme::synKeyword, true)});
     rules_.push_back({QRegularExpression("\\bmalloc(?=\\s*\\()"), makeFormat(Theme::synKeyword, true)});
     rules_.push_back({QRegularExpression("#use\\b"), makeFormat(Theme::synDirective, true)});
