@@ -7,22 +7,26 @@ package main
 extern fn strdup(s *byte) *byte
 extern fn free(p *byte)
 
-var* src = make([]byte, 6)
-src[0] = 104
-src[1] = 101
-src[2] = 108
-src[3] = 108
-src[4] = 111
-var* c = strdup(unsafe.BytesData(src))
-for i in 0..1000 {
-    var* s = unsafe.StringAt(c)
-    if i == 999 {
-        fmt.Println(s, len(s))
+fn run() {
+    var* src = make([]byte, 6)
+    src[0] = 104
+    src[1] = 101
+    src[2] = 108
+    src[3] = 108
+    src[4] = 111
+    var* c = strdup(unsafe.BytesData(src))
+    for i in 0..1000 {
+        var* s = unsafe.StringAt(c)
+        if i == 999 {
+            fmt.Println(s, len(s))
+        }
     }
-var* t = unsafe.StringAt(c) + " world"
-free(c)
-fmt.Println(t)
-fmt.Println(unsafe.StringAt(unsafe.Add(unsafe.BytesData(src), 1)))
-fmt.Println(unsafe.StringAt(nil) == "")
+    var* t = unsafe.StringAt(c) + " world"
+    free(c)
+    fmt.Println(t)
+    fmt.Println(unsafe.StringAt(unsafe.Add(unsafe.BytesData(src), 1)))
+    fmt.Println(unsafe.StringAt(nil) == "")
+}
 
+run()
 return 0
