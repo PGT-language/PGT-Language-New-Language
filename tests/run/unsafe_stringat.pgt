@@ -7,7 +7,7 @@ package main
 extern fn strdup(s *byte) *byte
 extern fn free(p *byte)
 
-fn run() {
+fn main2() int {
     var* src = make([]byte, 6)
     src[0] = 104
     src[1] = 101
@@ -26,7 +26,8 @@ fn run() {
     fmt.Println(t)
     fmt.Println(unsafe.StringAt(unsafe.Add(unsafe.BytesData(src), 1)))
     fmt.Println(unsafe.StringAt(nil) == "")
+    return 0
 }
 
-run()
+var* done = main2()
 return 0
