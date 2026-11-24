@@ -271,7 +271,7 @@ namespace pgt
     llvm::Value *CodeGen::newVarSlot(TyP type, const std::string &name)
     {
         if (heapVars_.count(name))
-            return rt("pgt_alloc", builder_.getPtrTy(), {sizeOf(type)});
+            return rt("pgt_alloc", builder_.getPtrTy(), {sizeOf(type), dropFn(type)});
         return entryAlloca(llvmType(type), name);
     }
 
@@ -282,6 +282,7 @@ namespace pgt
 
     void CodeGen::popScope()
     {
+        emitScopeReleases(scopes_.size() - 1);
         scopes_.pop_back();
     }
 
@@ -289,8 +290,8 @@ namespace pgt
     {
         for (auto it = scopes_.rbegin(); it != scopes_.rend(); ++it)
         {
-            auto found = it->find(name);
-            if (found != it->end())
+            auto found = it->vars.find(name);
+            if (found != it->vars.end())
                 return &found->second;
         }
         return nullptr;
@@ -314,9 +315,14 @@ namespace pgt
 
     void CodeGen::declare(const std::string &name, Var var, int line, int col)
     {
-        if (scopes_.back().count(name))
+        if (scopes_.back().vars.count(name))
             fail("variable '" + name + "' is already declared in this scope", line, col);
-        scopes_.back()[name] = var;
+        scopes_.back().vars[name] = var;
+        if (var.isManual)
+            return;
+        bool boxed = heapVars_.count(name) > 0;
+        if (boxed || isManaged(var.type))
+            scopes_.back().owned.push_back({var.addr, var.type, boxed});
     }
 
     void CodeGen::startDeadBlock()
@@ -684,6 +690,8 @@ namespace pgt
                 if (ty->is(Type::Kind::Void))
                     fail("'" + d.name + "' cannot be initialized with a call that returns nothing",
                          d.line, d.col);
+                llvm::Value *initValue = init.value ? take(init) : nullptr;
+                flushTemps();
                 popScope();
 
                 auto *gv = new llvm::GlobalVariable(
@@ -691,8 +699,8 @@ namespace pgt
                     isPublic(d.name) ? llvm::GlobalValue::ExternalLinkage
                                      : llvm::GlobalValue::InternalLinkage,
                     llvm::Constant::getNullValue(llvmType(ty)), mangle(pkg.importPath, d.name));
-                if (init.value)
-                    builder_.CreateStore(init.value, gv);
+                if (initValue)
+                    builder_.CreateStore(initValue, gv);
                 pkg_->globals[d.name] = Global{gv, ty, d.isConst};
             }
         }
@@ -704,6 +712,7 @@ namespace pgt
     {
         builder_.SetInsertPoint(llvm::BasicBlock::Create(ctx_, "entry", info.fn));
         scopes_.clear();
+        temps_.clear();
         loops_.clear();
         heapVars_.clear();
         collectBlock(fn.body, heapVars_);
@@ -723,6 +732,7 @@ namespace pgt
             arg.setName(name);
             llvm::Value *slot = newVarSlot(info.params[i], name);
             builder_.CreateStore(&arg, slot);
+            emitRetain(&arg, info.params[i]); // the callee owns a reference for as long as it runs
             declare(name, Var{slot, info.params[i], false}, pos.first, pos.second);
             ++i;
         }
@@ -733,6 +743,7 @@ namespace pgt
 
         genBlock(fn.body);
         popScope();
+        temps_.clear();
 
         if (info.ret->is(Type::Kind::Void))
             builder_.CreateRetVoid();
@@ -769,6 +780,7 @@ namespace pgt
         Value code = genExpr(exitCode, types_.intT);
         if (!code.type->is(Type::Kind::Int))
             fail("the final 'return' must be an integer", exitCode.line, exitCode.col);
+        flushTemps();
         rt("fflush", builder_.getInt32Ty(), {llvm::ConstantPointerNull::get(builder_.getPtrTy())});
         builder_.CreateRet(code.value);
     }

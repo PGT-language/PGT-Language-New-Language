@@ -32,6 +32,7 @@ namespace pgt
         {
             llvm::Value *value = nullptr;
             TyP type = nullptr;
+            bool owned = false; // a fresh +1 reference still tracked in temps_
         };
         struct Var
         {
@@ -50,6 +51,24 @@ namespace pgt
         {
             llvm::BasicBlock *continueTo; // null for `switch`
             llvm::BasicBlock *breakTo;
+            size_t depth = 0; // scopes_.size() inside the loop body: break/continue release scopes above it
+        };
+        // A local that owns a reference released when its scope ends (or on return/break/continue).
+        struct OwnedLocal
+        {
+            llvm::Value *slot = nullptr;
+            TyP type = nullptr;
+            bool boxed = false; // slot is a managed heap box (the variable's address escapes)
+        };
+        struct Scope
+        {
+            std::map<std::string, Var> vars;
+            std::vector<OwnedLocal> owned;
+        };
+        struct Temp
+        {
+            llvm::Value *value;
+            TyP type;
         };
         struct PackageSyms
         {
@@ -87,6 +106,21 @@ namespace pgt
         PackageSyms *lookupPackage(const std::string &name);
         void declare(const std::string &name, Var var, int line, int col);
         void startDeadBlock();
+
+        // ---- automatic memory management (CodeGenMemory.cpp)
+        bool isManaged(TyP t);
+        void emitRetain(llvm::Value *v, TyP t);
+        void emitRelease(llvm::Value *v, TyP t);
+        llvm::Function *structHelper(TyP t, bool retain);
+        llvm::Constant *dropFn(TyP t);   // void(ptr): releases the value stored at ptr; null if unmanaged
+        llvm::Constant *retainFn(TyP t); // void(ptr): retains the value stored at ptr; null if unmanaged
+        Value owned(Value v);            // marks a fresh allocation: released at the end of the statement
+        llvm::Value *take(const Value &v);           // a +1 reference to store somewhere
+        void flushTemps(size_t downTo = 0);
+        void storeValue(llvm::Value *addr, TyP t, Value v, bool initial);
+        void holdValue(Value v);                      // keeps v alive until the current scope ends
+        void emitScopeReleases(size_t downTo);
+        bool isManualElement(const Expr &target);
 
         // ---- declarations
         void checkExitCodes(const Package &pkg) const;
@@ -175,7 +209,10 @@ namespace pgt
         std::deque<StructInfo> structStore_;
         std::deque<IfaceInfo> ifaceStore_;
         std::map<std::string, PackageSyms *> fileImports_;
-        std::vector<std::map<std::string, Var>> scopes_;
+        std::vector<Scope> scopes_;
+        std::vector<Temp> temps_;
+        std::map<TyP, bool> managed_;
+        std::map<std::pair<TyP, int>, llvm::Function *> memFns_;
         std::vector<LoopTargets> loops_;
         std::set<std::string> heapVars_;
         std::map<std::pair<TyP, TyP>, llvm::GlobalVariable *> vtables_;

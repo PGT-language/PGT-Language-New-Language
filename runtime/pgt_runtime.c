@@ -16,6 +16,8 @@ typedef struct
     int64_t cap;
 } PgtArray;
 
+static bool g_memstats;
+static void memstatsReport(void);
 static int g_argc;
 static char **g_argv;
 
@@ -24,6 +26,12 @@ void pgt_rt_init(int argc, char **argv)
     g_argc = argc;
     g_argv = argv;
     srand((unsigned)time(NULL));
+    const char *ms = getenv("PGT_MEMSTATS");
+    if (ms && *ms && strcmp(ms, "0") != 0 && !g_memstats)
+    {
+        g_memstats = true;
+        atexit(memstatsReport);
+    }
 }
 
 
@@ -53,17 +61,197 @@ _Noreturn void pgt_panic_div(void)
 }
 
 
-void *pgt_alloc(int64_t size)
+// ---------------------------------------------------------------------------------------------
+// Automatic memory management (compiler-inserted reference counting).
+//
+// A managed block is `{ rc, drop, count, stride }` followed by the user bytes; the user pointer
+// is what the program sees. `drop` (optional) releases the nested managed values of one element
+// (it is called `count` times, `stride` bytes apart) just before the block is freed.
+//
+// A pointer is not necessarily a block: it may point to a string literal, to C memory, to a
+// `var&` block or into the middle of a block (`&s.field`, `&a[i]`). Every live block start is
+// recorded in a hash set, and retain/release of a pointer that is not in the set do nothing.
+// An interior pointer therefore does not keep its parent block alive.
+// ---------------------------------------------------------------------------------------------
+typedef struct
 {
-    void *p = calloc(1, size > 0 ? (size_t)size : 1);
-    if (!p)
+    int64_t rc;
+    void (*drop)(void *);
+    int64_t count;
+    int64_t stride;
+} Hdr;
+
+static uintptr_t *g_tab;
+static size_t g_tabCap, g_tabCnt;
+static int64_t g_allocs, g_frees;
+
+static size_t hashPtr(uintptr_t p)
+{
+    return (size_t)(((p >> 4) * 0x9E3779B97F4A7C15ull) >> 24);
+}
+
+static void tabInsert(uintptr_t p)
+{
+    if ((g_tabCnt + 1) * 2 > g_tabCap)
+    {
+        size_t ncap = g_tabCap ? g_tabCap * 2 : 1024;
+        uintptr_t *old = g_tab;
+        size_t ocap = g_tabCap;
+        g_tab = calloc(ncap, sizeof *g_tab);
+        if (!g_tab)
+            pgt_panic("out of memory");
+        g_tabCap = ncap;
+        g_tabCnt = 0;
+        for (size_t i = 0; i < ocap; ++i)
+            if (old[i])
+                tabInsert(old[i]);
+        free(old);
+    }
+    size_t mask = g_tabCap - 1, i = hashPtr(p) & mask;
+    while (g_tab[i])
+        i = (i + 1) & mask;
+    g_tab[i] = p;
+    ++g_tabCnt;
+}
+
+static bool tabHas(uintptr_t p)
+{
+    if (!g_tabCap)
+        return false;
+    size_t mask = g_tabCap - 1, i = hashPtr(p) & mask;
+    while (g_tab[i])
+    {
+        if (g_tab[i] == p)
+            return true;
+        i = (i + 1) & mask;
+    }
+    return false;
+}
+
+static void tabRemove(uintptr_t p)
+{
+    size_t mask = g_tabCap - 1, i = hashPtr(p) & mask;
+    while (g_tab[i] != p)
+    {
+        if (!g_tab[i])
+            return;
+        i = (i + 1) & mask;
+    }
+    // Backward-shift deletion keeps probe sequences intact without tombstones.
+    size_t j = i;
+    for (;;)
+    {
+        g_tab[i] = 0;
+        for (;;)
+        {
+            j = (j + 1) & mask;
+            if (!g_tab[j])
+            {
+                --g_tabCnt;
+                return;
+            }
+            size_t k = hashPtr(g_tab[j]) & mask;
+            bool stay = i <= j ? (i < k && k <= j) : (i < k || k <= j);
+            if (!stay)
+                break;
+        }
+        g_tab[i] = g_tab[j];
+        i = j;
+    }
+}
+
+static void memstatsReport(void)
+{
+    fprintf(stderr, "pgt: live blocks: %lld\n", (long long)(g_allocs - g_frees));
+}
+
+void *pgt_alloc_n(int64_t count, int64_t stride, void (*drop)(void *))
+{
+    if (count < 0 || stride < 0)
         pgt_panic("out of memory");
+    size_t bytes = (size_t)count * (size_t)stride;
+    Hdr *h = calloc(1, sizeof(Hdr) + (bytes ? bytes : 1));
+    if (!h)
+        pgt_panic("out of memory");
+    h->rc = 1;
+    h->drop = drop;
+    h->count = count;
+    h->stride = stride;
+    void *p = h + 1;
+    tabInsert((uintptr_t)p);
+    ++g_allocs;
     return p;
 }
 
+void *pgt_alloc(int64_t size, void (*drop)(void *))
+{
+    return pgt_alloc_n(1, size, drop);
+}
+
+void pgt_retain(void *p)
+{
+    if (p && tabHas((uintptr_t)p))
+        ++((Hdr *)p - 1)->rc;
+}
+
+// Blocks whose count reached zero while another block was being destroyed wait here, so that
+// freeing a long chain (a linked list) does not recurse once per node.
+static Hdr **g_pending;
+static size_t g_pendingLen, g_pendingCap;
+static bool g_destroying;
+
+static void destroyOne(Hdr *h)
+{
+    void *p = h + 1;
+    if (h->drop)
+        for (int64_t i = 0; i < h->count; ++i)
+            h->drop((char *)p + i * h->stride);
+    tabRemove((uintptr_t)p);
+    free(h);
+    ++g_frees;
+}
+
+static void destroy(Hdr *h)
+{
+    if (g_destroying)
+    {
+        if (g_pendingLen == g_pendingCap)
+        {
+            g_pendingCap = g_pendingCap ? g_pendingCap * 2 : 256;
+            g_pending = realloc(g_pending, g_pendingCap * sizeof *g_pending);
+            if (!g_pending)
+                pgt_panic("out of memory");
+        }
+        g_pending[g_pendingLen++] = h;
+        return;
+    }
+    g_destroying = true;
+    destroyOne(h);
+    while (g_pendingLen)
+        destroyOne(g_pending[--g_pendingLen]);
+    g_destroying = false;
+}
+
+void pgt_release(void *p)
+{
+    if (!p || !tabHas((uintptr_t)p))
+        return;
+    Hdr *h = (Hdr *)p - 1;
+    if (--h->rc == 0)
+        destroy(h);
+}
+
+// free(p) on an automatically managed pointer: destroy the block right now. Optional.
 void pgt_free(void *p)
 {
-    free(p);
+    if (p && tabHas((uintptr_t)p))
+        destroy((Hdr *)p - 1);
+}
+
+static void *keep(const void *p)
+{
+    pgt_retain((void *)p);
+    return (void *)p;
 }
 
 // Blocks of `var& := x = malloc(free[T] N)`: zeroed, released only by free(x).
@@ -97,28 +285,41 @@ void pgt_mem_set(PgtArray *buf, uint8_t v)
         memset(buf->data, v, (size_t)buf->len);
 }
 
-void pgt_array_reserve(PgtArray *a, int64_t need, int64_t elemSize)
+// `*a` is borrowed on entry and owned (+1) on return: either the same block, retained, or a
+// new block holding retained copies of the elements. Other holders of the old block keep it.
+void pgt_array_reserve(PgtArray *a, int64_t need, int64_t elemSize, void (*dropElem)(void *),
+                       void (*retainElem)(void *))
 {
     if (need <= a->cap)
+    {
+        pgt_retain(a->data);
         return;
+    }
     int64_t cap = a->cap ? a->cap * 2 : 4;
     while (cap < need)
         cap *= 2;
-    void *data = realloc(a->data, (size_t)(cap * elemSize));
-    if (!data)
-        pgt_panic("out of memory");
-    memset((char *)data + a->len * elemSize, 0, (size_t)((cap - a->len) * elemSize));
+    void *data = pgt_alloc_n(cap, elemSize, dropElem);
+    if (a->len > 0)
+    {
+        memcpy(data, a->data, (size_t)(a->len * elemSize));
+        if (retainElem)
+            for (int64_t i = 0; i < a->len; ++i)
+                retainElem((char *)data + i * elemSize);
+    }
     a->data = data;
     a->cap = cap;
 }
 
-void pgt_array_make(PgtArray *out, int64_t len, int64_t elemSize)
+void pgt_array_make(PgtArray *out, int64_t len, int64_t cap, int64_t elemSize,
+                    void (*dropElem)(void *))
 {
     if (len < 0)
         pgt_panic("make: negative length");
-    out->data = len ? pgt_alloc(len * elemSize) : NULL;
+    if (cap < len)
+        cap = len;
+    out->data = cap ? pgt_alloc_n(cap, elemSize, dropElem) : NULL;
     out->len = len;
-    out->cap = len;
+    out->cap = cap;
 }
 
 
@@ -129,9 +330,7 @@ static const char *S(const char *s)
 
 static char *newString(size_t n)
 {
-    char *p = malloc(n + 1);
-    if (!p)
-        pgt_panic("out of memory");
+    char *p = pgt_alloc_n((int64_t)n + 1, 1, NULL);
     p[n] = '\0';
     return p;
 }
@@ -299,7 +498,7 @@ const char *pgt_replace(const char *s, const char *old, const char *with, int32_
     with = S(with);
     size_t lo = strlen(old), lw = strlen(with);
     if (lo == 0 || limit == 0)
-        return s;
+        return keep(s);
     size_t count = 0;
     for (const char *p = s; (p = strstr(p, old)) && (limit < 0 || (int32_t)count < limit); p += lo)
         ++count;
@@ -363,7 +562,7 @@ void pgt_to_chars(PgtArray *out, const char *s)
 {
     s = S(s);
     int64_t n = (int64_t)strlen(s);
-    pgt_array_make(out, n, 1);
+    pgt_array_make(out, n, n, 1, NULL);
     if (n)
         memcpy(out->data, s, (size_t)n);
 }
@@ -481,7 +680,7 @@ const char *pgt_read_word(const char *cur)
 {
     flushOut();
     char buf[4096];
-    return scanf(" %4095s", buf) == 1 ? dupRange(buf, strlen(buf)) : cur;
+    return scanf(" %4095s", buf) == 1 ? dupRange(buf, strlen(buf)) : keep(cur);
 }
 
 bool pgt_read_bool(bool cur)
@@ -489,18 +688,21 @@ bool pgt_read_bool(bool cur)
     const char *w = pgt_read_word(NULL);
     if (!w)
         return cur;
+    bool result = cur;
     if (strcmp(w, "true") == 0 || strcmp(w, "1") == 0 || strcmp(w, "yes") == 0 || strcmp(w, "y") == 0)
-        return true;
-    if (strcmp(w, "false") == 0 || strcmp(w, "0") == 0 || strcmp(w, "no") == 0 || strcmp(w, "n") == 0)
-        return false;
-    return cur;
+        result = true;
+    else if (strcmp(w, "false") == 0 || strcmp(w, "0") == 0 || strcmp(w, "no") == 0 ||
+             strcmp(w, "n") == 0)
+        result = false;
+    pgt_release((void *)w);
+    return result;
 }
 
 const char *pgt_read_line(const char *cur)
 {
     flushOut();
     char buf[4096];
-    return scanf(" %4095[^\n]", buf) == 1 ? dupRange(buf, strlen(buf)) : cur;
+    return scanf(" %4095[^\n]", buf) == 1 ? dupRange(buf, strlen(buf)) : keep(cur);
 }
 
 const char *pgt_read_raw_line(bool *ok)
@@ -518,8 +720,9 @@ const char *pgt_read_raw_line(bool *ok)
     *ok = !(c == EOF && len == 0);
     if (len && buf[len - 1] == '\r')
         --len;
-    buf[len] = '\0';
-    return buf;
+    const char *line = dupRange(buf, len);
+    free(buf);
+    return line;
 }
 
 const char *pgt_read_file(const char *path)
@@ -537,8 +740,9 @@ const char *pgt_read_file(const char *path)
             buf = realloc(buf, cap *= 2);
     }
     fclose(f);
-    buf[len] = '\0';
-    return buf;
+    const char *text = dupRange(buf, len);
+    free(buf);
+    return text;
 }
 
 static bool writeMode(const char *path, const char *s, const char *mode)

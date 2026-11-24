@@ -16,14 +16,23 @@ namespace pgt
     void CodeGen::genStmt(const Stmt &stmt)
     {
         if (auto *decl = dynamic_cast<const VarDecl *>(&stmt))
-            return genVarDecl(*decl);
+        {
+            genVarDecl(*decl);
+            flushTemps();
+            return;
+        }
         if (auto *assign = dynamic_cast<const Assign *>(&stmt))
-            return genAssign(*assign);
+        {
+            genAssign(*assign);
+            flushTemps();
+            return;
+        }
         if (auto *ret = dynamic_cast<const Return *>(&stmt))
             return genReturn(*ret);
         if (auto *es = dynamic_cast<const ExprStmt *>(&stmt))
         {
             genCall(*static_cast<const Call *>(es->expr.get()), nullptr);
+            flushTemps();
             return;
         }
         if (auto *node = dynamic_cast<const If *>(&stmt))
@@ -38,6 +47,7 @@ namespace pgt
         {
             if (loops_.empty())
                 fail("'break' outside of a loop or switch", stmt.line, stmt.col);
+            emitScopeReleases(loops_.back().depth);
             builder_.CreateBr(loops_.back().breakTo);
             startDeadBlock();
             return;
@@ -45,10 +55,15 @@ namespace pgt
         if (dynamic_cast<const Continue *>(&stmt))
         {
             llvm::BasicBlock *target = nullptr;
+            size_t depth = 0;
             for (auto it = loops_.rbegin(); it != loops_.rend() && !target; ++it)
+            {
                 target = it->continueTo;
+                depth = it->depth;
+            }
             if (!target)
                 fail("'continue' outside of a loop", stmt.line, stmt.col);
+            emitScopeReleases(depth);
             builder_.CreateBr(target);
             startDeadBlock();
             return;
@@ -92,6 +107,7 @@ namespace pgt
             return genManualVarDecl(decl);
         TyP ty = decl.type ? resolveType(*decl.type) : nullptr;
         llvm::Value *init = nullptr;
+        Value initVal;
         if (decl.init)
         {
             Value v = genExpr(*decl.init, ty);
@@ -100,6 +116,7 @@ namespace pgt
             else
                 ty = v.type;
             init = v.value;
+            initVal = v;
         }
         if (ty->is(Type::Kind::Nil))
             fail("cannot infer the type of '" + decl.name + "' from nil; write its type: var* " +
@@ -108,7 +125,9 @@ namespace pgt
         if (ty->is(Type::Kind::Void))
             fail("'" + decl.name + "' cannot be initialized with a call that returns nothing", decl.line,
                  decl.col);
-        if (!init)
+        if (init)
+            init = take(initVal);
+        else
             init = zeroValue(ty);
         llvm::Value *slot = newVarSlot(ty, decl.name);
         builder_.CreateStore(init, slot);
@@ -125,11 +144,12 @@ namespace pgt
                      assign.line, assign.col);
         Addr target = requireAddress(*assign.target, true);
         Value rhs = genExpr(*assign.value, target.type);
+        bool manualElem = isManualElement(*assign.target);
 
         if (assign.op == AssignOp::Set)
         {
             rhs = coerce(rhs, target.type, assign.line, assign.col, "assignment");
-            builder_.CreateStore(rhs.value, target.addr);
+            storeValue(target.addr, target.type, rhs, manualElem);
             return;
         }
 
@@ -159,7 +179,7 @@ namespace pgt
         if (res.type != target.type)
             fail("cannot assign " + res.type->name() + " to a value of type " + target.type->name(),
                  assign.line, assign.col);
-        builder_.CreateStore(res.value, target.addr);
+        storeValue(target.addr, target.type, res, manualElem);
     }
 
     void CodeGen::genReturn(const Return &ret)
@@ -168,6 +188,8 @@ namespace pgt
         {
             if (ret.value)
                 fail("this function does not return a value", ret.line, ret.col);
+            flushTemps();
+            emitScopeReleases(0);
             builder_.CreateRetVoid();
         }
         else
@@ -176,7 +198,10 @@ namespace pgt
                 fail("missing return value of type " + currentRet_->name(), ret.line, ret.col);
             Value v = genExpr(*ret.value, currentRet_);
             v = coerce(v, currentRet_, ret.line, ret.col, "return");
-            builder_.CreateRet(v.value);
+            llvm::Value *result = take(v); // the caller receives an owned reference
+            flushTemps();
+            emitScopeReleases(0);
+            builder_.CreateRet(result);
         }
         startDeadBlock();
     }
@@ -185,6 +210,7 @@ namespace pgt
     {
         llvm::Function *f = builder_.GetInsertBlock()->getParent();
         Value cond = genCond(*node.cond);
+        flushTemps();
 
         auto *thenBB = llvm::BasicBlock::Create(ctx_, "if.then", f);
         auto *elseBB = node.hasElse ? llvm::BasicBlock::Create(ctx_, "if.else", f) : nullptr;
@@ -223,6 +249,7 @@ namespace pgt
         if (loop.cond)
         {
             Value cond = genCond(*loop.cond);
+            flushTemps();
             builder_.CreateCondBr(cond.value, bodyBB, endBB);
         }
         else
@@ -231,7 +258,7 @@ namespace pgt
         }
 
         builder_.SetInsertPoint(bodyBB);
-        loops_.push_back({postBB, endBB});
+        loops_.push_back({postBB, endBB, scopes_.size()});
         genBlock(loop.body);
         loops_.pop_back();
         builder_.CreateBr(postBB);
@@ -271,7 +298,7 @@ namespace pgt
             builder_.CreateCondBr(builder_.CreateICmpSLT(i, to.value), bodyBB, endBB);
 
             builder_.SetInsertPoint(bodyBB);
-            loops_.push_back({postBB, endBB});
+            loops_.push_back({postBB, endBB, scopes_.size()});
             genBlock(loop.body);
             loops_.pop_back();
             builder_.CreateBr(postBB);
@@ -288,6 +315,8 @@ namespace pgt
         }
 
         Value seq = genExpr(*loop.iterable);
+        holdValue(seq); // the sequence stays alive for the whole loop
+        flushTemps();
         TyP elemTy;
         llvm::Value *len, *data;
         if (seq.type->is(Type::Kind::Array))
@@ -319,6 +348,7 @@ namespace pgt
             declare(loop.key, Var{keySlot, types_.intT, false}, loop.line, loop.col);
         }
         llvm::Value *valSlot = newVarSlot(elemTy, loop.value);
+        builder_.CreateStore(zeroValue(elemTy), valSlot);
         declare(loop.value, Var{valSlot, elemTy, false}, loop.line, loop.col);
         builder_.CreateBr(condBB);
 
@@ -330,8 +360,8 @@ namespace pgt
         if (keySlot)
             builder_.CreateStore(builder_.CreateTrunc(i, builder_.getInt32Ty()), keySlot);
         llvm::Value *elemPtr = builder_.CreateGEP(llvmType(elemTy), data, i);
-        builder_.CreateStore(builder_.CreateLoad(llvmType(elemTy), elemPtr), valSlot);
-        loops_.push_back({postBB, endBB});
+        storeValue(valSlot, elemTy, Value{builder_.CreateLoad(llvmType(elemTy), elemPtr), elemTy}, false);
+        loops_.push_back({postBB, endBB, scopes_.size()});
         genBlock(loop.body);
         loops_.pop_back();
         builder_.CreateBr(postBB);
@@ -350,12 +380,15 @@ namespace pgt
         llvm::Function *f = builder_.GetInsertBlock()->getParent();
         auto *endBB = llvm::BasicBlock::Create(ctx_, "switch.end", f);
 
+        pushScope(); // owns the tag while the cases run
         Value tag;
         if (sw.tag)
         {
             tag = genExpr(*sw.tag);
             if (tag.type->is(Type::Kind::Void) || tag.type->is(Type::Kind::Nil))
                 fail("cannot switch on " + tag.type->name(), sw.tag->line, sw.tag->col);
+            holdValue(tag);
+            flushTemps();
         }
 
         std::vector<llvm::BasicBlock *> bodies;
@@ -379,6 +412,7 @@ namespace pgt
                 {
                     cond = genCond(*valueExpr);
                 }
+                flushTemps();
                 auto *next = llvm::BasicBlock::Create(ctx_, "case.next", f);
                 builder_.CreateCondBr(cond.value, bodies[i], next);
                 builder_.SetInsertPoint(next);
@@ -386,7 +420,7 @@ namespace pgt
         }
         builder_.CreateBr(defaultBB);
 
-        loops_.push_back({nullptr, endBB});
+        loops_.push_back({nullptr, endBB, scopes_.size()});
         for (size_t i = 0; i < sw.cases.size(); ++i)
         {
             builder_.SetInsertPoint(bodies[i]);
@@ -401,6 +435,7 @@ namespace pgt
         }
         loops_.pop_back();
         builder_.SetInsertPoint(endBB);
+        popScope();
     }
 
 }

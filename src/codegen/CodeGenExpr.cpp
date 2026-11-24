@@ -191,21 +191,21 @@ namespace pgt
         case Type::Kind::String:
             return v;
         case Type::Kind::Int:
-            return {rt("pgt_str_int", ptr, {v.value}), types_.stringT};
+            return owned({rt("pgt_str_int", ptr, {v.value}), types_.stringT});
         case Type::Kind::Int64:
-            return {rt("pgt_str_int64", ptr, {v.value}), types_.stringT};
+            return owned({rt("pgt_str_int64", ptr, {v.value}), types_.stringT});
         case Type::Kind::Float:
-            return {rt("pgt_str_float", ptr, {v.value}), types_.stringT};
+            return owned({rt("pgt_str_float", ptr, {v.value}), types_.stringT});
         case Type::Kind::Char:
-            return {rt("pgt_str_char", ptr, {v.value}), types_.stringT};
+            return owned({rt("pgt_str_char", ptr, {v.value}), types_.stringT});
         case Type::Kind::Byte:
-            return {rt("pgt_str_int", ptr, {builder_.CreateZExt(v.value, builder_.getInt32Ty())}),
-                    types_.stringT};
+            return owned({rt("pgt_str_int", ptr, {builder_.CreateZExt(v.value, builder_.getInt32Ty())}),
+                          types_.stringT});
         case Type::Kind::Bool:
-            return {rt("pgt_str_bool", ptr, {v.value}), types_.stringT};
+            return owned({rt("pgt_str_bool", ptr, {v.value}), types_.stringT});
         case Type::Kind::Array:
             if (v.type->elem->is(Type::Kind::Char))
-                return {rt("pgt_from_chars", ptr, {arrayToPtr(v.value)}), types_.stringT};
+                return owned({rt("pgt_from_chars", ptr, {arrayToPtr(v.value)}), types_.stringT});
             break;
         default:
             break;
@@ -289,9 +289,10 @@ namespace pgt
             if (auto *lit = dynamic_cast<const StructLit *>(un.operand.get()))
             {
                 Value v = genStructLit(*lit);
-                llvm::Value *p = rt("pgt_alloc", builder_.getPtrTy(), {sizeOf(v.type)});
-                builder_.CreateStore(v.value, p);
-                return {p, types_.pointerTo(v.type)};
+                llvm::Value *fields = take(v);
+                llvm::Value *p = rt("pgt_alloc", builder_.getPtrTy(), {sizeOf(v.type), dropFn(v.type)});
+                builder_.CreateStore(fields, p);
+                return owned({p, types_.pointerTo(v.type)});
             }
             Addr a = requireAddress(*un.operand, true);
             return {a.addr, types_.pointerTo(a.type)};
@@ -319,9 +320,11 @@ namespace pgt
             builder_.CreateCondBr(lhs.value, endBB, rhsBB);
 
         builder_.SetInsertPoint(rhsBB);
+        size_t mark = temps_.size();
         Value rhs = genExpr(*bin.rhs);
         if (!rhs.type->is(Type::Kind::Bool))
             needBool();
+        flushTemps(mark); // temporaries of the conditionally evaluated side die on that side
         llvm::BasicBlock *rhsEnd = builder_.GetInsertBlock();
         builder_.CreateBr(endBB);
 
@@ -478,7 +481,7 @@ namespace pgt
         {
             Value ls = toStringValue(l, line, col);
             Value rs = toStringValue(r, line, col);
-            return {rt("pgt_concat", builder_.getPtrTy(), {ls.value, rs.value}), types_.stringT};
+            return owned({rt("pgt_concat", builder_.getPtrTy(), {ls.value, rs.value}), types_.stringT});
         }
 
         if (op == BinOp::Shl || op == BinOp::Shr)
@@ -827,16 +830,17 @@ namespace pgt
 
         llvm::Type *elemLl = llvmType(elemTy);
         auto *n = builder_.getInt64(values.size());
-        llvm::Value *data =
-            rt("pgt_alloc", builder_.getPtrTy(), {builder_.CreateMul(n, sizeOf(elemTy))});
-        for (size_t i = 0; i < values.size(); ++i)
-            builder_.CreateStore(values[i].value,
-                                 builder_.CreateGEP(elemLl, data, builder_.getInt64(i)));
+        std::vector<llvm::Value *> items;
+        for (const Value &v : values)
+            items.push_back(take(v));
+        llvm::Value *data = rt("pgt_alloc_n", builder_.getPtrTy(), {n, sizeOf(elemTy), dropFn(elemTy)});
+        for (size_t i = 0; i < items.size(); ++i)
+            builder_.CreateStore(items[i], builder_.CreateGEP(elemLl, data, builder_.getInt64(i)));
         llvm::Value *arr = llvm::UndefValue::get(arrayTy_);
         arr = builder_.CreateInsertValue(arr, data, 0);
         arr = builder_.CreateInsertValue(arr, n, 1);
         arr = builder_.CreateInsertValue(arr, n, 2);
-        return {arr, arrTy};
+        return owned({arr, arrTy});
     }
 
     CodeGen::Value CodeGen::genStructLit(const StructLit &lit)
@@ -858,9 +862,9 @@ namespace pgt
                 fail("field '" + f.name + "' of " + t->name() + " is not exported", f.line, f.col);
             TyP ft = st->fields[i].type;
             Value v = coerce(genExpr(*f.value, ft), ft, f.line, f.col, "field '" + f.name + "'");
-            agg = builder_.CreateInsertValue(agg, v.value, static_cast<unsigned>(i));
+            agg = builder_.CreateInsertValue(agg, take(v), static_cast<unsigned>(i));
         }
-        return {agg, t};
+        return owned({agg, t});
     }
 
     // ------------------------------------------------------------------ calls
@@ -885,7 +889,11 @@ namespace pgt
             args.push_back(info.isExtern && pt->is(Type::Kind::Array) ? arrayToPtr(v.value) : v.value);
         }
         llvm::Value *result = builder_.CreateCall(info.fn, args);
-        return {info.ret->is(Type::Kind::Void) ? nullptr : result, info.ret};
+        if (info.ret->is(Type::Kind::Void))
+            return {nullptr, info.ret};
+        // Results are owned references. A string that an external C function returns is usually not a
+        // managed block; releasing it is then a no-op.
+        return owned({result, info.ret});
     }
 
     CodeGen::Value CodeGen::genCall(const Call &call, TyP hint)
@@ -1055,7 +1063,9 @@ namespace pgt
         llvm::Value *slot = builder_.CreateGEP(builder_.getPtrTy(), vt, builder_.getInt64(idx + 1));
         llvm::Value *fn = builder_.CreateLoad(builder_.getPtrTy(), slot);
         llvm::Value *result = builder_.CreateCall(fnTy, fn, args);
-        return {m.ret->is(Type::Kind::Void) ? nullptr : result, m.ret};
+        if (m.ret->is(Type::Kind::Void))
+            return {nullptr, m.ret};
+        return owned({result, m.ret});
     }
 
     // ------------------------------------------------------------------ interfaces
@@ -1090,18 +1100,21 @@ namespace pgt
         if (!why.empty())
             fail(v.type->name() + " does not implement " + ifaceType->name() + ": " + why, line, col);
 
+        // The interface holds one reference to its data block: the pointer itself, or a fresh box
+        // that owns a copy of the value.
         llvm::Value *data;
         if (v.type->is(Type::Kind::Pointer))
-            data = v.value;
+            data = take(v);
         else
         {
-            data = rt("pgt_alloc", builder_.getPtrTy(), {sizeOf(v.type)});
-            builder_.CreateStore(v.value, data);
+            llvm::Value *copy = take(v);
+            data = rt("pgt_alloc", builder_.getPtrTy(), {sizeOf(v.type), dropFn(v.type)});
+            builder_.CreateStore(copy, data);
         }
         llvm::Value *res = llvm::UndefValue::get(ifaceTy_);
         res = builder_.CreateInsertValue(res, data, 0);
         res = builder_.CreateInsertValue(res, vtableFor(v.type, ifaceType), 1);
-        return {res, ifaceType};
+        return owned({res, ifaceType});
     }
 
     llvm::Value *CodeGen::vtableFor(TyP concrete, TyP ifaceType)

@@ -106,6 +106,12 @@ namespace pgt
                           "argument " + std::to_string(i + 1) + " of '" + name + "'")
                 .value;
         };
+        auto valOf = [&](size_t i, TyP want) -> Value
+        {
+            const Expr &a = *call.args[i];
+            return coerce(genExpr(a, want), want, a.line, a.col,
+                          "argument " + std::to_string(i + 1) + " of '" + name + "'");
+        };
         auto str = [&](size_t i)
         { return argOf(i, types_.stringT); };
 
@@ -131,22 +137,25 @@ namespace pgt
                 fail("the first argument of 'append' must be an array, found " + arr.type->name(),
                      first.line, first.col);
             TyP elemTy = arr.type->elem;
-            std::vector<llvm::Value *> items;
+            std::vector<Value> items;
             for (size_t i = 1; i < call.args.size(); ++i)
-                items.push_back(argOf(i, elemTy));
+                items.push_back(valOf(i, elemTy));
 
             llvm::Value *tmp = arrayToPtr(arr.value);
             llvm::Value *len = builder_.CreateExtractValue(arr.value, 1);
             llvm::Value *newLen = builder_.CreateAdd(len, builder_.getInt64(items.size()));
-            rt("pgt_array_reserve", builder_.getVoidTy(), {tmp, newLen, sizeOf(elemTy)});
+            // The result owns a reference to its block: the old block (retained) or a grown copy.
+            rt("pgt_array_reserve", builder_.getVoidTy(),
+               {tmp, newLen, sizeOf(elemTy), dropFn(elemTy), retainFn(elemTy)});
             llvm::Value *grown = builder_.CreateLoad(arrayTy_, tmp);
             llvm::Value *data = builder_.CreateExtractValue(grown, 0);
             for (size_t i = 0; i < items.size(); ++i)
             {
                 llvm::Value *at = builder_.CreateAdd(len, builder_.getInt64(i));
-                builder_.CreateStore(items[i], builder_.CreateGEP(llvmType(elemTy), data, at));
+                // The slot may hold a value written by another holder of the same block.
+                storeValue(builder_.CreateGEP(llvmType(elemTy), data, at), elemTy, items[i], false);
             }
-            return Value{builder_.CreateInsertValue(grown, newLen, 1), arr.type};
+            return owned(Value{builder_.CreateInsertValue(grown, newLen, 1), arr.type});
         }
         if (name == "make")
         {
@@ -159,12 +168,10 @@ namespace pgt
                 fail("'make' takes a length and an optional capacity: make([]T, len, cap)", call.line,
                      call.col);
             llvm::Value *len = builder_.CreateSExt(argOf(0, types_.intT), i64);
+            llvm::Value *cap = call.args.size() == 2 ? builder_.CreateSExt(argOf(1, types_.intT), i64) : len;
             llvm::Value *tmp = entryAlloca(arrayTy_, "make.tmp");
-            rt("pgt_array_make", builder_.getVoidTy(), {tmp, len, sizeOf(t->elem)});
-            if (call.args.size() == 2)
-                rt("pgt_array_reserve", builder_.getVoidTy(),
-                   {tmp, builder_.CreateSExt(argOf(1, types_.intT), i64), sizeOf(t->elem)});
-            return Value{builder_.CreateLoad(arrayTy_, tmp), t};
+            rt("pgt_array_make", builder_.getVoidTy(), {tmp, len, cap, sizeOf(t->elem), dropFn(t->elem)});
+            return owned(Value{builder_.CreateLoad(arrayTy_, tmp), t});
         }
         if (name == "new")
         {
@@ -173,7 +180,7 @@ namespace pgt
             if (!call.args.empty())
                 fail("'new' takes only a type", call.line, call.col);
             TyP t = resolveType(*call.typeArg);
-            return Value{rt("pgt_alloc", ptr, {sizeOf(t)}), types_.pointerTo(t)};
+            return owned(Value{rt("pgt_alloc", ptr, {sizeOf(t), dropFn(t)}), types_.pointerTo(t)});
         }
         if (name == "free")
         {
@@ -189,13 +196,22 @@ namespace pgt
                     return voidV;
                 }
             }
-            Value v = genExpr(*call.args[0]);
+            // Automatically managed memory: destroy the block now. This is optional, the compiler would
+            // release it anyway. The variable is cleared so that its scope does not release it again.
+            Value v;
+            std::optional<Addr> where = addressOf(*call.args[0], false);
+            if (where)
+                v = Value{builder_.CreateLoad(llvmType(where->type), where->addr), where->type};
+            else
+                v = genExpr(*call.args[0]);
             if (v.type->is(Type::Kind::Pointer))
                 rt("pgt_free", builder_.getVoidTy(), {v.value});
             else if (v.type->is(Type::Kind::Array))
                 rt("pgt_free", builder_.getVoidTy(), {builder_.CreateExtractValue(v.value, 0)});
             else
                 fail("'free' needs a pointer or an array, found " + v.type->name(), call.line, call.col);
+            if (where && !where->isConst)
+                builder_.CreateStore(zeroValue(v.type), where->addr);
             return voidV;
         }
 
@@ -211,7 +227,7 @@ namespace pgt
             llvm::Value *s = str(0);
             llvm::Value *tmp = entryAlloca(arrayTy_, "chars.tmp");
             rt("pgt_to_chars", builder_.getVoidTy(), {tmp, s});
-            return Value{builder_.CreateLoad(arrayTy_, tmp), types_.arrayOf(types_.charT)};
+            return owned(Value{builder_.CreateLoad(arrayTy_, tmp), types_.arrayOf(types_.charT)});
         }
         if (name == "parseInt")
         {
@@ -234,7 +250,7 @@ namespace pgt
             llvm::Value *s = str(0);
             llvm::Value *from = argOf(1, types_.intT);
             llvm::Value *n = argOf(2, types_.intT);
-            return Value{rt("pgt_substr", ptr, {s, from, n}), types_.stringT};
+            return owned(Value{rt("pgt_substr", ptr, {s, from, n}), types_.stringT});
         }
         if (name == "indexOf")
         {
@@ -255,7 +271,7 @@ namespace pgt
         if (name == "upper" || name == "lower")
         {
             arity(1);
-            return Value{rt(name == "upper" ? "pgt_upper" : "pgt_lower", ptr, {str(0)}), types_.stringT};
+            return owned(Value{rt(name == "upper" ? "pgt_upper" : "pgt_lower", ptr, {str(0)}), types_.stringT});
         }
 
         // ---- math
@@ -299,7 +315,7 @@ namespace pgt
         if (name == "readFile")
         {
             arity(1);
-            return Value{rt("pgt_read_file", ptr, {str(0)}), types_.stringT};
+            return owned(Value{rt("pgt_read_file", ptr, {str(0)}), types_.stringT});
         }
         if (name == "writeFile" || name == "appendFile")
         {
@@ -581,7 +597,10 @@ namespace pgt
         }
         llvm::Type *ty = llvmType(target.type);
         llvm::Value *cur = builder_.CreateLoad(ty, target.addr);
-        builder_.CreateStore(rt(reader, ty, {cur}), target.addr);
+        llvm::Value *result = rt(reader, ty, {cur}); // strings: an owned reference (cur is retained if kept)
+        builder_.CreateStore(result, target.addr);
+        if (target.type->is(Type::Kind::String))
+            emitRelease(cur, target.type);
     }
 
 }
