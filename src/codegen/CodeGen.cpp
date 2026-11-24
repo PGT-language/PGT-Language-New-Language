@@ -359,6 +359,9 @@ namespace pgt
             checkStructCycles();
             for (const auto &pkg : workspace.packages)
                 declareFunctions(*pkg);
+            for (const char *name : {"panicString", "panicIndex", "panicNil", "panicDiv"})
+                runtimeFn(name).fn->addFnAttr(llvm::Attribute::NoReturn);
+            runtimeFn("panicString").fn->setLinkage(llvm::Function::ExternalLinkage);
             for (const auto &pkg : workspace.packages)
                 genGlobals(*pkg);
 

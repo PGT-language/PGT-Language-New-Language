@@ -76,6 +76,11 @@ namespace pgt
         return syms_.at("memory").functions.at(name);
     }
 
+    const FuncInfo &CodeGen::runtimeFn(const std::string &name)
+    {
+        return syms_.at("runtime").functions.at(name);
+    }
+
     void CodeGen::genManualVarDecl(const VarDecl &decl)
     {
         const auto &m = static_cast<const MallocExpr &>(*decl.init);

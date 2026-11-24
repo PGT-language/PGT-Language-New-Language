@@ -34,30 +34,7 @@ void pgt_rt_init(int argc, char **argv)
     }
 }
 
-_Noreturn void pgt_panic(const char *msg)
-{
-    fflush(stdout);
-    fprintf(stderr, "panic: %s\n", msg ? msg : "");
-    exit(2);
-}
-
-_Noreturn void pgt_panic_index(int64_t index, int64_t len)
-{
-    fflush(stdout);
-    fprintf(stderr, "panic: index out of range [%lld] with length %lld\n", (long long)index,
-            (long long)len);
-    exit(2);
-}
-
-_Noreturn void pgt_panic_nil(void)
-{
-    pgt_panic("nil pointer dereference");
-}
-
-_Noreturn void pgt_panic_div(void)
-{
-    pgt_panic("integer divide by zero");
-}
+extern _Noreturn void pgt_panic(const char *msg) __asm__("pgt.runtime.panicString");
 
 typedef struct
 {

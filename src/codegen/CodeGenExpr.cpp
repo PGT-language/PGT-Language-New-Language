@@ -214,7 +214,7 @@ namespace pgt
 
     void CodeGen::nilCheck(llvm::Value *ptr)
     {
-        panicIf(builder_.CreateIsNull(ptr), "pgt_panic_nil", {});
+        panicIf(builder_.CreateIsNull(ptr), "panicNil", {});
     }
 
     void CodeGen::genOperands(const Expr &lhs, const Expr &rhs, TyP hint, Value &l, Value &r)
@@ -545,7 +545,7 @@ namespace pgt
         {
             if (auto *c = llvm::dyn_cast<llvm::ConstantInt>(r.value); !c || c->isZero())
                 panicIf(builder_.CreateICmpEQ(r.value, llvm::ConstantInt::get(llvmType(t), 0)),
-                        "pgt_panic_div", {});
+                        "panicDiv", {});
             if (op == BinOp::Div)
                 return {isSigned ? builder_.CreateSDiv(l.value, r.value)
                                  : builder_.CreateUDiv(l.value, r.value),
@@ -621,7 +621,7 @@ namespace pgt
         llvm::Value *idx = builder_.CreateIntCast(i.value, builder_.getInt64Ty(),
                                                   !i.type->isUnsigned());
         llvm::Value *len = builder_.CreateExtractValue(arr.value, 1, "len");
-        panicIf(builder_.CreateICmpUGE(idx, len), "pgt_panic_index", {idx, len});
+        panicIf(builder_.CreateICmpUGE(idx, len), "panicIndex", {idx, len});
         llvm::Value *data = builder_.CreateExtractValue(arr.value, 0, "data");
         (void)line;
         (void)col;
@@ -783,7 +783,7 @@ namespace pgt
                                                      !i.type->isUnsigned());
             llvm::Value *len = builder_.CreateSExt(rt("pgt_strlen", builder_.getInt32Ty(), {base.value}),
                                                    builder_.getInt64Ty());
-            panicIf(builder_.CreateICmpUGE(at, len), "pgt_panic_index", {at, len});
+            panicIf(builder_.CreateICmpUGE(at, len), "panicIndex", {at, len});
             llvm::Value *p = builder_.CreateGEP(builder_.getInt8Ty(), base.value, at);
             return {builder_.CreateLoad(builder_.getInt8Ty(), p), types_.charT};
         }
@@ -1031,7 +1031,7 @@ namespace pgt
 
         llvm::Value *data = builder_.CreateExtractValue(iface.value, 0, "iface.data");
         llvm::Value *vt = builder_.CreateExtractValue(iface.value, 1, "iface.vtable");
-        panicIf(builder_.CreateIsNull(vt), "pgt_panic",
+        panicIf(builder_.CreateIsNull(vt), "panicString",
                 {builder_.CreateGlobalString("method call on a nil interface", ".str")});
 
         std::vector<llvm::Type *> paramTys{builder_.getPtrTy()};

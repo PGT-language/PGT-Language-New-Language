@@ -1,0 +1,8 @@
+// error: documentation only
+package main
+
+#use "builtin"
+
+fn main() {
+}
+return 0

@@ -1,0 +1,83 @@
+// Package builtin documents the PGT builtin functions, like builtin.go does for Go.
+// It is never compiled or loaded: importing it with #use "builtin" is an error.
+// The compiler recognizes these names itself; the signatures below are descriptive, not real code.
+//
+// Runtime failures (panic, out-of-range index, nil, division by zero) are implemented
+// in PGT in the std/runtime package, which is linked into every program implicitly.
+
+// fn panic(msg string)
+// panic prints "panic: <msg>" to stderr, flushes stdout and terminates the program with exit code 2.
+// The compiler turns the call into runtime.panicString. The argument is converted to a string.
+
+// fn exit(code int)
+// exit flushes stdout and terminates the program immediately with the given code.
+
+// fn print(args ...)
+// print writes its arguments one after another, without a trailing newline.
+
+// fn println(args ...)
+// println writes its arguments separated by spaces, followed by a newline.
+
+// fn input(prompt string, target)
+// input prints a prompt and reads a value into target (int, int64, float, char, bool, or a single-word string).
+
+// fn inputln(prompt string, target string)
+// inputln prints a prompt and reads a whole line.
+
+// fn len(x) int
+// len returns the length of a string, array or slice.
+
+// fn append(a []T, items ...T) []T
+// append returns the array with the items added; if capacity is insufficient it allocates a new block.
+
+// fn make([]T, len int, cap int) []T
+// make creates an array of zero values with length len and capacity cap (cap is optional). A negative length panics.
+
+// fn new(T) *T
+// new allocates a zero-initialized value of type T and returns a pointer to it.
+
+// fn malloc(free[T] n) []T
+// malloc allocates n elements of type T manually, for var&; implemented in std/memory (memory.alloc).
+
+// fn free(x []T)
+// free releases a block allocated by malloc; calling free again is safe (memory.release).
+
+// fn unsafeData(a []T) *T
+// unsafeData returns a pointer to the array's data.
+
+// fn unsafeSlice(p *T, n int64) []T
+// unsafeSlice wraps a block of memory as an array of length and capacity n, without reference counting.
+
+// fn str(x) string
+// str converts a value to a string.
+
+// fn chars(s string) []char
+// chars splits a string into characters.
+
+// fn parseInt(s string) int
+// fn parseInt64(s string) int64
+// fn parseFloat(s string) float
+// These functions parse a number from a string.
+
+// fn substr(s string, start int, n int) string
+// substr returns a substring.
+
+// fn indexOf(s string, sub string) int
+// indexOf returns the index of the first occurrence of sub in s, or -1.
+
+// fn upper(s string) string
+// fn lower(s string) string
+// These functions change the case of a string.
+
+// fn abs(x) / min(a, b) / max(a, b) / pow(x, y)
+// These are simple numeric functions.
+
+// fn rand() int
+// fn srand(seed int)
+// These functions implement a pseudo-random number generator.
+
+// fn readFile(path string) string
+// fn writeFile(path string, data string) bool
+// fn appendFile(path string, data string) bool
+// fn fileExists(path string) bool
+// These functions provide basic file access.

@@ -19,6 +19,7 @@ namespace pgt
     private:
         Package *loadPackage(const std::filesystem::path &dir, std::vector<std::string> files,
                              bool isRoot, const std::string &importPath);
+        void loadRuntime();
         std::string importPathFor(const std::filesystem::path &dir, const std::string &packageName) const;
         std::filesystem::path resolveImport(const Import &imp, const std::string &file) const;
 

@@ -132,6 +132,7 @@ namespace pgt
         void genStmt(const Stmt &stmt);
         void genVarDecl(const VarDecl &decl);
         void genManualVarDecl(const VarDecl &decl);
+        const FuncInfo &runtimeFn(const std::string &name);
         const FuncInfo &memoryFn(const std::string &name);
         void genAssign(const Assign &assign);
         void genReturn(const Return &ret);

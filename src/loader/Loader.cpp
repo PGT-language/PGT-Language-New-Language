@@ -87,8 +87,22 @@ namespace pgt
             mod_ = parseModFile(*modPath);
 
         stdDir_ = findStdDir();
+        loadRuntime();
         ws_.root = loadPackage(dir, std::move(files), true, "");
         return std::move(ws_);
+    }
+
+    void Loader::loadRuntime()
+    {
+        if (!stdDir_ || !fs::is_directory(*stdDir_ / "runtime"))
+            failAt("the runtime package was not found in the standard library" +
+                       std::string(stdDir_ ? "" : " (the standard library directory was not found; set PGT_STD)"),
+                   "runtime", 0, 0);
+        fs::path dir = *stdDir_ / "runtime";
+        std::vector<std::string> files = listSources(dir);
+        for (std::string &f : files)
+            f = displayPath(f);
+        loadPackage(dir, std::move(files), false, "runtime");
     }
 
     std::string Loader::importPathFor(const fs::path &dir, const std::string &packageName) const
@@ -127,6 +141,9 @@ namespace pgt
 
     fs::path Loader::resolveImport(const Import &imp, const std::string &file) const
     {
+        if (imp.path == "builtin")
+            failAt("package \"builtin\" is documentation only and cannot be imported", file, imp.line,
+                   imp.col);
         if (auto dir = resolveImportDir(imp.path, mod_, stdDir_))
             return *dir;
 

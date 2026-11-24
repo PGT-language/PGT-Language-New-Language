@@ -38,7 +38,7 @@ namespace pgt
         auto *ok = llvm::BasicBlock::Create(ctx_, "ok", f);
         builder_.CreateCondBr(cond, bad, ok);
         builder_.SetInsertPoint(bad);
-        rt(fn, builder_.getVoidTy(), args, true);
+        builder_.CreateCall(runtimeFn(fn).fn, args);
         builder_.CreateUnreachable();
         builder_.SetInsertPoint(ok);
     }
@@ -365,7 +365,7 @@ namespace pgt
         {
             arity(1);
             Value msg = toStringValue(genExpr(*call.args[0]), call.line, call.col);
-            rt("pgt_panic", builder_.getVoidTy(), {msg.value}, true);
+            builder_.CreateCall(runtimeFn("panicString").fn, {msg.value});
             builder_.CreateUnreachable();
             startDeadBlock();
             return voidV;
