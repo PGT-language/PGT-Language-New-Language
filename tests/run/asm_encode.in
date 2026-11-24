@@ -1,0 +1,3835 @@
+mov rax, r15
+mov rcx, r14
+mov rdx, r13
+mov rbx, r12
+mov rsp, r11
+mov rbp, r10
+mov rsi, r9
+mov rdi, r8
+mov r8, rdi
+mov r9, rsi
+mov r10, rbp
+mov r11, rsp
+mov r12, rbx
+mov r13, rdx
+mov r14, rcx
+mov r15, rax
+mov eax, r15d
+mov ecx, r14d
+mov edx, r13d
+mov ebx, r12d
+mov esp, r11d
+mov ebp, r10d
+mov esi, r9d
+mov edi, r8d
+mov r8d, edi
+mov r9d, esi
+mov r10d, ebp
+mov r11d, esp
+mov r12d, ebx
+mov r13d, edx
+mov r14d, ecx
+mov r15d, eax
+mov ax, r15w
+mov cx, r14w
+mov dx, r13w
+mov bx, r12w
+mov sp, r11w
+mov bp, r10w
+mov si, r9w
+mov di, r8w
+mov r8w, di
+mov r9w, si
+mov r10w, bp
+mov r11w, sp
+mov r12w, bx
+mov r13w, dx
+mov r14w, cx
+mov r15w, ax
+mov al, r15b
+mov cl, r14b
+mov dl, r13b
+mov bl, r12b
+mov spl, r11b
+mov bpl, r10b
+mov sil, r9b
+mov dil, r8b
+mov r8b, dil
+mov r9b, sil
+mov r10b, bpl
+mov r11b, spl
+mov r12b, bl
+mov r13b, dl
+mov r14b, cl
+mov r15b, al
+mov ah, al
+mov cl, ah
+mov ah, 5
+mov ch, al
+mov cl, ch
+mov ch, 5
+mov dh, al
+mov cl, dh
+mov dh, 5
+mov bh, al
+mov cl, bh
+mov bh, 5
+mov rax, 10
+mov rcx, 10
+mov rdx, 10
+mov rbx, 10
+mov rsp, 10
+mov rbp, 10
+mov rsi, 10
+mov rdi, 10
+mov r8, 10
+mov r9, 10
+mov r10, 10
+mov r11, 10
+mov r12, 10
+mov r13, 10
+mov r14, 10
+mov r15, 10
+mov eax, 10
+mov ecx, 10
+mov edx, 10
+mov ebx, 10
+mov esp, 10
+mov ebp, 10
+mov esi, 10
+mov edi, 10
+mov r8d, 10
+mov r9d, 10
+mov r10d, 10
+mov r11d, 10
+mov r12d, 10
+mov r13d, 10
+mov r14d, 10
+mov r15d, 10
+mov ax, 10
+mov cx, 10
+mov dx, 10
+mov bx, 10
+mov sp, 10
+mov bp, 10
+mov si, 10
+mov di, 10
+mov r8w, 10
+mov r9w, 10
+mov r10w, 10
+mov r11w, 10
+mov r12w, 10
+mov r13w, 10
+mov r14w, 10
+mov r15w, 10
+mov al, 10
+mov cl, 10
+mov dl, 10
+mov bl, 10
+mov spl, 10
+mov bpl, 10
+mov sil, 10
+mov dil, 10
+mov r8b, 10
+mov r9b, 10
+mov r10b, 10
+mov r11b, 10
+mov r12b, 10
+mov r13b, 10
+mov r14b, 10
+mov r15b, 10
+mov rax, 0
+mov r11, 0
+mov rax, -1
+mov r11, -1
+mov rax, 0x7fffffff
+mov r11, 0x7fffffff
+mov rax, -0x80000000
+mov r11, -0x80000000
+mov rax, 0x80000000
+mov r11, 0x80000000
+mov rax, 0xffffffff
+mov r11, 0xffffffff
+mov rax, 0x100000000
+mov r11, 0x100000000
+mov rax, 0x123456789abcdef0
+mov r11, 0x123456789abcdef0
+mov rax, -0x80000001
+mov r11, -0x80000001
+mov eax, 0xffffffff
+mov eax, -1
+mov ax, -1
+mov al, -1
+mov al, 255
+mov rax, qword ptr [rax]
+mov qword ptr [rax], rbx
+mov r9d, dword ptr [rax]
+mov dword ptr [rax], 5
+mov qword ptr [rax], -2
+mov byte ptr [rax], 0x7f
+mov word ptr [rax], 0x1234
+mov byte ptr [rax], sil
+mov cl, byte ptr [rax]
+lea rax, [rax]
+lea r10d, [rax]
+lea cx, [rax]
+movzx eax, byte ptr [rax]
+movsx rax, word ptr [rax]
+movsxd rax, dword ptr [rax]
+add qword ptr [rax], 1
+cmp dword ptr [rax], 0x1000
+xchg qword ptr [rax], rdx
+push qword ptr [rax]
+pop qword ptr [rax]
+call qword ptr [rax]
+jmp qword ptr [rax]
+inc dword ptr [rax]
+neg byte ptr [rax]
+shl qword ptr [rax], 3
+sar dword ptr [rax], cl
+sete byte ptr [rax]
+cmovne rax, qword ptr [rax]
+imul rax, qword ptr [rax]
+imul ecx, dword ptr [rax], 100
+test qword ptr [rax], rax
+test byte ptr [rax], 1
+idiv qword ptr [rax]
+mul dword ptr [rax]
+mov rax, qword ptr [rcx + 8]
+mov qword ptr [rcx + 8], rbx
+mov r9d, dword ptr [rcx + 8]
+mov dword ptr [rcx + 8], 5
+mov qword ptr [rcx + 8], -2
+mov byte ptr [rcx + 8], 0x7f
+mov word ptr [rcx + 8], 0x1234
+mov byte ptr [rcx + 8], sil
+mov cl, byte ptr [rcx + 8]
+lea rax, [rcx + 8]
+lea r10d, [rcx + 8]
+lea cx, [rcx + 8]
+movzx eax, byte ptr [rcx + 8]
+movsx rax, word ptr [rcx + 8]
+movsxd rax, dword ptr [rcx + 8]
+add qword ptr [rcx + 8], 1
+cmp dword ptr [rcx + 8], 0x1000
+xchg qword ptr [rcx + 8], rdx
+push qword ptr [rcx + 8]
+pop qword ptr [rcx + 8]
+call qword ptr [rcx + 8]
+jmp qword ptr [rcx + 8]
+inc dword ptr [rcx + 8]
+neg byte ptr [rcx + 8]
+shl qword ptr [rcx + 8], 3
+sar dword ptr [rcx + 8], cl
+sete byte ptr [rcx + 8]
+cmovne rax, qword ptr [rcx + 8]
+imul rax, qword ptr [rcx + 8]
+imul ecx, dword ptr [rcx + 8], 100
+test qword ptr [rcx + 8], rax
+test byte ptr [rcx + 8], 1
+idiv qword ptr [rcx + 8]
+mul dword ptr [rcx + 8]
+mov rax, qword ptr [rdx - 8]
+mov qword ptr [rdx - 8], rbx
+mov r9d, dword ptr [rdx - 8]
+mov dword ptr [rdx - 8], 5
+mov qword ptr [rdx - 8], -2
+mov byte ptr [rdx - 8], 0x7f
+mov word ptr [rdx - 8], 0x1234
+mov byte ptr [rdx - 8], sil
+mov cl, byte ptr [rdx - 8]
+lea rax, [rdx - 8]
+lea r10d, [rdx - 8]
+lea cx, [rdx - 8]
+movzx eax, byte ptr [rdx - 8]
+movsx rax, word ptr [rdx - 8]
+movsxd rax, dword ptr [rdx - 8]
+add qword ptr [rdx - 8], 1
+cmp dword ptr [rdx - 8], 0x1000
+xchg qword ptr [rdx - 8], rdx
+push qword ptr [rdx - 8]
+pop qword ptr [rdx - 8]
+call qword ptr [rdx - 8]
+jmp qword ptr [rdx - 8]
+inc dword ptr [rdx - 8]
+neg byte ptr [rdx - 8]
+shl qword ptr [rdx - 8], 3
+sar dword ptr [rdx - 8], cl
+sete byte ptr [rdx - 8]
+cmovne rax, qword ptr [rdx - 8]
+imul rax, qword ptr [rdx - 8]
+imul ecx, dword ptr [rdx - 8], 100
+test qword ptr [rdx - 8], rax
+test byte ptr [rdx - 8], 1
+idiv qword ptr [rdx - 8]
+mul dword ptr [rdx - 8]
+mov rax, qword ptr [rbx + 0x1000]
+mov qword ptr [rbx + 0x1000], rbx
+mov r9d, dword ptr [rbx + 0x1000]
+mov dword ptr [rbx + 0x1000], 5
+mov qword ptr [rbx + 0x1000], -2
+mov byte ptr [rbx + 0x1000], 0x7f
+mov word ptr [rbx + 0x1000], 0x1234
+mov byte ptr [rbx + 0x1000], sil
+mov cl, byte ptr [rbx + 0x1000]
+lea rax, [rbx + 0x1000]
+lea r10d, [rbx + 0x1000]
+lea cx, [rbx + 0x1000]
+movzx eax, byte ptr [rbx + 0x1000]
+movsx rax, word ptr [rbx + 0x1000]
+movsxd rax, dword ptr [rbx + 0x1000]
+add qword ptr [rbx + 0x1000], 1
+cmp dword ptr [rbx + 0x1000], 0x1000
+xchg qword ptr [rbx + 0x1000], rdx
+push qword ptr [rbx + 0x1000]
+pop qword ptr [rbx + 0x1000]
+call qword ptr [rbx + 0x1000]
+jmp qword ptr [rbx + 0x1000]
+inc dword ptr [rbx + 0x1000]
+neg byte ptr [rbx + 0x1000]
+shl qword ptr [rbx + 0x1000], 3
+sar dword ptr [rbx + 0x1000], cl
+sete byte ptr [rbx + 0x1000]
+cmovne rax, qword ptr [rbx + 0x1000]
+imul rax, qword ptr [rbx + 0x1000]
+imul ecx, dword ptr [rbx + 0x1000], 100
+test qword ptr [rbx + 0x1000], rax
+test byte ptr [rbx + 0x1000], 1
+idiv qword ptr [rbx + 0x1000]
+mul dword ptr [rbx + 0x1000]
+mov rax, qword ptr [rsp]
+mov qword ptr [rsp], rbx
+mov r9d, dword ptr [rsp]
+mov dword ptr [rsp], 5
+mov qword ptr [rsp], -2
+mov byte ptr [rsp], 0x7f
+mov word ptr [rsp], 0x1234
+mov byte ptr [rsp], sil
+mov cl, byte ptr [rsp]
+lea rax, [rsp]
+lea r10d, [rsp]
+lea cx, [rsp]
+movzx eax, byte ptr [rsp]
+movsx rax, word ptr [rsp]
+movsxd rax, dword ptr [rsp]
+add qword ptr [rsp], 1
+cmp dword ptr [rsp], 0x1000
+xchg qword ptr [rsp], rdx
+push qword ptr [rsp]
+pop qword ptr [rsp]
+call qword ptr [rsp]
+jmp qword ptr [rsp]
+inc dword ptr [rsp]
+neg byte ptr [rsp]
+shl qword ptr [rsp], 3
+sar dword ptr [rsp], cl
+sete byte ptr [rsp]
+cmovne rax, qword ptr [rsp]
+imul rax, qword ptr [rsp]
+imul ecx, dword ptr [rsp], 100
+test qword ptr [rsp], rax
+test byte ptr [rsp], 1
+idiv qword ptr [rsp]
+mul dword ptr [rsp]
+mov rax, qword ptr [rsp + 16]
+mov qword ptr [rsp + 16], rbx
+mov r9d, dword ptr [rsp + 16]
+mov dword ptr [rsp + 16], 5
+mov qword ptr [rsp + 16], -2
+mov byte ptr [rsp + 16], 0x7f
+mov word ptr [rsp + 16], 0x1234
+mov byte ptr [rsp + 16], sil
+mov cl, byte ptr [rsp + 16]
+lea rax, [rsp + 16]
+lea r10d, [rsp + 16]
+lea cx, [rsp + 16]
+movzx eax, byte ptr [rsp + 16]
+movsx rax, word ptr [rsp + 16]
+movsxd rax, dword ptr [rsp + 16]
+add qword ptr [rsp + 16], 1
+cmp dword ptr [rsp + 16], 0x1000
+xchg qword ptr [rsp + 16], rdx
+push qword ptr [rsp + 16]
+pop qword ptr [rsp + 16]
+call qword ptr [rsp + 16]
+jmp qword ptr [rsp + 16]
+inc dword ptr [rsp + 16]
+neg byte ptr [rsp + 16]
+shl qword ptr [rsp + 16], 3
+sar dword ptr [rsp + 16], cl
+sete byte ptr [rsp + 16]
+cmovne rax, qword ptr [rsp + 16]
+imul rax, qword ptr [rsp + 16]
+imul ecx, dword ptr [rsp + 16], 100
+test qword ptr [rsp + 16], rax
+test byte ptr [rsp + 16], 1
+idiv qword ptr [rsp + 16]
+mul dword ptr [rsp + 16]
+mov rax, qword ptr [rbp]
+mov qword ptr [rbp], rbx
+mov r9d, dword ptr [rbp]
+mov dword ptr [rbp], 5
+mov qword ptr [rbp], -2
+mov byte ptr [rbp], 0x7f
+mov word ptr [rbp], 0x1234
+mov byte ptr [rbp], sil
+mov cl, byte ptr [rbp]
+lea rax, [rbp]
+lea r10d, [rbp]
+lea cx, [rbp]
+movzx eax, byte ptr [rbp]
+movsx rax, word ptr [rbp]
+movsxd rax, dword ptr [rbp]
+add qword ptr [rbp], 1
+cmp dword ptr [rbp], 0x1000
+xchg qword ptr [rbp], rdx
+push qword ptr [rbp]
+pop qword ptr [rbp]
+call qword ptr [rbp]
+jmp qword ptr [rbp]
+inc dword ptr [rbp]
+neg byte ptr [rbp]
+shl qword ptr [rbp], 3
+sar dword ptr [rbp], cl
+sete byte ptr [rbp]
+cmovne rax, qword ptr [rbp]
+imul rax, qword ptr [rbp]
+imul ecx, dword ptr [rbp], 100
+test qword ptr [rbp], rax
+test byte ptr [rbp], 1
+idiv qword ptr [rbp]
+mul dword ptr [rbp]
+mov rax, qword ptr [rbp + 4]
+mov qword ptr [rbp + 4], rbx
+mov r9d, dword ptr [rbp + 4]
+mov dword ptr [rbp + 4], 5
+mov qword ptr [rbp + 4], -2
+mov byte ptr [rbp + 4], 0x7f
+mov word ptr [rbp + 4], 0x1234
+mov byte ptr [rbp + 4], sil
+mov cl, byte ptr [rbp + 4]
+lea rax, [rbp + 4]
+lea r10d, [rbp + 4]
+lea cx, [rbp + 4]
+movzx eax, byte ptr [rbp + 4]
+movsx rax, word ptr [rbp + 4]
+movsxd rax, dword ptr [rbp + 4]
+add qword ptr [rbp + 4], 1
+cmp dword ptr [rbp + 4], 0x1000
+xchg qword ptr [rbp + 4], rdx
+push qword ptr [rbp + 4]
+pop qword ptr [rbp + 4]
+call qword ptr [rbp + 4]
+jmp qword ptr [rbp + 4]
+inc dword ptr [rbp + 4]
+neg byte ptr [rbp + 4]
+shl qword ptr [rbp + 4], 3
+sar dword ptr [rbp + 4], cl
+sete byte ptr [rbp + 4]
+cmovne rax, qword ptr [rbp + 4]
+imul rax, qword ptr [rbp + 4]
+imul ecx, dword ptr [rbp + 4], 100
+test qword ptr [rbp + 4], rax
+test byte ptr [rbp + 4], 1
+idiv qword ptr [rbp + 4]
+mul dword ptr [rbp + 4]
+mov rax, qword ptr [r12]
+mov qword ptr [r12], rbx
+mov r9d, dword ptr [r12]
+mov dword ptr [r12], 5
+mov qword ptr [r12], -2
+mov byte ptr [r12], 0x7f
+mov word ptr [r12], 0x1234
+mov byte ptr [r12], sil
+mov cl, byte ptr [r12]
+lea rax, [r12]
+lea r10d, [r12]
+lea cx, [r12]
+movzx eax, byte ptr [r12]
+movsx rax, word ptr [r12]
+movsxd rax, dword ptr [r12]
+add qword ptr [r12], 1
+cmp dword ptr [r12], 0x1000
+xchg qword ptr [r12], rdx
+push qword ptr [r12]
+pop qword ptr [r12]
+call qword ptr [r12]
+jmp qword ptr [r12]
+inc dword ptr [r12]
+neg byte ptr [r12]
+shl qword ptr [r12], 3
+sar dword ptr [r12], cl
+sete byte ptr [r12]
+cmovne rax, qword ptr [r12]
+imul rax, qword ptr [r12]
+imul ecx, dword ptr [r12], 100
+test qword ptr [r12], rax
+test byte ptr [r12], 1
+idiv qword ptr [r12]
+mul dword ptr [r12]
+mov rax, qword ptr [r12 + 8]
+mov qword ptr [r12 + 8], rbx
+mov r9d, dword ptr [r12 + 8]
+mov dword ptr [r12 + 8], 5
+mov qword ptr [r12 + 8], -2
+mov byte ptr [r12 + 8], 0x7f
+mov word ptr [r12 + 8], 0x1234
+mov byte ptr [r12 + 8], sil
+mov cl, byte ptr [r12 + 8]
+lea rax, [r12 + 8]
+lea r10d, [r12 + 8]
+lea cx, [r12 + 8]
+movzx eax, byte ptr [r12 + 8]
+movsx rax, word ptr [r12 + 8]
+movsxd rax, dword ptr [r12 + 8]
+add qword ptr [r12 + 8], 1
+cmp dword ptr [r12 + 8], 0x1000
+xchg qword ptr [r12 + 8], rdx
+push qword ptr [r12 + 8]
+pop qword ptr [r12 + 8]
+call qword ptr [r12 + 8]
+jmp qword ptr [r12 + 8]
+inc dword ptr [r12 + 8]
+neg byte ptr [r12 + 8]
+shl qword ptr [r12 + 8], 3
+sar dword ptr [r12 + 8], cl
+sete byte ptr [r12 + 8]
+cmovne rax, qword ptr [r12 + 8]
+imul rax, qword ptr [r12 + 8]
+imul ecx, dword ptr [r12 + 8], 100
+test qword ptr [r12 + 8], rax
+test byte ptr [r12 + 8], 1
+idiv qword ptr [r12 + 8]
+mul dword ptr [r12 + 8]
+mov rax, qword ptr [r13]
+mov qword ptr [r13], rbx
+mov r9d, dword ptr [r13]
+mov dword ptr [r13], 5
+mov qword ptr [r13], -2
+mov byte ptr [r13], 0x7f
+mov word ptr [r13], 0x1234
+mov byte ptr [r13], sil
+mov cl, byte ptr [r13]
+lea rax, [r13]
+lea r10d, [r13]
+lea cx, [r13]
+movzx eax, byte ptr [r13]
+movsx rax, word ptr [r13]
+movsxd rax, dword ptr [r13]
+add qword ptr [r13], 1
+cmp dword ptr [r13], 0x1000
+xchg qword ptr [r13], rdx
+push qword ptr [r13]
+pop qword ptr [r13]
+call qword ptr [r13]
+jmp qword ptr [r13]
+inc dword ptr [r13]
+neg byte ptr [r13]
+shl qword ptr [r13], 3
+sar dword ptr [r13], cl
+sete byte ptr [r13]
+cmovne rax, qword ptr [r13]
+imul rax, qword ptr [r13]
+imul ecx, dword ptr [r13], 100
+test qword ptr [r13], rax
+test byte ptr [r13], 1
+idiv qword ptr [r13]
+mul dword ptr [r13]
+mov rax, qword ptr [r13 + 8]
+mov qword ptr [r13 + 8], rbx
+mov r9d, dword ptr [r13 + 8]
+mov dword ptr [r13 + 8], 5
+mov qword ptr [r13 + 8], -2
+mov byte ptr [r13 + 8], 0x7f
+mov word ptr [r13 + 8], 0x1234
+mov byte ptr [r13 + 8], sil
+mov cl, byte ptr [r13 + 8]
+lea rax, [r13 + 8]
+lea r10d, [r13 + 8]
+lea cx, [r13 + 8]
+movzx eax, byte ptr [r13 + 8]
+movsx rax, word ptr [r13 + 8]
+movsxd rax, dword ptr [r13 + 8]
+add qword ptr [r13 + 8], 1
+cmp dword ptr [r13 + 8], 0x1000
+xchg qword ptr [r13 + 8], rdx
+push qword ptr [r13 + 8]
+pop qword ptr [r13 + 8]
+call qword ptr [r13 + 8]
+jmp qword ptr [r13 + 8]
+inc dword ptr [r13 + 8]
+neg byte ptr [r13 + 8]
+shl qword ptr [r13 + 8], 3
+sar dword ptr [r13 + 8], cl
+sete byte ptr [r13 + 8]
+cmovne rax, qword ptr [r13 + 8]
+imul rax, qword ptr [r13 + 8]
+imul ecx, dword ptr [r13 + 8], 100
+test qword ptr [r13 + 8], rax
+test byte ptr [r13 + 8], 1
+idiv qword ptr [r13 + 8]
+mul dword ptr [r13 + 8]
+mov rax, qword ptr [rax + rbx*4]
+mov qword ptr [rax + rbx*4], rbx
+mov r9d, dword ptr [rax + rbx*4]
+mov dword ptr [rax + rbx*4], 5
+mov qword ptr [rax + rbx*4], -2
+mov byte ptr [rax + rbx*4], 0x7f
+mov word ptr [rax + rbx*4], 0x1234
+mov byte ptr [rax + rbx*4], sil
+mov cl, byte ptr [rax + rbx*4]
+lea rax, [rax + rbx*4]
+lea r10d, [rax + rbx*4]
+lea cx, [rax + rbx*4]
+movzx eax, byte ptr [rax + rbx*4]
+movsx rax, word ptr [rax + rbx*4]
+movsxd rax, dword ptr [rax + rbx*4]
+add qword ptr [rax + rbx*4], 1
+cmp dword ptr [rax + rbx*4], 0x1000
+xchg qword ptr [rax + rbx*4], rdx
+push qword ptr [rax + rbx*4]
+pop qword ptr [rax + rbx*4]
+call qword ptr [rax + rbx*4]
+jmp qword ptr [rax + rbx*4]
+inc dword ptr [rax + rbx*4]
+neg byte ptr [rax + rbx*4]
+shl qword ptr [rax + rbx*4], 3
+sar dword ptr [rax + rbx*4], cl
+sete byte ptr [rax + rbx*4]
+cmovne rax, qword ptr [rax + rbx*4]
+imul rax, qword ptr [rax + rbx*4]
+imul ecx, dword ptr [rax + rbx*4], 100
+test qword ptr [rax + rbx*4], rax
+test byte ptr [rax + rbx*4], 1
+idiv qword ptr [rax + rbx*4]
+mul dword ptr [rax + rbx*4]
+mov rax, qword ptr [rax + rbx*2 + 0x10]
+mov qword ptr [rax + rbx*2 + 0x10], rbx
+mov r9d, dword ptr [rax + rbx*2 + 0x10]
+mov dword ptr [rax + rbx*2 + 0x10], 5
+mov qword ptr [rax + rbx*2 + 0x10], -2
+mov byte ptr [rax + rbx*2 + 0x10], 0x7f
+mov word ptr [rax + rbx*2 + 0x10], 0x1234
+mov byte ptr [rax + rbx*2 + 0x10], sil
+mov cl, byte ptr [rax + rbx*2 + 0x10]
+lea rax, [rax + rbx*2 + 0x10]
+lea r10d, [rax + rbx*2 + 0x10]
+lea cx, [rax + rbx*2 + 0x10]
+movzx eax, byte ptr [rax + rbx*2 + 0x10]
+movsx rax, word ptr [rax + rbx*2 + 0x10]
+movsxd rax, dword ptr [rax + rbx*2 + 0x10]
+add qword ptr [rax + rbx*2 + 0x10], 1
+cmp dword ptr [rax + rbx*2 + 0x10], 0x1000
+xchg qword ptr [rax + rbx*2 + 0x10], rdx
+push qword ptr [rax + rbx*2 + 0x10]
+pop qword ptr [rax + rbx*2 + 0x10]
+call qword ptr [rax + rbx*2 + 0x10]
+jmp qword ptr [rax + rbx*2 + 0x10]
+inc dword ptr [rax + rbx*2 + 0x10]
+neg byte ptr [rax + rbx*2 + 0x10]
+shl qword ptr [rax + rbx*2 + 0x10], 3
+sar dword ptr [rax + rbx*2 + 0x10], cl
+sete byte ptr [rax + rbx*2 + 0x10]
+cmovne rax, qword ptr [rax + rbx*2 + 0x10]
+imul rax, qword ptr [rax + rbx*2 + 0x10]
+imul ecx, dword ptr [rax + rbx*2 + 0x10], 100
+test qword ptr [rax + rbx*2 + 0x10], rax
+test byte ptr [rax + rbx*2 + 0x10], 1
+idiv qword ptr [rax + rbx*2 + 0x10]
+mul dword ptr [rax + rbx*2 + 0x10]
+mov rax, qword ptr [rsp + rax*8 + 0x100]
+mov qword ptr [rsp + rax*8 + 0x100], rbx
+mov r9d, dword ptr [rsp + rax*8 + 0x100]
+mov dword ptr [rsp + rax*8 + 0x100], 5
+mov qword ptr [rsp + rax*8 + 0x100], -2
+mov byte ptr [rsp + rax*8 + 0x100], 0x7f
+mov word ptr [rsp + rax*8 + 0x100], 0x1234
+mov byte ptr [rsp + rax*8 + 0x100], sil
+mov cl, byte ptr [rsp + rax*8 + 0x100]
+lea rax, [rsp + rax*8 + 0x100]
+lea r10d, [rsp + rax*8 + 0x100]
+lea cx, [rsp + rax*8 + 0x100]
+movzx eax, byte ptr [rsp + rax*8 + 0x100]
+movsx rax, word ptr [rsp + rax*8 + 0x100]
+movsxd rax, dword ptr [rsp + rax*8 + 0x100]
+add qword ptr [rsp + rax*8 + 0x100], 1
+cmp dword ptr [rsp + rax*8 + 0x100], 0x1000
+xchg qword ptr [rsp + rax*8 + 0x100], rdx
+push qword ptr [rsp + rax*8 + 0x100]
+pop qword ptr [rsp + rax*8 + 0x100]
+call qword ptr [rsp + rax*8 + 0x100]
+jmp qword ptr [rsp + rax*8 + 0x100]
+inc dword ptr [rsp + rax*8 + 0x100]
+neg byte ptr [rsp + rax*8 + 0x100]
+shl qword ptr [rsp + rax*8 + 0x100], 3
+sar dword ptr [rsp + rax*8 + 0x100], cl
+sete byte ptr [rsp + rax*8 + 0x100]
+cmovne rax, qword ptr [rsp + rax*8 + 0x100]
+imul rax, qword ptr [rsp + rax*8 + 0x100]
+imul ecx, dword ptr [rsp + rax*8 + 0x100], 100
+test qword ptr [rsp + rax*8 + 0x100], rax
+test byte ptr [rsp + rax*8 + 0x100], 1
+idiv qword ptr [rsp + rax*8 + 0x100]
+mul dword ptr [rsp + rax*8 + 0x100]
+mov rax, qword ptr [r8 + r9*8 - 4]
+mov qword ptr [r8 + r9*8 - 4], rbx
+mov r9d, dword ptr [r8 + r9*8 - 4]
+mov dword ptr [r8 + r9*8 - 4], 5
+mov qword ptr [r8 + r9*8 - 4], -2
+mov byte ptr [r8 + r9*8 - 4], 0x7f
+mov word ptr [r8 + r9*8 - 4], 0x1234
+mov byte ptr [r8 + r9*8 - 4], sil
+mov cl, byte ptr [r8 + r9*8 - 4]
+lea rax, [r8 + r9*8 - 4]
+lea r10d, [r8 + r9*8 - 4]
+lea cx, [r8 + r9*8 - 4]
+movzx eax, byte ptr [r8 + r9*8 - 4]
+movsx rax, word ptr [r8 + r9*8 - 4]
+movsxd rax, dword ptr [r8 + r9*8 - 4]
+add qword ptr [r8 + r9*8 - 4], 1
+cmp dword ptr [r8 + r9*8 - 4], 0x1000
+xchg qword ptr [r8 + r9*8 - 4], rdx
+push qword ptr [r8 + r9*8 - 4]
+pop qword ptr [r8 + r9*8 - 4]
+call qword ptr [r8 + r9*8 - 4]
+jmp qword ptr [r8 + r9*8 - 4]
+inc dword ptr [r8 + r9*8 - 4]
+neg byte ptr [r8 + r9*8 - 4]
+shl qword ptr [r8 + r9*8 - 4], 3
+sar dword ptr [r8 + r9*8 - 4], cl
+sete byte ptr [r8 + r9*8 - 4]
+cmovne rax, qword ptr [r8 + r9*8 - 4]
+imul rax, qword ptr [r8 + r9*8 - 4]
+imul ecx, dword ptr [r8 + r9*8 - 4], 100
+test qword ptr [r8 + r9*8 - 4], rax
+test byte ptr [r8 + r9*8 - 4], 1
+idiv qword ptr [r8 + r9*8 - 4]
+mul dword ptr [r8 + r9*8 - 4]
+mov rax, qword ptr [r13 + r12*1]
+mov qword ptr [r13 + r12*1], rbx
+mov r9d, dword ptr [r13 + r12*1]
+mov dword ptr [r13 + r12*1], 5
+mov qword ptr [r13 + r12*1], -2
+mov byte ptr [r13 + r12*1], 0x7f
+mov word ptr [r13 + r12*1], 0x1234
+mov byte ptr [r13 + r12*1], sil
+mov cl, byte ptr [r13 + r12*1]
+lea rax, [r13 + r12*1]
+lea r10d, [r13 + r12*1]
+lea cx, [r13 + r12*1]
+movzx eax, byte ptr [r13 + r12*1]
+movsx rax, word ptr [r13 + r12*1]
+movsxd rax, dword ptr [r13 + r12*1]
+add qword ptr [r13 + r12*1], 1
+cmp dword ptr [r13 + r12*1], 0x1000
+xchg qword ptr [r13 + r12*1], rdx
+push qword ptr [r13 + r12*1]
+pop qword ptr [r13 + r12*1]
+call qword ptr [r13 + r12*1]
+jmp qword ptr [r13 + r12*1]
+inc dword ptr [r13 + r12*1]
+neg byte ptr [r13 + r12*1]
+shl qword ptr [r13 + r12*1], 3
+sar dword ptr [r13 + r12*1], cl
+sete byte ptr [r13 + r12*1]
+cmovne rax, qword ptr [r13 + r12*1]
+imul rax, qword ptr [r13 + r12*1]
+imul ecx, dword ptr [r13 + r12*1], 100
+test qword ptr [r13 + r12*1], rax
+test byte ptr [r13 + r12*1], 1
+idiv qword ptr [r13 + r12*1]
+mul dword ptr [r13 + r12*1]
+mov rax, qword ptr [rbp + rcx*1]
+mov qword ptr [rbp + rcx*1], rbx
+mov r9d, dword ptr [rbp + rcx*1]
+mov dword ptr [rbp + rcx*1], 5
+mov qword ptr [rbp + rcx*1], -2
+mov byte ptr [rbp + rcx*1], 0x7f
+mov word ptr [rbp + rcx*1], 0x1234
+mov byte ptr [rbp + rcx*1], sil
+mov cl, byte ptr [rbp + rcx*1]
+lea rax, [rbp + rcx*1]
+lea r10d, [rbp + rcx*1]
+lea cx, [rbp + rcx*1]
+movzx eax, byte ptr [rbp + rcx*1]
+movsx rax, word ptr [rbp + rcx*1]
+movsxd rax, dword ptr [rbp + rcx*1]
+add qword ptr [rbp + rcx*1], 1
+cmp dword ptr [rbp + rcx*1], 0x1000
+xchg qword ptr [rbp + rcx*1], rdx
+push qword ptr [rbp + rcx*1]
+pop qword ptr [rbp + rcx*1]
+call qword ptr [rbp + rcx*1]
+jmp qword ptr [rbp + rcx*1]
+inc dword ptr [rbp + rcx*1]
+neg byte ptr [rbp + rcx*1]
+shl qword ptr [rbp + rcx*1], 3
+sar dword ptr [rbp + rcx*1], cl
+sete byte ptr [rbp + rcx*1]
+cmovne rax, qword ptr [rbp + rcx*1]
+imul rax, qword ptr [rbp + rcx*1]
+imul ecx, dword ptr [rbp + rcx*1], 100
+test qword ptr [rbp + rcx*1], rax
+test byte ptr [rbp + rcx*1], 1
+idiv qword ptr [rbp + rcx*1]
+mul dword ptr [rbp + rcx*1]
+mov rax, qword ptr [rax*4 + 0x10]
+mov qword ptr [rax*4 + 0x10], rbx
+mov r9d, dword ptr [rax*4 + 0x10]
+mov dword ptr [rax*4 + 0x10], 5
+mov qword ptr [rax*4 + 0x10], -2
+mov byte ptr [rax*4 + 0x10], 0x7f
+mov word ptr [rax*4 + 0x10], 0x1234
+mov byte ptr [rax*4 + 0x10], sil
+mov cl, byte ptr [rax*4 + 0x10]
+lea rax, [rax*4 + 0x10]
+lea r10d, [rax*4 + 0x10]
+lea cx, [rax*4 + 0x10]
+movzx eax, byte ptr [rax*4 + 0x10]
+movsx rax, word ptr [rax*4 + 0x10]
+movsxd rax, dword ptr [rax*4 + 0x10]
+add qword ptr [rax*4 + 0x10], 1
+cmp dword ptr [rax*4 + 0x10], 0x1000
+xchg qword ptr [rax*4 + 0x10], rdx
+push qword ptr [rax*4 + 0x10]
+pop qword ptr [rax*4 + 0x10]
+call qword ptr [rax*4 + 0x10]
+jmp qword ptr [rax*4 + 0x10]
+inc dword ptr [rax*4 + 0x10]
+neg byte ptr [rax*4 + 0x10]
+shl qword ptr [rax*4 + 0x10], 3
+sar dword ptr [rax*4 + 0x10], cl
+sete byte ptr [rax*4 + 0x10]
+cmovne rax, qword ptr [rax*4 + 0x10]
+imul rax, qword ptr [rax*4 + 0x10]
+imul ecx, dword ptr [rax*4 + 0x10], 100
+test qword ptr [rax*4 + 0x10], rax
+test byte ptr [rax*4 + 0x10], 1
+idiv qword ptr [rax*4 + 0x10]
+mul dword ptr [rax*4 + 0x10]
+mov rax, qword ptr [0x1000]
+mov qword ptr [0x1000], rbx
+mov r9d, dword ptr [0x1000]
+mov dword ptr [0x1000], 5
+mov qword ptr [0x1000], -2
+mov byte ptr [0x1000], 0x7f
+mov word ptr [0x1000], 0x1234
+mov byte ptr [0x1000], sil
+mov cl, byte ptr [0x1000]
+lea rax, [0x1000]
+lea r10d, [0x1000]
+lea cx, [0x1000]
+movzx eax, byte ptr [0x1000]
+movsx rax, word ptr [0x1000]
+movsxd rax, dword ptr [0x1000]
+add qword ptr [0x1000], 1
+cmp dword ptr [0x1000], 0x1000
+xchg qword ptr [0x1000], rdx
+push qword ptr [0x1000]
+pop qword ptr [0x1000]
+call qword ptr [0x1000]
+jmp qword ptr [0x1000]
+inc dword ptr [0x1000]
+neg byte ptr [0x1000]
+shl qword ptr [0x1000], 3
+sar dword ptr [0x1000], cl
+sete byte ptr [0x1000]
+cmovne rax, qword ptr [0x1000]
+imul rax, qword ptr [0x1000]
+imul ecx, dword ptr [0x1000], 100
+test qword ptr [0x1000], rax
+test byte ptr [0x1000], 1
+idiv qword ptr [0x1000]
+mul dword ptr [0x1000]
+mov rax, qword ptr [rdi - 0x1000]
+mov qword ptr [rdi - 0x1000], rbx
+mov r9d, dword ptr [rdi - 0x1000]
+mov dword ptr [rdi - 0x1000], 5
+mov qword ptr [rdi - 0x1000], -2
+mov byte ptr [rdi - 0x1000], 0x7f
+mov word ptr [rdi - 0x1000], 0x1234
+mov byte ptr [rdi - 0x1000], sil
+mov cl, byte ptr [rdi - 0x1000]
+lea rax, [rdi - 0x1000]
+lea r10d, [rdi - 0x1000]
+lea cx, [rdi - 0x1000]
+movzx eax, byte ptr [rdi - 0x1000]
+movsx rax, word ptr [rdi - 0x1000]
+movsxd rax, dword ptr [rdi - 0x1000]
+add qword ptr [rdi - 0x1000], 1
+cmp dword ptr [rdi - 0x1000], 0x1000
+xchg qword ptr [rdi - 0x1000], rdx
+push qword ptr [rdi - 0x1000]
+pop qword ptr [rdi - 0x1000]
+call qword ptr [rdi - 0x1000]
+jmp qword ptr [rdi - 0x1000]
+inc dword ptr [rdi - 0x1000]
+neg byte ptr [rdi - 0x1000]
+shl qword ptr [rdi - 0x1000], 3
+sar dword ptr [rdi - 0x1000], cl
+sete byte ptr [rdi - 0x1000]
+cmovne rax, qword ptr [rdi - 0x1000]
+imul rax, qword ptr [rdi - 0x1000]
+imul ecx, dword ptr [rdi - 0x1000], 100
+test qword ptr [rdi - 0x1000], rax
+test byte ptr [rdi - 0x1000], 1
+idiv qword ptr [rdi - 0x1000]
+mul dword ptr [rdi - 0x1000]
+mov rax, qword ptr [r15 + r14*2 + 127]
+mov qword ptr [r15 + r14*2 + 127], rbx
+mov r9d, dword ptr [r15 + r14*2 + 127]
+mov dword ptr [r15 + r14*2 + 127], 5
+mov qword ptr [r15 + r14*2 + 127], -2
+mov byte ptr [r15 + r14*2 + 127], 0x7f
+mov word ptr [r15 + r14*2 + 127], 0x1234
+mov byte ptr [r15 + r14*2 + 127], sil
+mov cl, byte ptr [r15 + r14*2 + 127]
+lea rax, [r15 + r14*2 + 127]
+lea r10d, [r15 + r14*2 + 127]
+lea cx, [r15 + r14*2 + 127]
+movzx eax, byte ptr [r15 + r14*2 + 127]
+movsx rax, word ptr [r15 + r14*2 + 127]
+movsxd rax, dword ptr [r15 + r14*2 + 127]
+add qword ptr [r15 + r14*2 + 127], 1
+cmp dword ptr [r15 + r14*2 + 127], 0x1000
+xchg qword ptr [r15 + r14*2 + 127], rdx
+push qword ptr [r15 + r14*2 + 127]
+pop qword ptr [r15 + r14*2 + 127]
+call qword ptr [r15 + r14*2 + 127]
+jmp qword ptr [r15 + r14*2 + 127]
+inc dword ptr [r15 + r14*2 + 127]
+neg byte ptr [r15 + r14*2 + 127]
+shl qword ptr [r15 + r14*2 + 127], 3
+sar dword ptr [r15 + r14*2 + 127], cl
+sete byte ptr [r15 + r14*2 + 127]
+cmovne rax, qword ptr [r15 + r14*2 + 127]
+imul rax, qword ptr [r15 + r14*2 + 127]
+imul ecx, dword ptr [r15 + r14*2 + 127], 100
+test qword ptr [r15 + r14*2 + 127], rax
+test byte ptr [r15 + r14*2 + 127], 1
+idiv qword ptr [r15 + r14*2 + 127]
+mul dword ptr [r15 + r14*2 + 127]
+mov rax, qword ptr [rax + 128]
+mov qword ptr [rax + 128], rbx
+mov r9d, dword ptr [rax + 128]
+mov dword ptr [rax + 128], 5
+mov qword ptr [rax + 128], -2
+mov byte ptr [rax + 128], 0x7f
+mov word ptr [rax + 128], 0x1234
+mov byte ptr [rax + 128], sil
+mov cl, byte ptr [rax + 128]
+lea rax, [rax + 128]
+lea r10d, [rax + 128]
+lea cx, [rax + 128]
+movzx eax, byte ptr [rax + 128]
+movsx rax, word ptr [rax + 128]
+movsxd rax, dword ptr [rax + 128]
+add qword ptr [rax + 128], 1
+cmp dword ptr [rax + 128], 0x1000
+xchg qword ptr [rax + 128], rdx
+push qword ptr [rax + 128]
+pop qword ptr [rax + 128]
+call qword ptr [rax + 128]
+jmp qword ptr [rax + 128]
+inc dword ptr [rax + 128]
+neg byte ptr [rax + 128]
+shl qword ptr [rax + 128], 3
+sar dword ptr [rax + 128], cl
+sete byte ptr [rax + 128]
+cmovne rax, qword ptr [rax + 128]
+imul rax, qword ptr [rax + 128]
+imul ecx, dword ptr [rax + 128], 100
+test qword ptr [rax + 128], rax
+test byte ptr [rax + 128], 1
+idiv qword ptr [rax + 128]
+mul dword ptr [rax + 128]
+mov rax, qword ptr [rax - 129]
+mov qword ptr [rax - 129], rbx
+mov r9d, dword ptr [rax - 129]
+mov dword ptr [rax - 129], 5
+mov qword ptr [rax - 129], -2
+mov byte ptr [rax - 129], 0x7f
+mov word ptr [rax - 129], 0x1234
+mov byte ptr [rax - 129], sil
+mov cl, byte ptr [rax - 129]
+lea rax, [rax - 129]
+lea r10d, [rax - 129]
+lea cx, [rax - 129]
+movzx eax, byte ptr [rax - 129]
+movsx rax, word ptr [rax - 129]
+movsxd rax, dword ptr [rax - 129]
+add qword ptr [rax - 129], 1
+cmp dword ptr [rax - 129], 0x1000
+xchg qword ptr [rax - 129], rdx
+push qword ptr [rax - 129]
+pop qword ptr [rax - 129]
+call qword ptr [rax - 129]
+jmp qword ptr [rax - 129]
+inc dword ptr [rax - 129]
+neg byte ptr [rax - 129]
+shl qword ptr [rax - 129], 3
+sar dword ptr [rax - 129], cl
+sete byte ptr [rax - 129]
+cmovne rax, qword ptr [rax - 129]
+imul rax, qword ptr [rax - 129]
+imul ecx, dword ptr [rax - 129], 100
+test qword ptr [rax - 129], rax
+test byte ptr [rax - 129], 1
+idiv qword ptr [rax - 129]
+mul dword ptr [rax - 129]
+mov rax, qword ptr [rax - 128]
+mov qword ptr [rax - 128], rbx
+mov r9d, dword ptr [rax - 128]
+mov dword ptr [rax - 128], 5
+mov qword ptr [rax - 128], -2
+mov byte ptr [rax - 128], 0x7f
+mov word ptr [rax - 128], 0x1234
+mov byte ptr [rax - 128], sil
+mov cl, byte ptr [rax - 128]
+lea rax, [rax - 128]
+lea r10d, [rax - 128]
+lea cx, [rax - 128]
+movzx eax, byte ptr [rax - 128]
+movsx rax, word ptr [rax - 128]
+movsxd rax, dword ptr [rax - 128]
+add qword ptr [rax - 128], 1
+cmp dword ptr [rax - 128], 0x1000
+xchg qword ptr [rax - 128], rdx
+push qword ptr [rax - 128]
+pop qword ptr [rax - 128]
+call qword ptr [rax - 128]
+jmp qword ptr [rax - 128]
+inc dword ptr [rax - 128]
+neg byte ptr [rax - 128]
+shl qword ptr [rax - 128], 3
+sar dword ptr [rax - 128], cl
+sete byte ptr [rax - 128]
+cmovne rax, qword ptr [rax - 128]
+imul rax, qword ptr [rax - 128]
+imul ecx, dword ptr [rax - 128], 100
+test qword ptr [rax - 128], rax
+test byte ptr [rax - 128], 1
+idiv qword ptr [rax - 128]
+mul dword ptr [rax - 128]
+add rax, rbx
+add r8, rcx
+add rdx, r15
+add eax, ecx
+add r10d, r11d
+add ax, dx
+add r9w, bx
+add al, cl
+add sil, r8b
+add dil, bpl
+add ah, bl
+add rax, 1
+add rax, -1
+add rax, 127
+add rax, -128
+add rax, 128
+add rax, -129
+add rax, 0x1000
+add rax, 0x7fffffff
+add rax, -0x80000000
+add rax, 200
+add rax, 255
+add rax, 0x12345
+add rcx, 1
+add rcx, -1
+add rcx, 127
+add rcx, -128
+add rcx, 128
+add rcx, -129
+add rcx, 0x1000
+add rcx, 0x7fffffff
+add rcx, -0x80000000
+add rcx, 200
+add rcx, 255
+add rcx, 0x12345
+add r9, 1
+add r9, -1
+add r9, 127
+add r9, -128
+add r9, 128
+add r9, -129
+add r9, 0x1000
+add r9, 0x7fffffff
+add r9, -0x80000000
+add r9, 200
+add r9, 255
+add r9, 0x12345
+add eax, 1
+add eax, -1
+add eax, 127
+add eax, -128
+add eax, 128
+add eax, -129
+add eax, 0x1000
+add eax, 0x7fffffff
+add eax, -0x80000000
+add eax, 200
+add eax, 255
+add eax, 0x12345
+add edx, 1
+add edx, -1
+add edx, 127
+add edx, -128
+add edx, 128
+add edx, -129
+add edx, 0x1000
+add edx, 0x7fffffff
+add edx, -0x80000000
+add edx, 200
+add edx, 255
+add edx, 0x12345
+add r12d, 1
+add r12d, -1
+add r12d, 127
+add r12d, -128
+add r12d, 128
+add r12d, -129
+add r12d, 0x1000
+add r12d, 0x7fffffff
+add r12d, -0x80000000
+add r12d, 200
+add r12d, 255
+add r12d, 0x12345
+add ax, 1
+add ax, -1
+add ax, 127
+add ax, -128
+add ax, 128
+add ax, -129
+add ax, 0x1000
+add ax, 200
+add ax, 255
+add bx, 1
+add bx, -1
+add bx, 127
+add bx, -128
+add bx, 128
+add bx, -129
+add bx, 0x1000
+add bx, 200
+add bx, 255
+add r15w, 1
+add r15w, -1
+add r15w, 127
+add r15w, -128
+add r15w, 128
+add r15w, -129
+add r15w, 0x1000
+add r15w, 200
+add r15w, 255
+add al, 1
+add al, -1
+add al, 127
+add al, -128
+add al, 128
+add al, 200
+add al, 255
+add bl, 1
+add bl, -1
+add bl, 127
+add bl, -128
+add bl, 128
+add bl, 200
+add bl, 255
+add sil, 1
+add sil, -1
+add sil, 127
+add sil, -128
+add sil, 128
+add sil, 200
+add sil, 255
+add r8b, 1
+add r8b, -1
+add r8b, 127
+add r8b, -128
+add r8b, 128
+add r8b, 200
+add r8b, 255
+add ah, 1
+add ah, -1
+add ah, 127
+add ah, -128
+add ah, 128
+add ah, 200
+add ah, 255
+add rsp, 1
+add rsp, -1
+add rsp, 127
+add rsp, -128
+add rsp, 128
+add rsp, -129
+add rsp, 0x1000
+add rsp, 0x7fffffff
+add rsp, -0x80000000
+add rsp, 200
+add rsp, 255
+add rsp, 0x12345
+add rbp, 1
+add rbp, -1
+add rbp, 127
+add rbp, -128
+add rbp, 128
+add rbp, -129
+add rbp, 0x1000
+add rbp, 0x7fffffff
+add rbp, -0x80000000
+add rbp, 200
+add rbp, 255
+add rbp, 0x12345
+add rax, qword ptr [rax]
+add qword ptr [rax], rax
+add r9, qword ptr [rax]
+add qword ptr [rax], r9
+add ecx, dword ptr [rax]
+add dword ptr [rax], ecx
+add dx, word ptr [rax]
+add word ptr [rax], dx
+add bl, byte ptr [rax]
+add byte ptr [rax], bl
+add sil, byte ptr [rax]
+add byte ptr [rax], sil
+add rax, qword ptr [rsp + 8]
+add qword ptr [rsp + 8], rax
+add r9, qword ptr [rsp + 8]
+add qword ptr [rsp + 8], r9
+add ecx, dword ptr [rsp + 8]
+add dword ptr [rsp + 8], ecx
+add dx, word ptr [rsp + 8]
+add word ptr [rsp + 8], dx
+add bl, byte ptr [rsp + 8]
+add byte ptr [rsp + 8], bl
+add sil, byte ptr [rsp + 8]
+add byte ptr [rsp + 8], sil
+add rax, qword ptr [r13 + rbx*4 + 8]
+add qword ptr [r13 + rbx*4 + 8], rax
+add r9, qword ptr [r13 + rbx*4 + 8]
+add qword ptr [r13 + rbx*4 + 8], r9
+add ecx, dword ptr [r13 + rbx*4 + 8]
+add dword ptr [r13 + rbx*4 + 8], ecx
+add dx, word ptr [r13 + rbx*4 + 8]
+add word ptr [r13 + rbx*4 + 8], dx
+add bl, byte ptr [r13 + rbx*4 + 8]
+add byte ptr [r13 + rbx*4 + 8], bl
+add sil, byte ptr [r13 + rbx*4 + 8]
+add byte ptr [r13 + rbx*4 + 8], sil
+or rax, rbx
+or r8, rcx
+or rdx, r15
+or eax, ecx
+or r10d, r11d
+or ax, dx
+or r9w, bx
+or al, cl
+or sil, r8b
+or dil, bpl
+or ah, bl
+or rax, 1
+or rax, -1
+or rax, 127
+or rax, -128
+or rax, 128
+or rax, -129
+or rax, 0x1000
+or rax, 0x7fffffff
+or rax, -0x80000000
+or rax, 200
+or rax, 255
+or rax, 0x12345
+or rcx, 1
+or rcx, -1
+or rcx, 127
+or rcx, -128
+or rcx, 128
+or rcx, -129
+or rcx, 0x1000
+or rcx, 0x7fffffff
+or rcx, -0x80000000
+or rcx, 200
+or rcx, 255
+or rcx, 0x12345
+or r9, 1
+or r9, -1
+or r9, 127
+or r9, -128
+or r9, 128
+or r9, -129
+or r9, 0x1000
+or r9, 0x7fffffff
+or r9, -0x80000000
+or r9, 200
+or r9, 255
+or r9, 0x12345
+or eax, 1
+or eax, -1
+or eax, 127
+or eax, -128
+or eax, 128
+or eax, -129
+or eax, 0x1000
+or eax, 0x7fffffff
+or eax, -0x80000000
+or eax, 200
+or eax, 255
+or eax, 0x12345
+or edx, 1
+or edx, -1
+or edx, 127
+or edx, -128
+or edx, 128
+or edx, -129
+or edx, 0x1000
+or edx, 0x7fffffff
+or edx, -0x80000000
+or edx, 200
+or edx, 255
+or edx, 0x12345
+or r12d, 1
+or r12d, -1
+or r12d, 127
+or r12d, -128
+or r12d, 128
+or r12d, -129
+or r12d, 0x1000
+or r12d, 0x7fffffff
+or r12d, -0x80000000
+or r12d, 200
+or r12d, 255
+or r12d, 0x12345
+or ax, 1
+or ax, -1
+or ax, 127
+or ax, -128
+or ax, 128
+or ax, -129
+or ax, 0x1000
+or ax, 200
+or ax, 255
+or bx, 1
+or bx, -1
+or bx, 127
+or bx, -128
+or bx, 128
+or bx, -129
+or bx, 0x1000
+or bx, 200
+or bx, 255
+or r15w, 1
+or r15w, -1
+or r15w, 127
+or r15w, -128
+or r15w, 128
+or r15w, -129
+or r15w, 0x1000
+or r15w, 200
+or r15w, 255
+or al, 1
+or al, -1
+or al, 127
+or al, -128
+or al, 128
+or al, 200
+or al, 255
+or bl, 1
+or bl, -1
+or bl, 127
+or bl, -128
+or bl, 128
+or bl, 200
+or bl, 255
+or sil, 1
+or sil, -1
+or sil, 127
+or sil, -128
+or sil, 128
+or sil, 200
+or sil, 255
+or r8b, 1
+or r8b, -1
+or r8b, 127
+or r8b, -128
+or r8b, 128
+or r8b, 200
+or r8b, 255
+or ah, 1
+or ah, -1
+or ah, 127
+or ah, -128
+or ah, 128
+or ah, 200
+or ah, 255
+or rsp, 1
+or rsp, -1
+or rsp, 127
+or rsp, -128
+or rsp, 128
+or rsp, -129
+or rsp, 0x1000
+or rsp, 0x7fffffff
+or rsp, -0x80000000
+or rsp, 200
+or rsp, 255
+or rsp, 0x12345
+or rbp, 1
+or rbp, -1
+or rbp, 127
+or rbp, -128
+or rbp, 128
+or rbp, -129
+or rbp, 0x1000
+or rbp, 0x7fffffff
+or rbp, -0x80000000
+or rbp, 200
+or rbp, 255
+or rbp, 0x12345
+or rax, qword ptr [rax]
+or qword ptr [rax], rax
+or r9, qword ptr [rax]
+or qword ptr [rax], r9
+or ecx, dword ptr [rax]
+or dword ptr [rax], ecx
+or dx, word ptr [rax]
+or word ptr [rax], dx
+or bl, byte ptr [rax]
+or byte ptr [rax], bl
+or sil, byte ptr [rax]
+or byte ptr [rax], sil
+or rax, qword ptr [rsp + 8]
+or qword ptr [rsp + 8], rax
+or r9, qword ptr [rsp + 8]
+or qword ptr [rsp + 8], r9
+or ecx, dword ptr [rsp + 8]
+or dword ptr [rsp + 8], ecx
+or dx, word ptr [rsp + 8]
+or word ptr [rsp + 8], dx
+or bl, byte ptr [rsp + 8]
+or byte ptr [rsp + 8], bl
+or sil, byte ptr [rsp + 8]
+or byte ptr [rsp + 8], sil
+or rax, qword ptr [r13 + rbx*4 + 8]
+or qword ptr [r13 + rbx*4 + 8], rax
+or r9, qword ptr [r13 + rbx*4 + 8]
+or qword ptr [r13 + rbx*4 + 8], r9
+or ecx, dword ptr [r13 + rbx*4 + 8]
+or dword ptr [r13 + rbx*4 + 8], ecx
+or dx, word ptr [r13 + rbx*4 + 8]
+or word ptr [r13 + rbx*4 + 8], dx
+or bl, byte ptr [r13 + rbx*4 + 8]
+or byte ptr [r13 + rbx*4 + 8], bl
+or sil, byte ptr [r13 + rbx*4 + 8]
+or byte ptr [r13 + rbx*4 + 8], sil
+adc rax, rbx
+adc r8, rcx
+adc rdx, r15
+adc eax, ecx
+adc r10d, r11d
+adc ax, dx
+adc r9w, bx
+adc al, cl
+adc sil, r8b
+adc dil, bpl
+adc ah, bl
+adc rax, 1
+adc rax, -1
+adc rax, 127
+adc rax, -128
+adc rax, 128
+adc rax, -129
+adc rax, 0x1000
+adc rax, 0x7fffffff
+adc rax, -0x80000000
+adc rax, 200
+adc rax, 255
+adc rax, 0x12345
+adc rcx, 1
+adc rcx, -1
+adc rcx, 127
+adc rcx, -128
+adc rcx, 128
+adc rcx, -129
+adc rcx, 0x1000
+adc rcx, 0x7fffffff
+adc rcx, -0x80000000
+adc rcx, 200
+adc rcx, 255
+adc rcx, 0x12345
+adc r9, 1
+adc r9, -1
+adc r9, 127
+adc r9, -128
+adc r9, 128
+adc r9, -129
+adc r9, 0x1000
+adc r9, 0x7fffffff
+adc r9, -0x80000000
+adc r9, 200
+adc r9, 255
+adc r9, 0x12345
+adc eax, 1
+adc eax, -1
+adc eax, 127
+adc eax, -128
+adc eax, 128
+adc eax, -129
+adc eax, 0x1000
+adc eax, 0x7fffffff
+adc eax, -0x80000000
+adc eax, 200
+adc eax, 255
+adc eax, 0x12345
+adc edx, 1
+adc edx, -1
+adc edx, 127
+adc edx, -128
+adc edx, 128
+adc edx, -129
+adc edx, 0x1000
+adc edx, 0x7fffffff
+adc edx, -0x80000000
+adc edx, 200
+adc edx, 255
+adc edx, 0x12345
+adc r12d, 1
+adc r12d, -1
+adc r12d, 127
+adc r12d, -128
+adc r12d, 128
+adc r12d, -129
+adc r12d, 0x1000
+adc r12d, 0x7fffffff
+adc r12d, -0x80000000
+adc r12d, 200
+adc r12d, 255
+adc r12d, 0x12345
+adc ax, 1
+adc ax, -1
+adc ax, 127
+adc ax, -128
+adc ax, 128
+adc ax, -129
+adc ax, 0x1000
+adc ax, 200
+adc ax, 255
+adc bx, 1
+adc bx, -1
+adc bx, 127
+adc bx, -128
+adc bx, 128
+adc bx, -129
+adc bx, 0x1000
+adc bx, 200
+adc bx, 255
+adc r15w, 1
+adc r15w, -1
+adc r15w, 127
+adc r15w, -128
+adc r15w, 128
+adc r15w, -129
+adc r15w, 0x1000
+adc r15w, 200
+adc r15w, 255
+adc al, 1
+adc al, -1
+adc al, 127
+adc al, -128
+adc al, 128
+adc al, 200
+adc al, 255
+adc bl, 1
+adc bl, -1
+adc bl, 127
+adc bl, -128
+adc bl, 128
+adc bl, 200
+adc bl, 255
+adc sil, 1
+adc sil, -1
+adc sil, 127
+adc sil, -128
+adc sil, 128
+adc sil, 200
+adc sil, 255
+adc r8b, 1
+adc r8b, -1
+adc r8b, 127
+adc r8b, -128
+adc r8b, 128
+adc r8b, 200
+adc r8b, 255
+adc ah, 1
+adc ah, -1
+adc ah, 127
+adc ah, -128
+adc ah, 128
+adc ah, 200
+adc ah, 255
+adc rsp, 1
+adc rsp, -1
+adc rsp, 127
+adc rsp, -128
+adc rsp, 128
+adc rsp, -129
+adc rsp, 0x1000
+adc rsp, 0x7fffffff
+adc rsp, -0x80000000
+adc rsp, 200
+adc rsp, 255
+adc rsp, 0x12345
+adc rbp, 1
+adc rbp, -1
+adc rbp, 127
+adc rbp, -128
+adc rbp, 128
+adc rbp, -129
+adc rbp, 0x1000
+adc rbp, 0x7fffffff
+adc rbp, -0x80000000
+adc rbp, 200
+adc rbp, 255
+adc rbp, 0x12345
+adc rax, qword ptr [rax]
+adc qword ptr [rax], rax
+adc r9, qword ptr [rax]
+adc qword ptr [rax], r9
+adc ecx, dword ptr [rax]
+adc dword ptr [rax], ecx
+adc dx, word ptr [rax]
+adc word ptr [rax], dx
+adc bl, byte ptr [rax]
+adc byte ptr [rax], bl
+adc sil, byte ptr [rax]
+adc byte ptr [rax], sil
+adc rax, qword ptr [rsp + 8]
+adc qword ptr [rsp + 8], rax
+adc r9, qword ptr [rsp + 8]
+adc qword ptr [rsp + 8], r9
+adc ecx, dword ptr [rsp + 8]
+adc dword ptr [rsp + 8], ecx
+adc dx, word ptr [rsp + 8]
+adc word ptr [rsp + 8], dx
+adc bl, byte ptr [rsp + 8]
+adc byte ptr [rsp + 8], bl
+adc sil, byte ptr [rsp + 8]
+adc byte ptr [rsp + 8], sil
+adc rax, qword ptr [r13 + rbx*4 + 8]
+adc qword ptr [r13 + rbx*4 + 8], rax
+adc r9, qword ptr [r13 + rbx*4 + 8]
+adc qword ptr [r13 + rbx*4 + 8], r9
+adc ecx, dword ptr [r13 + rbx*4 + 8]
+adc dword ptr [r13 + rbx*4 + 8], ecx
+adc dx, word ptr [r13 + rbx*4 + 8]
+adc word ptr [r13 + rbx*4 + 8], dx
+adc bl, byte ptr [r13 + rbx*4 + 8]
+adc byte ptr [r13 + rbx*4 + 8], bl
+adc sil, byte ptr [r13 + rbx*4 + 8]
+adc byte ptr [r13 + rbx*4 + 8], sil
+sbb rax, rbx
+sbb r8, rcx
+sbb rdx, r15
+sbb eax, ecx
+sbb r10d, r11d
+sbb ax, dx
+sbb r9w, bx
+sbb al, cl
+sbb sil, r8b
+sbb dil, bpl
+sbb ah, bl
+sbb rax, 1
+sbb rax, -1
+sbb rax, 127
+sbb rax, -128
+sbb rax, 128
+sbb rax, -129
+sbb rax, 0x1000
+sbb rax, 0x7fffffff
+sbb rax, -0x80000000
+sbb rax, 200
+sbb rax, 255
+sbb rax, 0x12345
+sbb rcx, 1
+sbb rcx, -1
+sbb rcx, 127
+sbb rcx, -128
+sbb rcx, 128
+sbb rcx, -129
+sbb rcx, 0x1000
+sbb rcx, 0x7fffffff
+sbb rcx, -0x80000000
+sbb rcx, 200
+sbb rcx, 255
+sbb rcx, 0x12345
+sbb r9, 1
+sbb r9, -1
+sbb r9, 127
+sbb r9, -128
+sbb r9, 128
+sbb r9, -129
+sbb r9, 0x1000
+sbb r9, 0x7fffffff
+sbb r9, -0x80000000
+sbb r9, 200
+sbb r9, 255
+sbb r9, 0x12345
+sbb eax, 1
+sbb eax, -1
+sbb eax, 127
+sbb eax, -128
+sbb eax, 128
+sbb eax, -129
+sbb eax, 0x1000
+sbb eax, 0x7fffffff
+sbb eax, -0x80000000
+sbb eax, 200
+sbb eax, 255
+sbb eax, 0x12345
+sbb edx, 1
+sbb edx, -1
+sbb edx, 127
+sbb edx, -128
+sbb edx, 128
+sbb edx, -129
+sbb edx, 0x1000
+sbb edx, 0x7fffffff
+sbb edx, -0x80000000
+sbb edx, 200
+sbb edx, 255
+sbb edx, 0x12345
+sbb r12d, 1
+sbb r12d, -1
+sbb r12d, 127
+sbb r12d, -128
+sbb r12d, 128
+sbb r12d, -129
+sbb r12d, 0x1000
+sbb r12d, 0x7fffffff
+sbb r12d, -0x80000000
+sbb r12d, 200
+sbb r12d, 255
+sbb r12d, 0x12345
+sbb ax, 1
+sbb ax, -1
+sbb ax, 127
+sbb ax, -128
+sbb ax, 128
+sbb ax, -129
+sbb ax, 0x1000
+sbb ax, 200
+sbb ax, 255
+sbb bx, 1
+sbb bx, -1
+sbb bx, 127
+sbb bx, -128
+sbb bx, 128
+sbb bx, -129
+sbb bx, 0x1000
+sbb bx, 200
+sbb bx, 255
+sbb r15w, 1
+sbb r15w, -1
+sbb r15w, 127
+sbb r15w, -128
+sbb r15w, 128
+sbb r15w, -129
+sbb r15w, 0x1000
+sbb r15w, 200
+sbb r15w, 255
+sbb al, 1
+sbb al, -1
+sbb al, 127
+sbb al, -128
+sbb al, 128
+sbb al, 200
+sbb al, 255
+sbb bl, 1
+sbb bl, -1
+sbb bl, 127
+sbb bl, -128
+sbb bl, 128
+sbb bl, 200
+sbb bl, 255
+sbb sil, 1
+sbb sil, -1
+sbb sil, 127
+sbb sil, -128
+sbb sil, 128
+sbb sil, 200
+sbb sil, 255
+sbb r8b, 1
+sbb r8b, -1
+sbb r8b, 127
+sbb r8b, -128
+sbb r8b, 128
+sbb r8b, 200
+sbb r8b, 255
+sbb ah, 1
+sbb ah, -1
+sbb ah, 127
+sbb ah, -128
+sbb ah, 128
+sbb ah, 200
+sbb ah, 255
+sbb rsp, 1
+sbb rsp, -1
+sbb rsp, 127
+sbb rsp, -128
+sbb rsp, 128
+sbb rsp, -129
+sbb rsp, 0x1000
+sbb rsp, 0x7fffffff
+sbb rsp, -0x80000000
+sbb rsp, 200
+sbb rsp, 255
+sbb rsp, 0x12345
+sbb rbp, 1
+sbb rbp, -1
+sbb rbp, 127
+sbb rbp, -128
+sbb rbp, 128
+sbb rbp, -129
+sbb rbp, 0x1000
+sbb rbp, 0x7fffffff
+sbb rbp, -0x80000000
+sbb rbp, 200
+sbb rbp, 255
+sbb rbp, 0x12345
+sbb rax, qword ptr [rax]
+sbb qword ptr [rax], rax
+sbb r9, qword ptr [rax]
+sbb qword ptr [rax], r9
+sbb ecx, dword ptr [rax]
+sbb dword ptr [rax], ecx
+sbb dx, word ptr [rax]
+sbb word ptr [rax], dx
+sbb bl, byte ptr [rax]
+sbb byte ptr [rax], bl
+sbb sil, byte ptr [rax]
+sbb byte ptr [rax], sil
+sbb rax, qword ptr [rsp + 8]
+sbb qword ptr [rsp + 8], rax
+sbb r9, qword ptr [rsp + 8]
+sbb qword ptr [rsp + 8], r9
+sbb ecx, dword ptr [rsp + 8]
+sbb dword ptr [rsp + 8], ecx
+sbb dx, word ptr [rsp + 8]
+sbb word ptr [rsp + 8], dx
+sbb bl, byte ptr [rsp + 8]
+sbb byte ptr [rsp + 8], bl
+sbb sil, byte ptr [rsp + 8]
+sbb byte ptr [rsp + 8], sil
+sbb rax, qword ptr [r13 + rbx*4 + 8]
+sbb qword ptr [r13 + rbx*4 + 8], rax
+sbb r9, qword ptr [r13 + rbx*4 + 8]
+sbb qword ptr [r13 + rbx*4 + 8], r9
+sbb ecx, dword ptr [r13 + rbx*4 + 8]
+sbb dword ptr [r13 + rbx*4 + 8], ecx
+sbb dx, word ptr [r13 + rbx*4 + 8]
+sbb word ptr [r13 + rbx*4 + 8], dx
+sbb bl, byte ptr [r13 + rbx*4 + 8]
+sbb byte ptr [r13 + rbx*4 + 8], bl
+sbb sil, byte ptr [r13 + rbx*4 + 8]
+sbb byte ptr [r13 + rbx*4 + 8], sil
+and rax, rbx
+and r8, rcx
+and rdx, r15
+and eax, ecx
+and r10d, r11d
+and ax, dx
+and r9w, bx
+and al, cl
+and sil, r8b
+and dil, bpl
+and ah, bl
+and rax, 1
+and rax, -1
+and rax, 127
+and rax, -128
+and rax, 128
+and rax, -129
+and rax, 0x1000
+and rax, 0x7fffffff
+and rax, -0x80000000
+and rax, 200
+and rax, 255
+and rax, 0x12345
+and rcx, 1
+and rcx, -1
+and rcx, 127
+and rcx, -128
+and rcx, 128
+and rcx, -129
+and rcx, 0x1000
+and rcx, 0x7fffffff
+and rcx, -0x80000000
+and rcx, 200
+and rcx, 255
+and rcx, 0x12345
+and r9, 1
+and r9, -1
+and r9, 127
+and r9, -128
+and r9, 128
+and r9, -129
+and r9, 0x1000
+and r9, 0x7fffffff
+and r9, -0x80000000
+and r9, 200
+and r9, 255
+and r9, 0x12345
+and eax, 1
+and eax, -1
+and eax, 127
+and eax, -128
+and eax, 128
+and eax, -129
+and eax, 0x1000
+and eax, 0x7fffffff
+and eax, -0x80000000
+and eax, 200
+and eax, 255
+and eax, 0x12345
+and edx, 1
+and edx, -1
+and edx, 127
+and edx, -128
+and edx, 128
+and edx, -129
+and edx, 0x1000
+and edx, 0x7fffffff
+and edx, -0x80000000
+and edx, 200
+and edx, 255
+and edx, 0x12345
+and r12d, 1
+and r12d, -1
+and r12d, 127
+and r12d, -128
+and r12d, 128
+and r12d, -129
+and r12d, 0x1000
+and r12d, 0x7fffffff
+and r12d, -0x80000000
+and r12d, 200
+and r12d, 255
+and r12d, 0x12345
+and ax, 1
+and ax, -1
+and ax, 127
+and ax, -128
+and ax, 128
+and ax, -129
+and ax, 0x1000
+and ax, 200
+and ax, 255
+and bx, 1
+and bx, -1
+and bx, 127
+and bx, -128
+and bx, 128
+and bx, -129
+and bx, 0x1000
+and bx, 200
+and bx, 255
+and r15w, 1
+and r15w, -1
+and r15w, 127
+and r15w, -128
+and r15w, 128
+and r15w, -129
+and r15w, 0x1000
+and r15w, 200
+and r15w, 255
+and al, 1
+and al, -1
+and al, 127
+and al, -128
+and al, 128
+and al, 200
+and al, 255
+and bl, 1
+and bl, -1
+and bl, 127
+and bl, -128
+and bl, 128
+and bl, 200
+and bl, 255
+and sil, 1
+and sil, -1
+and sil, 127
+and sil, -128
+and sil, 128
+and sil, 200
+and sil, 255
+and r8b, 1
+and r8b, -1
+and r8b, 127
+and r8b, -128
+and r8b, 128
+and r8b, 200
+and r8b, 255
+and ah, 1
+and ah, -1
+and ah, 127
+and ah, -128
+and ah, 128
+and ah, 200
+and ah, 255
+and rsp, 1
+and rsp, -1
+and rsp, 127
+and rsp, -128
+and rsp, 128
+and rsp, -129
+and rsp, 0x1000
+and rsp, 0x7fffffff
+and rsp, -0x80000000
+and rsp, 200
+and rsp, 255
+and rsp, 0x12345
+and rbp, 1
+and rbp, -1
+and rbp, 127
+and rbp, -128
+and rbp, 128
+and rbp, -129
+and rbp, 0x1000
+and rbp, 0x7fffffff
+and rbp, -0x80000000
+and rbp, 200
+and rbp, 255
+and rbp, 0x12345
+and rax, qword ptr [rax]
+and qword ptr [rax], rax
+and r9, qword ptr [rax]
+and qword ptr [rax], r9
+and ecx, dword ptr [rax]
+and dword ptr [rax], ecx
+and dx, word ptr [rax]
+and word ptr [rax], dx
+and bl, byte ptr [rax]
+and byte ptr [rax], bl
+and sil, byte ptr [rax]
+and byte ptr [rax], sil
+and rax, qword ptr [rsp + 8]
+and qword ptr [rsp + 8], rax
+and r9, qword ptr [rsp + 8]
+and qword ptr [rsp + 8], r9
+and ecx, dword ptr [rsp + 8]
+and dword ptr [rsp + 8], ecx
+and dx, word ptr [rsp + 8]
+and word ptr [rsp + 8], dx
+and bl, byte ptr [rsp + 8]
+and byte ptr [rsp + 8], bl
+and sil, byte ptr [rsp + 8]
+and byte ptr [rsp + 8], sil
+and rax, qword ptr [r13 + rbx*4 + 8]
+and qword ptr [r13 + rbx*4 + 8], rax
+and r9, qword ptr [r13 + rbx*4 + 8]
+and qword ptr [r13 + rbx*4 + 8], r9
+and ecx, dword ptr [r13 + rbx*4 + 8]
+and dword ptr [r13 + rbx*4 + 8], ecx
+and dx, word ptr [r13 + rbx*4 + 8]
+and word ptr [r13 + rbx*4 + 8], dx
+and bl, byte ptr [r13 + rbx*4 + 8]
+and byte ptr [r13 + rbx*4 + 8], bl
+and sil, byte ptr [r13 + rbx*4 + 8]
+and byte ptr [r13 + rbx*4 + 8], sil
+sub rax, rbx
+sub r8, rcx
+sub rdx, r15
+sub eax, ecx
+sub r10d, r11d
+sub ax, dx
+sub r9w, bx
+sub al, cl
+sub sil, r8b
+sub dil, bpl
+sub ah, bl
+sub rax, 1
+sub rax, -1
+sub rax, 127
+sub rax, -128
+sub rax, 128
+sub rax, -129
+sub rax, 0x1000
+sub rax, 0x7fffffff
+sub rax, -0x80000000
+sub rax, 200
+sub rax, 255
+sub rax, 0x12345
+sub rcx, 1
+sub rcx, -1
+sub rcx, 127
+sub rcx, -128
+sub rcx, 128
+sub rcx, -129
+sub rcx, 0x1000
+sub rcx, 0x7fffffff
+sub rcx, -0x80000000
+sub rcx, 200
+sub rcx, 255
+sub rcx, 0x12345
+sub r9, 1
+sub r9, -1
+sub r9, 127
+sub r9, -128
+sub r9, 128
+sub r9, -129
+sub r9, 0x1000
+sub r9, 0x7fffffff
+sub r9, -0x80000000
+sub r9, 200
+sub r9, 255
+sub r9, 0x12345
+sub eax, 1
+sub eax, -1
+sub eax, 127
+sub eax, -128
+sub eax, 128
+sub eax, -129
+sub eax, 0x1000
+sub eax, 0x7fffffff
+sub eax, -0x80000000
+sub eax, 200
+sub eax, 255
+sub eax, 0x12345
+sub edx, 1
+sub edx, -1
+sub edx, 127
+sub edx, -128
+sub edx, 128
+sub edx, -129
+sub edx, 0x1000
+sub edx, 0x7fffffff
+sub edx, -0x80000000
+sub edx, 200
+sub edx, 255
+sub edx, 0x12345
+sub r12d, 1
+sub r12d, -1
+sub r12d, 127
+sub r12d, -128
+sub r12d, 128
+sub r12d, -129
+sub r12d, 0x1000
+sub r12d, 0x7fffffff
+sub r12d, -0x80000000
+sub r12d, 200
+sub r12d, 255
+sub r12d, 0x12345
+sub ax, 1
+sub ax, -1
+sub ax, 127
+sub ax, -128
+sub ax, 128
+sub ax, -129
+sub ax, 0x1000
+sub ax, 200
+sub ax, 255
+sub bx, 1
+sub bx, -1
+sub bx, 127
+sub bx, -128
+sub bx, 128
+sub bx, -129
+sub bx, 0x1000
+sub bx, 200
+sub bx, 255
+sub r15w, 1
+sub r15w, -1
+sub r15w, 127
+sub r15w, -128
+sub r15w, 128
+sub r15w, -129
+sub r15w, 0x1000
+sub r15w, 200
+sub r15w, 255
+sub al, 1
+sub al, -1
+sub al, 127
+sub al, -128
+sub al, 128
+sub al, 200
+sub al, 255
+sub bl, 1
+sub bl, -1
+sub bl, 127
+sub bl, -128
+sub bl, 128
+sub bl, 200
+sub bl, 255
+sub sil, 1
+sub sil, -1
+sub sil, 127
+sub sil, -128
+sub sil, 128
+sub sil, 200
+sub sil, 255
+sub r8b, 1
+sub r8b, -1
+sub r8b, 127
+sub r8b, -128
+sub r8b, 128
+sub r8b, 200
+sub r8b, 255
+sub ah, 1
+sub ah, -1
+sub ah, 127
+sub ah, -128
+sub ah, 128
+sub ah, 200
+sub ah, 255
+sub rsp, 1
+sub rsp, -1
+sub rsp, 127
+sub rsp, -128
+sub rsp, 128
+sub rsp, -129
+sub rsp, 0x1000
+sub rsp, 0x7fffffff
+sub rsp, -0x80000000
+sub rsp, 200
+sub rsp, 255
+sub rsp, 0x12345
+sub rbp, 1
+sub rbp, -1
+sub rbp, 127
+sub rbp, -128
+sub rbp, 128
+sub rbp, -129
+sub rbp, 0x1000
+sub rbp, 0x7fffffff
+sub rbp, -0x80000000
+sub rbp, 200
+sub rbp, 255
+sub rbp, 0x12345
+sub rax, qword ptr [rax]
+sub qword ptr [rax], rax
+sub r9, qword ptr [rax]
+sub qword ptr [rax], r9
+sub ecx, dword ptr [rax]
+sub dword ptr [rax], ecx
+sub dx, word ptr [rax]
+sub word ptr [rax], dx
+sub bl, byte ptr [rax]
+sub byte ptr [rax], bl
+sub sil, byte ptr [rax]
+sub byte ptr [rax], sil
+sub rax, qword ptr [rsp + 8]
+sub qword ptr [rsp + 8], rax
+sub r9, qword ptr [rsp + 8]
+sub qword ptr [rsp + 8], r9
+sub ecx, dword ptr [rsp + 8]
+sub dword ptr [rsp + 8], ecx
+sub dx, word ptr [rsp + 8]
+sub word ptr [rsp + 8], dx
+sub bl, byte ptr [rsp + 8]
+sub byte ptr [rsp + 8], bl
+sub sil, byte ptr [rsp + 8]
+sub byte ptr [rsp + 8], sil
+sub rax, qword ptr [r13 + rbx*4 + 8]
+sub qword ptr [r13 + rbx*4 + 8], rax
+sub r9, qword ptr [r13 + rbx*4 + 8]
+sub qword ptr [r13 + rbx*4 + 8], r9
+sub ecx, dword ptr [r13 + rbx*4 + 8]
+sub dword ptr [r13 + rbx*4 + 8], ecx
+sub dx, word ptr [r13 + rbx*4 + 8]
+sub word ptr [r13 + rbx*4 + 8], dx
+sub bl, byte ptr [r13 + rbx*4 + 8]
+sub byte ptr [r13 + rbx*4 + 8], bl
+sub sil, byte ptr [r13 + rbx*4 + 8]
+sub byte ptr [r13 + rbx*4 + 8], sil
+xor rax, rbx
+xor r8, rcx
+xor rdx, r15
+xor eax, ecx
+xor r10d, r11d
+xor ax, dx
+xor r9w, bx
+xor al, cl
+xor sil, r8b
+xor dil, bpl
+xor ah, bl
+xor rax, 1
+xor rax, -1
+xor rax, 127
+xor rax, -128
+xor rax, 128
+xor rax, -129
+xor rax, 0x1000
+xor rax, 0x7fffffff
+xor rax, -0x80000000
+xor rax, 200
+xor rax, 255
+xor rax, 0x12345
+xor rcx, 1
+xor rcx, -1
+xor rcx, 127
+xor rcx, -128
+xor rcx, 128
+xor rcx, -129
+xor rcx, 0x1000
+xor rcx, 0x7fffffff
+xor rcx, -0x80000000
+xor rcx, 200
+xor rcx, 255
+xor rcx, 0x12345
+xor r9, 1
+xor r9, -1
+xor r9, 127
+xor r9, -128
+xor r9, 128
+xor r9, -129
+xor r9, 0x1000
+xor r9, 0x7fffffff
+xor r9, -0x80000000
+xor r9, 200
+xor r9, 255
+xor r9, 0x12345
+xor eax, 1
+xor eax, -1
+xor eax, 127
+xor eax, -128
+xor eax, 128
+xor eax, -129
+xor eax, 0x1000
+xor eax, 0x7fffffff
+xor eax, -0x80000000
+xor eax, 200
+xor eax, 255
+xor eax, 0x12345
+xor edx, 1
+xor edx, -1
+xor edx, 127
+xor edx, -128
+xor edx, 128
+xor edx, -129
+xor edx, 0x1000
+xor edx, 0x7fffffff
+xor edx, -0x80000000
+xor edx, 200
+xor edx, 255
+xor edx, 0x12345
+xor r12d, 1
+xor r12d, -1
+xor r12d, 127
+xor r12d, -128
+xor r12d, 128
+xor r12d, -129
+xor r12d, 0x1000
+xor r12d, 0x7fffffff
+xor r12d, -0x80000000
+xor r12d, 200
+xor r12d, 255
+xor r12d, 0x12345
+xor ax, 1
+xor ax, -1
+xor ax, 127
+xor ax, -128
+xor ax, 128
+xor ax, -129
+xor ax, 0x1000
+xor ax, 200
+xor ax, 255
+xor bx, 1
+xor bx, -1
+xor bx, 127
+xor bx, -128
+xor bx, 128
+xor bx, -129
+xor bx, 0x1000
+xor bx, 200
+xor bx, 255
+xor r15w, 1
+xor r15w, -1
+xor r15w, 127
+xor r15w, -128
+xor r15w, 128
+xor r15w, -129
+xor r15w, 0x1000
+xor r15w, 200
+xor r15w, 255
+xor al, 1
+xor al, -1
+xor al, 127
+xor al, -128
+xor al, 128
+xor al, 200
+xor al, 255
+xor bl, 1
+xor bl, -1
+xor bl, 127
+xor bl, -128
+xor bl, 128
+xor bl, 200
+xor bl, 255
+xor sil, 1
+xor sil, -1
+xor sil, 127
+xor sil, -128
+xor sil, 128
+xor sil, 200
+xor sil, 255
+xor r8b, 1
+xor r8b, -1
+xor r8b, 127
+xor r8b, -128
+xor r8b, 128
+xor r8b, 200
+xor r8b, 255
+xor ah, 1
+xor ah, -1
+xor ah, 127
+xor ah, -128
+xor ah, 128
+xor ah, 200
+xor ah, 255
+xor rsp, 1
+xor rsp, -1
+xor rsp, 127
+xor rsp, -128
+xor rsp, 128
+xor rsp, -129
+xor rsp, 0x1000
+xor rsp, 0x7fffffff
+xor rsp, -0x80000000
+xor rsp, 200
+xor rsp, 255
+xor rsp, 0x12345
+xor rbp, 1
+xor rbp, -1
+xor rbp, 127
+xor rbp, -128
+xor rbp, 128
+xor rbp, -129
+xor rbp, 0x1000
+xor rbp, 0x7fffffff
+xor rbp, -0x80000000
+xor rbp, 200
+xor rbp, 255
+xor rbp, 0x12345
+xor rax, qword ptr [rax]
+xor qword ptr [rax], rax
+xor r9, qword ptr [rax]
+xor qword ptr [rax], r9
+xor ecx, dword ptr [rax]
+xor dword ptr [rax], ecx
+xor dx, word ptr [rax]
+xor word ptr [rax], dx
+xor bl, byte ptr [rax]
+xor byte ptr [rax], bl
+xor sil, byte ptr [rax]
+xor byte ptr [rax], sil
+xor rax, qword ptr [rsp + 8]
+xor qword ptr [rsp + 8], rax
+xor r9, qword ptr [rsp + 8]
+xor qword ptr [rsp + 8], r9
+xor ecx, dword ptr [rsp + 8]
+xor dword ptr [rsp + 8], ecx
+xor dx, word ptr [rsp + 8]
+xor word ptr [rsp + 8], dx
+xor bl, byte ptr [rsp + 8]
+xor byte ptr [rsp + 8], bl
+xor sil, byte ptr [rsp + 8]
+xor byte ptr [rsp + 8], sil
+xor rax, qword ptr [r13 + rbx*4 + 8]
+xor qword ptr [r13 + rbx*4 + 8], rax
+xor r9, qword ptr [r13 + rbx*4 + 8]
+xor qword ptr [r13 + rbx*4 + 8], r9
+xor ecx, dword ptr [r13 + rbx*4 + 8]
+xor dword ptr [r13 + rbx*4 + 8], ecx
+xor dx, word ptr [r13 + rbx*4 + 8]
+xor word ptr [r13 + rbx*4 + 8], dx
+xor bl, byte ptr [r13 + rbx*4 + 8]
+xor byte ptr [r13 + rbx*4 + 8], bl
+xor sil, byte ptr [r13 + rbx*4 + 8]
+xor byte ptr [r13 + rbx*4 + 8], sil
+cmp rax, rbx
+cmp r8, rcx
+cmp rdx, r15
+cmp eax, ecx
+cmp r10d, r11d
+cmp ax, dx
+cmp r9w, bx
+cmp al, cl
+cmp sil, r8b
+cmp dil, bpl
+cmp ah, bl
+cmp rax, 1
+cmp rax, -1
+cmp rax, 127
+cmp rax, -128
+cmp rax, 128
+cmp rax, -129
+cmp rax, 0x1000
+cmp rax, 0x7fffffff
+cmp rax, -0x80000000
+cmp rax, 200
+cmp rax, 255
+cmp rax, 0x12345
+cmp rcx, 1
+cmp rcx, -1
+cmp rcx, 127
+cmp rcx, -128
+cmp rcx, 128
+cmp rcx, -129
+cmp rcx, 0x1000
+cmp rcx, 0x7fffffff
+cmp rcx, -0x80000000
+cmp rcx, 200
+cmp rcx, 255
+cmp rcx, 0x12345
+cmp r9, 1
+cmp r9, -1
+cmp r9, 127
+cmp r9, -128
+cmp r9, 128
+cmp r9, -129
+cmp r9, 0x1000
+cmp r9, 0x7fffffff
+cmp r9, -0x80000000
+cmp r9, 200
+cmp r9, 255
+cmp r9, 0x12345
+cmp eax, 1
+cmp eax, -1
+cmp eax, 127
+cmp eax, -128
+cmp eax, 128
+cmp eax, -129
+cmp eax, 0x1000
+cmp eax, 0x7fffffff
+cmp eax, -0x80000000
+cmp eax, 200
+cmp eax, 255
+cmp eax, 0x12345
+cmp edx, 1
+cmp edx, -1
+cmp edx, 127
+cmp edx, -128
+cmp edx, 128
+cmp edx, -129
+cmp edx, 0x1000
+cmp edx, 0x7fffffff
+cmp edx, -0x80000000
+cmp edx, 200
+cmp edx, 255
+cmp edx, 0x12345
+cmp r12d, 1
+cmp r12d, -1
+cmp r12d, 127
+cmp r12d, -128
+cmp r12d, 128
+cmp r12d, -129
+cmp r12d, 0x1000
+cmp r12d, 0x7fffffff
+cmp r12d, -0x80000000
+cmp r12d, 200
+cmp r12d, 255
+cmp r12d, 0x12345
+cmp ax, 1
+cmp ax, -1
+cmp ax, 127
+cmp ax, -128
+cmp ax, 128
+cmp ax, -129
+cmp ax, 0x1000
+cmp ax, 200
+cmp ax, 255
+cmp bx, 1
+cmp bx, -1
+cmp bx, 127
+cmp bx, -128
+cmp bx, 128
+cmp bx, -129
+cmp bx, 0x1000
+cmp bx, 200
+cmp bx, 255
+cmp r15w, 1
+cmp r15w, -1
+cmp r15w, 127
+cmp r15w, -128
+cmp r15w, 128
+cmp r15w, -129
+cmp r15w, 0x1000
+cmp r15w, 200
+cmp r15w, 255
+cmp al, 1
+cmp al, -1
+cmp al, 127
+cmp al, -128
+cmp al, 128
+cmp al, 200
+cmp al, 255
+cmp bl, 1
+cmp bl, -1
+cmp bl, 127
+cmp bl, -128
+cmp bl, 128
+cmp bl, 200
+cmp bl, 255
+cmp sil, 1
+cmp sil, -1
+cmp sil, 127
+cmp sil, -128
+cmp sil, 128
+cmp sil, 200
+cmp sil, 255
+cmp r8b, 1
+cmp r8b, -1
+cmp r8b, 127
+cmp r8b, -128
+cmp r8b, 128
+cmp r8b, 200
+cmp r8b, 255
+cmp ah, 1
+cmp ah, -1
+cmp ah, 127
+cmp ah, -128
+cmp ah, 128
+cmp ah, 200
+cmp ah, 255
+cmp rsp, 1
+cmp rsp, -1
+cmp rsp, 127
+cmp rsp, -128
+cmp rsp, 128
+cmp rsp, -129
+cmp rsp, 0x1000
+cmp rsp, 0x7fffffff
+cmp rsp, -0x80000000
+cmp rsp, 200
+cmp rsp, 255
+cmp rsp, 0x12345
+cmp rbp, 1
+cmp rbp, -1
+cmp rbp, 127
+cmp rbp, -128
+cmp rbp, 128
+cmp rbp, -129
+cmp rbp, 0x1000
+cmp rbp, 0x7fffffff
+cmp rbp, -0x80000000
+cmp rbp, 200
+cmp rbp, 255
+cmp rbp, 0x12345
+cmp rax, qword ptr [rax]
+cmp qword ptr [rax], rax
+cmp r9, qword ptr [rax]
+cmp qword ptr [rax], r9
+cmp ecx, dword ptr [rax]
+cmp dword ptr [rax], ecx
+cmp dx, word ptr [rax]
+cmp word ptr [rax], dx
+cmp bl, byte ptr [rax]
+cmp byte ptr [rax], bl
+cmp sil, byte ptr [rax]
+cmp byte ptr [rax], sil
+cmp rax, qword ptr [rsp + 8]
+cmp qword ptr [rsp + 8], rax
+cmp r9, qword ptr [rsp + 8]
+cmp qword ptr [rsp + 8], r9
+cmp ecx, dword ptr [rsp + 8]
+cmp dword ptr [rsp + 8], ecx
+cmp dx, word ptr [rsp + 8]
+cmp word ptr [rsp + 8], dx
+cmp bl, byte ptr [rsp + 8]
+cmp byte ptr [rsp + 8], bl
+cmp sil, byte ptr [rsp + 8]
+cmp byte ptr [rsp + 8], sil
+cmp rax, qword ptr [r13 + rbx*4 + 8]
+cmp qword ptr [r13 + rbx*4 + 8], rax
+cmp r9, qword ptr [r13 + rbx*4 + 8]
+cmp qword ptr [r13 + rbx*4 + 8], r9
+cmp ecx, dword ptr [r13 + rbx*4 + 8]
+cmp dword ptr [r13 + rbx*4 + 8], ecx
+cmp dx, word ptr [r13 + rbx*4 + 8]
+cmp word ptr [r13 + rbx*4 + 8], dx
+cmp bl, byte ptr [r13 + rbx*4 + 8]
+cmp byte ptr [r13 + rbx*4 + 8], bl
+cmp sil, byte ptr [r13 + rbx*4 + 8]
+cmp byte ptr [r13 + rbx*4 + 8], sil
+shl rax, 1
+shl rax, 2
+shl rax, 7
+shl rax, 31
+shl rax, 255
+shl rax, cl
+shl r9, 1
+shl r9, 2
+shl r9, 7
+shl r9, 31
+shl r9, 255
+shl r9, cl
+shl eax, 1
+shl eax, 2
+shl eax, 7
+shl eax, 31
+shl eax, 255
+shl eax, cl
+shl r10d, 1
+shl r10d, 2
+shl r10d, 7
+shl r10d, 31
+shl r10d, 255
+shl r10d, cl
+shl ax, 1
+shl ax, 2
+shl ax, 7
+shl ax, 31
+shl ax, 255
+shl ax, cl
+shl r12w, 1
+shl r12w, 2
+shl r12w, 7
+shl r12w, 31
+shl r12w, 255
+shl r12w, cl
+shl al, 1
+shl al, 2
+shl al, 7
+shl al, 31
+shl al, 255
+shl al, cl
+shl sil, 1
+shl sil, 2
+shl sil, 7
+shl sil, 31
+shl sil, 255
+shl sil, cl
+shl r8b, 1
+shl r8b, 2
+shl r8b, 7
+shl r8b, 31
+shl r8b, 255
+shl r8b, cl
+shl ah, 1
+shl ah, 2
+shl ah, 7
+shl ah, 31
+shl ah, 255
+shl ah, cl
+shl rbx, 1
+shl rbx, 2
+shl rbx, 7
+shl rbx, 31
+shl rbx, 255
+shl rbx, cl
+shr rax, 1
+shr rax, 2
+shr rax, 7
+shr rax, 31
+shr rax, 255
+shr rax, cl
+shr r9, 1
+shr r9, 2
+shr r9, 7
+shr r9, 31
+shr r9, 255
+shr r9, cl
+shr eax, 1
+shr eax, 2
+shr eax, 7
+shr eax, 31
+shr eax, 255
+shr eax, cl
+shr r10d, 1
+shr r10d, 2
+shr r10d, 7
+shr r10d, 31
+shr r10d, 255
+shr r10d, cl
+shr ax, 1
+shr ax, 2
+shr ax, 7
+shr ax, 31
+shr ax, 255
+shr ax, cl
+shr r12w, 1
+shr r12w, 2
+shr r12w, 7
+shr r12w, 31
+shr r12w, 255
+shr r12w, cl
+shr al, 1
+shr al, 2
+shr al, 7
+shr al, 31
+shr al, 255
+shr al, cl
+shr sil, 1
+shr sil, 2
+shr sil, 7
+shr sil, 31
+shr sil, 255
+shr sil, cl
+shr r8b, 1
+shr r8b, 2
+shr r8b, 7
+shr r8b, 31
+shr r8b, 255
+shr r8b, cl
+shr ah, 1
+shr ah, 2
+shr ah, 7
+shr ah, 31
+shr ah, 255
+shr ah, cl
+shr rbx, 1
+shr rbx, 2
+shr rbx, 7
+shr rbx, 31
+shr rbx, 255
+shr rbx, cl
+sar rax, 1
+sar rax, 2
+sar rax, 7
+sar rax, 31
+sar rax, 255
+sar rax, cl
+sar r9, 1
+sar r9, 2
+sar r9, 7
+sar r9, 31
+sar r9, 255
+sar r9, cl
+sar eax, 1
+sar eax, 2
+sar eax, 7
+sar eax, 31
+sar eax, 255
+sar eax, cl
+sar r10d, 1
+sar r10d, 2
+sar r10d, 7
+sar r10d, 31
+sar r10d, 255
+sar r10d, cl
+sar ax, 1
+sar ax, 2
+sar ax, 7
+sar ax, 31
+sar ax, 255
+sar ax, cl
+sar r12w, 1
+sar r12w, 2
+sar r12w, 7
+sar r12w, 31
+sar r12w, 255
+sar r12w, cl
+sar al, 1
+sar al, 2
+sar al, 7
+sar al, 31
+sar al, 255
+sar al, cl
+sar sil, 1
+sar sil, 2
+sar sil, 7
+sar sil, 31
+sar sil, 255
+sar sil, cl
+sar r8b, 1
+sar r8b, 2
+sar r8b, 7
+sar r8b, 31
+sar r8b, 255
+sar r8b, cl
+sar ah, 1
+sar ah, 2
+sar ah, 7
+sar ah, 31
+sar ah, 255
+sar ah, cl
+sar rbx, 1
+sar rbx, 2
+sar rbx, 7
+sar rbx, 31
+sar rbx, 255
+sar rbx, cl
+rol rax, 1
+rol rax, 2
+rol rax, 7
+rol rax, 31
+rol rax, 255
+rol rax, cl
+rol r9, 1
+rol r9, 2
+rol r9, 7
+rol r9, 31
+rol r9, 255
+rol r9, cl
+rol eax, 1
+rol eax, 2
+rol eax, 7
+rol eax, 31
+rol eax, 255
+rol eax, cl
+rol r10d, 1
+rol r10d, 2
+rol r10d, 7
+rol r10d, 31
+rol r10d, 255
+rol r10d, cl
+rol ax, 1
+rol ax, 2
+rol ax, 7
+rol ax, 31
+rol ax, 255
+rol ax, cl
+rol r12w, 1
+rol r12w, 2
+rol r12w, 7
+rol r12w, 31
+rol r12w, 255
+rol r12w, cl
+rol al, 1
+rol al, 2
+rol al, 7
+rol al, 31
+rol al, 255
+rol al, cl
+rol sil, 1
+rol sil, 2
+rol sil, 7
+rol sil, 31
+rol sil, 255
+rol sil, cl
+rol r8b, 1
+rol r8b, 2
+rol r8b, 7
+rol r8b, 31
+rol r8b, 255
+rol r8b, cl
+rol ah, 1
+rol ah, 2
+rol ah, 7
+rol ah, 31
+rol ah, 255
+rol ah, cl
+rol rbx, 1
+rol rbx, 2
+rol rbx, 7
+rol rbx, 31
+rol rbx, 255
+rol rbx, cl
+ror rax, 1
+ror rax, 2
+ror rax, 7
+ror rax, 31
+ror rax, 255
+ror rax, cl
+ror r9, 1
+ror r9, 2
+ror r9, 7
+ror r9, 31
+ror r9, 255
+ror r9, cl
+ror eax, 1
+ror eax, 2
+ror eax, 7
+ror eax, 31
+ror eax, 255
+ror eax, cl
+ror r10d, 1
+ror r10d, 2
+ror r10d, 7
+ror r10d, 31
+ror r10d, 255
+ror r10d, cl
+ror ax, 1
+ror ax, 2
+ror ax, 7
+ror ax, 31
+ror ax, 255
+ror ax, cl
+ror r12w, 1
+ror r12w, 2
+ror r12w, 7
+ror r12w, 31
+ror r12w, 255
+ror r12w, cl
+ror al, 1
+ror al, 2
+ror al, 7
+ror al, 31
+ror al, 255
+ror al, cl
+ror sil, 1
+ror sil, 2
+ror sil, 7
+ror sil, 31
+ror sil, 255
+ror sil, cl
+ror r8b, 1
+ror r8b, 2
+ror r8b, 7
+ror r8b, 31
+ror r8b, 255
+ror r8b, cl
+ror ah, 1
+ror ah, 2
+ror ah, 7
+ror ah, 31
+ror ah, 255
+ror ah, cl
+ror rbx, 1
+ror rbx, 2
+ror rbx, 7
+ror rbx, 31
+ror rbx, 255
+ror rbx, cl
+not rax
+not r9
+not eax
+not r10d
+not ax
+not r12w
+not al
+not sil
+not r8b
+not ah
+not rsp
+not r13
+neg rax
+neg r9
+neg eax
+neg r10d
+neg ax
+neg r12w
+neg al
+neg sil
+neg r8b
+neg ah
+neg rsp
+neg r13
+mul rax
+mul r9
+mul eax
+mul r10d
+mul ax
+mul r12w
+mul al
+mul sil
+mul r8b
+mul ah
+mul rsp
+mul r13
+div rax
+div r9
+div eax
+div r10d
+div ax
+div r12w
+div al
+div sil
+div r8b
+div ah
+div rsp
+div r13
+idiv rax
+idiv r9
+idiv eax
+idiv r10d
+idiv ax
+idiv r12w
+idiv al
+idiv sil
+idiv r8b
+idiv ah
+idiv rsp
+idiv r13
+inc rax
+inc r9
+inc eax
+inc r10d
+inc ax
+inc r12w
+inc al
+inc sil
+inc r8b
+inc ah
+inc rsp
+inc r13
+dec rax
+dec r9
+dec eax
+dec r10d
+dec ax
+dec r12w
+dec al
+dec sil
+dec r8b
+dec ah
+dec rsp
+dec r13
+imul rax
+imul r9
+imul eax
+imul r10d
+imul ax
+imul r12w
+imul al
+imul sil
+imul r8b
+imul ah
+imul rsp
+imul r13
+imul rax, rbx
+imul rax, rbx, 5
+imul rax, 5
+imul rax, rbx, -5
+imul rax, -5
+imul rax, rbx, 127
+imul rax, 127
+imul rax, rbx, 128
+imul rax, 128
+imul rax, rbx, 0x1000
+imul rax, 0x1000
+imul rax, rbx, -129
+imul rax, -129
+imul rax, rbx, 0x7fffffff
+imul rax, 0x7fffffff
+imul r9, rcx
+imul r9, rcx, 5
+imul r9, 5
+imul r9, rcx, -5
+imul r9, -5
+imul r9, rcx, 127
+imul r9, 127
+imul r9, rcx, 128
+imul r9, 128
+imul r9, rcx, 0x1000
+imul r9, 0x1000
+imul r9, rcx, -129
+imul r9, -129
+imul r9, rcx, 0x7fffffff
+imul r9, 0x7fffffff
+imul eax, ecx
+imul eax, ecx, 5
+imul eax, 5
+imul eax, ecx, -5
+imul eax, -5
+imul eax, ecx, 127
+imul eax, 127
+imul eax, ecx, 128
+imul eax, 128
+imul eax, ecx, 0x1000
+imul eax, 0x1000
+imul eax, ecx, -129
+imul eax, -129
+imul eax, ecx, 0x7fffffff
+imul eax, 0x7fffffff
+imul ax, dx
+imul ax, dx, 5
+imul ax, 5
+imul ax, dx, -5
+imul ax, -5
+imul ax, dx, 127
+imul ax, 127
+imul ax, dx, 128
+imul ax, 128
+imul ax, dx, 0x1000
+imul ax, 0x1000
+imul ax, dx, -129
+imul ax, -129
+imul r8d, r15d
+imul r8d, r15d, 5
+imul r8d, 5
+imul r8d, r15d, -5
+imul r8d, -5
+imul r8d, r15d, 127
+imul r8d, 127
+imul r8d, r15d, 128
+imul r8d, 128
+imul r8d, r15d, 0x1000
+imul r8d, 0x1000
+imul r8d, r15d, -129
+imul r8d, -129
+imul r8d, r15d, 0x7fffffff
+imul r8d, 0x7fffffff
+imul rsi, rdi
+imul rsi, rdi, 5
+imul rsi, 5
+imul rsi, rdi, -5
+imul rsi, -5
+imul rsi, rdi, 127
+imul rsi, 127
+imul rsi, rdi, 128
+imul rsi, 128
+imul rsi, rdi, 0x1000
+imul rsi, 0x1000
+imul rsi, rdi, -129
+imul rsi, -129
+imul rsi, rdi, 0x7fffffff
+imul rsi, 0x7fffffff
+test rax, rbx
+xchg rax, rbx
+test r9, rcx
+xchg r9, rcx
+test eax, ecx
+xchg eax, ecx
+test ax, dx
+xchg ax, dx
+test r8d, r15d
+xchg r8d, r15d
+test rsi, rdi
+xchg rsi, rdi
+test al, bl
+xchg al, bl
+test sil, r9b
+xchg sil, r9b
+test rax, r15
+xchg rax, r15
+test r8, rax
+xchg r8, rax
+test eax, eax
+xchg eax, eax
+test rax, 1
+test rax, 0x7f
+test rax, 0x80
+test rax, 0x1000
+test rax, 255
+test rax, -1
+test r9, 1
+test r9, 0x7f
+test r9, 0x80
+test r9, 0x1000
+test r9, 255
+test r9, -1
+test eax, 1
+test eax, 0x7f
+test eax, 0x80
+test eax, 0x1000
+test eax, 255
+test eax, -1
+test r10d, 1
+test r10d, 0x7f
+test r10d, 0x80
+test r10d, 0x1000
+test r10d, 255
+test r10d, -1
+test ax, 1
+test ax, 0x7f
+test ax, 0x80
+test ax, 0x1000
+test ax, 255
+test ax, -1
+test r12w, 1
+test r12w, 0x7f
+test r12w, 0x80
+test r12w, 0x1000
+test r12w, 255
+test r12w, -1
+test al, 1
+test al, 0x7f
+test al, 0x80
+test al, 255
+test al, -1
+test sil, 1
+test sil, 0x7f
+test sil, 0x80
+test sil, 255
+test sil, -1
+test r8b, 1
+test r8b, 0x7f
+test r8b, 0x80
+test r8b, 255
+test r8b, -1
+test ebx, 1
+test ebx, 0x7f
+test ebx, 0x80
+test ebx, 0x1000
+test ebx, 255
+test ebx, -1
+test rcx, 1
+test rcx, 0x7f
+test rcx, 0x80
+test rcx, 0x1000
+test rcx, 255
+test rcx, -1
+movzx eax, al
+movsx eax, al
+movzx eax, bl
+movsx eax, bl
+movzx eax, sil
+movsx eax, sil
+movzx eax, r9b
+movsx eax, r9b
+movzx eax, cl
+movsx eax, cl
+movzx eax, dil
+movsx eax, dil
+movzx eax, r15b
+movsx eax, r15b
+movzx eax, ah
+movsx eax, ah
+movzx eax, ax
+movsx eax, ax
+movzx eax, bx
+movsx eax, bx
+movzx eax, r9w
+movsx eax, r9w
+movzx eax, r15w
+movsx eax, r15w
+movzx r9d, al
+movsx r9d, al
+movzx r9d, bl
+movsx r9d, bl
+movzx r9d, sil
+movsx r9d, sil
+movzx r9d, r9b
+movsx r9d, r9b
+movzx r9d, cl
+movsx r9d, cl
+movzx r9d, dil
+movsx r9d, dil
+movzx r9d, r15b
+movsx r9d, r15b
+movzx r9d, ax
+movsx r9d, ax
+movzx r9d, bx
+movsx r9d, bx
+movzx r9d, r9w
+movsx r9d, r9w
+movzx r9d, r15w
+movsx r9d, r15w
+movzx rax, al
+movsx rax, al
+movzx rax, bl
+movsx rax, bl
+movzx rax, sil
+movsx rax, sil
+movzx rax, r9b
+movsx rax, r9b
+movzx rax, cl
+movsx rax, cl
+movzx rax, dil
+movsx rax, dil
+movzx rax, r15b
+movsx rax, r15b
+movzx rax, ax
+movsx rax, ax
+movzx rax, bx
+movsx rax, bx
+movzx rax, r9w
+movsx rax, r9w
+movzx rax, r15w
+movsx rax, r15w
+movzx r15, al
+movsx r15, al
+movzx r15, bl
+movsx r15, bl
+movzx r15, sil
+movsx r15, sil
+movzx r15, r9b
+movsx r15, r9b
+movzx r15, cl
+movsx r15, cl
+movzx r15, dil
+movsx r15, dil
+movzx r15, r15b
+movsx r15, r15b
+movzx r15, ax
+movsx r15, ax
+movzx r15, bx
+movsx r15, bx
+movzx r15, r9w
+movsx r15, r9w
+movzx r15, r15w
+movsx r15, r15w
+movzx ax, al
+movsx ax, al
+movzx ax, bl
+movsx ax, bl
+movzx ax, sil
+movsx ax, sil
+movzx ax, r9b
+movsx ax, r9b
+movzx ax, cl
+movsx ax, cl
+movzx ax, dil
+movsx ax, dil
+movzx ax, r15b
+movsx ax, r15b
+movzx ax, ah
+movsx ax, ah
+movzx cx, al
+movsx cx, al
+movzx cx, bl
+movsx cx, bl
+movzx cx, sil
+movsx cx, sil
+movzx cx, r9b
+movsx cx, r9b
+movzx cx, cl
+movsx cx, cl
+movzx cx, dil
+movsx cx, dil
+movzx cx, r15b
+movsx cx, r15b
+movzx cx, ah
+movsx cx, ah
+movzx r10w, al
+movsx r10w, al
+movzx r10w, bl
+movsx r10w, bl
+movzx r10w, sil
+movsx r10w, sil
+movzx r10w, r9b
+movsx r10w, r9b
+movzx r10w, cl
+movsx r10w, cl
+movzx r10w, dil
+movsx r10w, dil
+movzx r10w, r15b
+movsx r10w, r15b
+movsxd rax, eax
+movsxd rax, ebx
+movsxd rax, r9d
+movsxd rax, r15d
+movsxd r9, eax
+movsxd r9, ebx
+movsxd r9, r9d
+movsxd r9, r15d
+movsxd rsp, eax
+movsxd rsp, ebx
+movsxd rsp, r9d
+movsxd rsp, r15d
+movsxd r15, eax
+movsxd r15, ebx
+movsxd r15, r9d
+movsxd r15, r15d
+push rax
+pop rax
+push rcx
+pop rcx
+push rdx
+pop rdx
+push rbx
+pop rbx
+push rsp
+pop rsp
+push rbp
+pop rbp
+push rsi
+pop rsi
+push rdi
+pop rdi
+push r8
+pop r8
+push r9
+pop r9
+push r10
+pop r10
+push r11
+pop r11
+push r12
+pop r12
+push r13
+pop r13
+push r14
+pop r14
+push r15
+pop r15
+push ax
+pop ax
+push r9w
+pop r9w
+push 0
+push 1
+push 127
+push -128
+push 128
+push -129
+push 0x1000
+push 0x7fffffff
+push -1
+call rax
+jmp rax
+call rcx
+jmp rcx
+call rdx
+jmp rdx
+call rbx
+jmp rbx
+call rsp
+jmp rsp
+call rbp
+jmp rbp
+call rsi
+jmp rsi
+call rdi
+jmp rdi
+call r8
+jmp r8
+call r9
+jmp r9
+call r10
+jmp r10
+call r11
+jmp r11
+call r12
+jmp r12
+call r13
+jmp r13
+call r14
+jmp r14
+call r15
+jmp r15
+sete al
+sete cl
+sete sil
+sete r9b
+sete bl
+sete ah
+cmove rax, rbx
+cmove r9, r10
+cmove eax, ecx
+cmove ax, dx
+cmove r8d, r15d
+setne al
+setne cl
+setne sil
+setne r9b
+setne bl
+setne ah
+cmovne rax, rbx
+cmovne r9, r10
+cmovne eax, ecx
+cmovne ax, dx
+cmovne r8d, r15d
+setz al
+setz cl
+setz sil
+setz r9b
+setz bl
+setz ah
+cmovz rax, rbx
+cmovz r9, r10
+cmovz eax, ecx
+cmovz ax, dx
+cmovz r8d, r15d
+setnz al
+setnz cl
+setnz sil
+setnz r9b
+setnz bl
+setnz ah
+cmovnz rax, rbx
+cmovnz r9, r10
+cmovnz eax, ecx
+cmovnz ax, dx
+cmovnz r8d, r15d
+setl al
+setl cl
+setl sil
+setl r9b
+setl bl
+setl ah
+cmovl rax, rbx
+cmovl r9, r10
+cmovl eax, ecx
+cmovl ax, dx
+cmovl r8d, r15d
+setle al
+setle cl
+setle sil
+setle r9b
+setle bl
+setle ah
+cmovle rax, rbx
+cmovle r9, r10
+cmovle eax, ecx
+cmovle ax, dx
+cmovle r8d, r15d
+setg al
+setg cl
+setg sil
+setg r9b
+setg bl
+setg ah
+cmovg rax, rbx
+cmovg r9, r10
+cmovg eax, ecx
+cmovg ax, dx
+cmovg r8d, r15d
+setge al
+setge cl
+setge sil
+setge r9b
+setge bl
+setge ah
+cmovge rax, rbx
+cmovge r9, r10
+cmovge eax, ecx
+cmovge ax, dx
+cmovge r8d, r15d
+setb al
+setb cl
+setb sil
+setb r9b
+setb bl
+setb ah
+cmovb rax, rbx
+cmovb r9, r10
+cmovb eax, ecx
+cmovb ax, dx
+cmovb r8d, r15d
+setbe al
+setbe cl
+setbe sil
+setbe r9b
+setbe bl
+setbe ah
+cmovbe rax, rbx
+cmovbe r9, r10
+cmovbe eax, ecx
+cmovbe ax, dx
+cmovbe r8d, r15d
+seta al
+seta cl
+seta sil
+seta r9b
+seta bl
+seta ah
+cmova rax, rbx
+cmova r9, r10
+cmova eax, ecx
+cmova ax, dx
+cmova r8d, r15d
+setae al
+setae cl
+setae sil
+setae r9b
+setae bl
+setae ah
+cmovae rax, rbx
+cmovae r9, r10
+cmovae eax, ecx
+cmovae ax, dx
+cmovae r8d, r15d
+sets al
+sets cl
+sets sil
+sets r9b
+sets bl
+sets ah
+cmovs rax, rbx
+cmovs r9, r10
+cmovs eax, ecx
+cmovs ax, dx
+cmovs r8d, r15d
+setns al
+setns cl
+setns sil
+setns r9b
+setns bl
+setns ah
+cmovns rax, rbx
+cmovns r9, r10
+cmovns eax, ecx
+cmovns ax, dx
+cmovns r8d, r15d
+seto al
+seto cl
+seto sil
+seto r9b
+seto bl
+seto ah
+cmovo rax, rbx
+cmovo r9, r10
+cmovo eax, ecx
+cmovo ax, dx
+cmovo r8d, r15d
+setno al
+setno cl
+setno sil
+setno r9b
+setno bl
+setno ah
+cmovno rax, rbx
+cmovno r9, r10
+cmovno eax, ecx
+cmovno ax, dx
+cmovno r8d, r15d
+setc al
+setc cl
+setc sil
+setc r9b
+setc bl
+setc ah
+cmovc rax, rbx
+cmovc r9, r10
+cmovc eax, ecx
+cmovc ax, dx
+cmovc r8d, r15d
+setnc al
+setnc cl
+setnc sil
+setnc r9b
+setnc bl
+setnc ah
+cmovnc rax, rbx
+cmovnc r9, r10
+cmovnc eax, ecx
+cmovnc ax, dx
+cmovnc r8d, r15d
+setp al
+setp cl
+setp sil
+setp r9b
+setp bl
+setp ah
+cmovp rax, rbx
+cmovp r9, r10
+cmovp eax, ecx
+cmovp ax, dx
+cmovp r8d, r15d
+setnp al
+setnp cl
+setnp sil
+setnp r9b
+setnp bl
+setnp ah
+cmovnp rax, rbx
+cmovnp r9, r10
+cmovnp eax, ecx
+cmovnp ax, dx
+cmovnp r8d, r15d
+setnge al
+setnge cl
+setnge sil
+setnge r9b
+setnge bl
+setnge ah
+cmovnge rax, rbx
+cmovnge r9, r10
+cmovnge eax, ecx
+cmovnge ax, dx
+cmovnge r8d, r15d
+setnl al
+setnl cl
+setnl sil
+setnl r9b
+setnl bl
+setnl ah
+cmovnl rax, rbx
+cmovnl r9, r10
+cmovnl eax, ecx
+cmovnl ax, dx
+cmovnl r8d, r15d
+setng al
+setng cl
+setng sil
+setng r9b
+setng bl
+setng ah
+cmovng rax, rbx
+cmovng r9, r10
+cmovng eax, ecx
+cmovng ax, dx
+cmovng r8d, r15d
+setnle al
+setnle cl
+setnle sil
+setnle r9b
+setnle bl
+setnle ah
+cmovnle rax, rbx
+cmovnle r9, r10
+cmovnle eax, ecx
+cmovnle ax, dx
+cmovnle r8d, r15d
+setnae al
+setnae cl
+setnae sil
+setnae r9b
+setnae bl
+setnae ah
+cmovnae rax, rbx
+cmovnae r9, r10
+cmovnae eax, ecx
+cmovnae ax, dx
+cmovnae r8d, r15d
+setnb al
+setnb cl
+setnb sil
+setnb r9b
+setnb bl
+setnb ah
+cmovnb rax, rbx
+cmovnb r9, r10
+cmovnb eax, ecx
+cmovnb ax, dx
+cmovnb r8d, r15d
+setna al
+setna cl
+setna sil
+setna r9b
+setna bl
+setna ah
+cmovna rax, rbx
+cmovna r9, r10
+cmovna eax, ecx
+cmovna ax, dx
+cmovna r8d, r15d
+setnbe al
+setnbe cl
+setnbe sil
+setnbe r9b
+setnbe bl
+setnbe ah
+cmovnbe rax, rbx
+cmovnbe r9, r10
+cmovnbe eax, ecx
+cmovnbe ax, dx
+cmovnbe r8d, r15d
+setpe al
+setpe cl
+setpe sil
+setpe r9b
+setpe bl
+setpe ah
+cmovpe rax, rbx
+cmovpe r9, r10
+cmovpe eax, ecx
+cmovpe ax, dx
+cmovpe r8d, r15d
+setpo al
+setpo cl
+setpo sil
+setpo r9b
+setpo bl
+setpo ah
+cmovpo rax, rbx
+cmovpo r9, r10
+cmovpo eax, ecx
+cmovpo ax, dx
+cmovpo r8d, r15d
+ret
+nop
+int3
+syscall
+rdtsc
+cpuid
+pause
+hlt
+leave
+cqo
+cdq
+int 0x80
+lea rax, [rip + 0x10]
+mov r9, qword ptr [rip + 0x10]
+add dword ptr [rip + 0x10], 1
+cmp byte ptr [rip + 0x10], 1
+lea rax, [rip - 0x10]
+mov r9, qword ptr [rip - 0x10]
+add dword ptr [rip - 0x10], 1
+cmp byte ptr [rip - 0x10], 1
+lea rax, [rip]
+mov r9, qword ptr [rip]
+add dword ptr [rip], 1
+cmp byte ptr [rip], 1
