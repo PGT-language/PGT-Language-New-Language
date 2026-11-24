@@ -1,18 +1,3 @@
-#!/usr/bin/env bash
-# PGT test suite.
-#
-#   tests/run.sh [path/to/pgt]        run every test
-#   UPDATE=1 tests/run.sh             rewrite the expected .out files from the current output
-#
-# run/<name>.pgt         compiled and run; stdout must equal run/<name>.out
-#                        (stdin comes from <name>.in, arguments from <name>.args when present)
-#                        a first line `// memstats` runs it with PGT_MEMSTATS=1, so the expected output
-#                        ends with the runtime's `pgt: live blocks: N` line (0 = nothing leaked)
-# projects/<dir>/        a module with pgt.mod; same rules with <dir>.out / <dir>.in next to it
-# debug/<name>.pgt       `pgt build - --debug` (tokens and syntax tree) must equal debug/<name>.out
-# errors/<name>.pgt      the first line is `// error: <text>` (compilation must fail with <text>)
-#                        or `// panic: <text>` (the program must crash with <text> on stderr)
-
 set -u
 cd "$(dirname "$0")"
 PGT="$(realpath "${1:-../build/pgt}")"
@@ -31,7 +16,7 @@ bad() {
     [ -n "${2:-}" ] && printf '%s\n' "$2" | head -20 | sed 's/^/     /'
 }
 
-check_output() { # name input expected-file stdin-file args-file
+check_output() {
     local name=$1 input=$2 expected=$3 stdin=$4 argsfile=$5
     local exe="$TMP/$(echo "$name" | tr '/' '_')"
     local log
