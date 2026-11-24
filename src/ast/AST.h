@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -393,6 +394,8 @@ namespace pgt
         std::vector<InterfaceDecl> interfaces;
         std::vector<std::unique_ptr<VarDecl>> globals;
         ExprPtr exitCode;
+        std::set<std::string> qualifiers;
+        bool usesMalloc = false;
     };
 
 }

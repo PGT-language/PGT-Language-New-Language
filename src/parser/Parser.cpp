@@ -168,6 +168,14 @@ namespace pgt
                                   "'var*') or the final 'return', found ") +
                       tokName(cur().kind));
         }
+        for (size_t i = 0; i + 1 < toks_.size(); ++i)
+        {
+            if (toks_[i].kind == Tok::KwVarManual)
+                prog.usesMalloc = true;
+            if (toks_[i].kind == Tok::Ident && toks_[i + 1].kind == Tok::Dot &&
+                (i == 0 || toks_[i - 1].kind != Tok::Dot))
+                prog.qualifiers.insert(toks_[i].text);
+        }
         return prog;
     }
 

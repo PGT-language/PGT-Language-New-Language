@@ -1,0 +1,13 @@
+// error: "strings" imported and not used
+package main
+
+#use (
+    "math"
+    "pgt/std/strings"
+)
+
+fn main() {
+    println(math.Pi)
+}
+
+return 0

@@ -89,6 +89,7 @@ namespace pgt
         stdDir_ = findStdDir();
         loadRuntime();
         ws_.root = loadPackage(dir, std::move(files), true, "");
+        checkUnusedImports();
         return std::move(ws_);
     }
 
@@ -103,6 +104,35 @@ namespace pgt
         for (std::string &f : files)
             f = displayPath(f);
         loadPackage(dir, std::move(files), false, "runtime");
+    }
+
+    void Loader::checkUnusedImports() const
+    {
+        for (const auto &pkg : ws_.packages)
+        {
+            for (const Program &p : pkg->programs)
+            {
+                std::set<std::string> names;
+                for (const Import &imp : p.imports)
+                {
+                    auto it = ws_.byPath.find(imp.path);
+                    if (it != ws_.byPath.end() && !names.insert(it->second->name).second)
+                        failAt("package name '" + it->second->name + "' is imported more than once", p.file,
+                               imp.line, imp.col);
+                }
+                for (const Import &imp : p.imports)
+                {
+                    auto it = ws_.byPath.find(imp.path);
+                    if (it == ws_.byPath.end())
+                        continue;
+                    const Package *target = it->second;
+                    bool used = p.qualifiers.count(target->name) ||
+                                (target->importPath == "memory" && p.usesMalloc);
+                    if (!used)
+                        failAt("\"" + imp.path + "\" imported and not used", p.file, imp.line, imp.col);
+                }
+            }
+        }
     }
 
     std::string Loader::importPathFor(const fs::path &dir, const std::string &packageName) const
