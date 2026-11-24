@@ -1,15 +1,9 @@
 package io
 
-// Построчное чтение стандартного ввода.
-//
-//     var* line = io.ReadLine()
-//     while !io.EOF() { ...; line = io.ReadLine() }
-
 extern fn pgt_read_raw_line(ok *bool) string
 
 var* atEnd = false
 
-// ReadLine читает следующую строку (без '\n'). В конце ввода возвращает "" и EOF() становится true.
 fn ReadLine() string {
     var* ok = false
     var* line = pgt_read_raw_line(&ok)
@@ -21,7 +15,6 @@ fn EOF() bool {
     return atEnd
 }
 
-// ReadLines читает все оставшиеся строки.
 fn ReadLines() []string {
     var* out + {[]string} = []
     var* line = ReadLine()
@@ -32,7 +25,6 @@ fn ReadLines() []string {
     return out
 }
 
-// Prompt печатает подсказку и читает строку целиком.
 fn Prompt(text string) string {
     print(text)
     return ReadLine()

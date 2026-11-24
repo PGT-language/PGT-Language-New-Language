@@ -1,0 +1,63 @@
+package main
+
+#use "pgt/std/memory"
+
+fn sum(b []byte) int {
+    var* s = 0
+    for x in b {
+        s += int(x)
+    }
+    return s
+}
+
+fn main() {
+    var& := buf = malloc(free[byte] 16)
+    println(len(buf), " ", buf[0], " ", buf[15])
+    for i in 0..len(buf) {
+        buf[i] = byte(i * 3)
+    }
+    println(buf)
+    println(sum(buf))
+
+    memory.Set(buf, 7)
+    println(buf[3], " ", sum(buf))
+    memory.Zero(buf)
+    println(sum(buf))
+
+    var* src = [byte(1), byte(2), byte(3)]
+    println(memory.Copy(buf, src), " ", buf[0], buf[1], buf[2], buf[3])
+    println(src)
+
+    var* b byte = 250
+    b += 10
+    println(b, " ", b / 3, " ", b % 7, " ", b << 4, " ", b >> 1, " ", b | 128, " ", ~b, " ", b > 5)
+    var* c = byte(200)
+    println(c > 100, " ", int(c) + 100, " ", float(c) / 2.0, " ", str(c), " ", byte(65) == byte(65))
+    println(int64(c) * 1000000000)
+
+    var& := nums = malloc(free[int] 10)
+    for i in 0..len(nums) {
+        nums[i] = i * i
+    }
+    var* total = 0
+    for n in nums {
+        total += n
+    }
+    println(total, " ", len(nums), " ", nums)
+    free(nums)
+    println(len(nums))
+
+    var& := big = malloc(free[byte] memory.MB(1))
+    big[len(big) - 1] = 255
+    println(len(big), " ", big[len(big) - 1], " ", big[0])
+    free(big)
+
+    var* heap = new(int)
+    *heap = 5
+    free(heap)
+    var* arr = make([]int, 3)
+    free(arr)
+    println("done")
+}
+
+return 0

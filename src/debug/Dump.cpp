@@ -23,11 +23,10 @@ namespace pgt
     namespace
     {
 
-        // A neutral tree built from the AST; printed either as text or as JSON.
         struct Node
         {
-            std::string kind;  // Function, Binary, IntLit, ...
-            std::string label; // what is shown: "fn main()", "+", "42"
+            std::string kind;
+            std::string label;
             int line = 0, col = 0;
             std::vector<Node> kids;
         };
@@ -334,7 +333,6 @@ namespace pgt
                         n.kids.push_back(stmt(s.get()));
                 root.kids.push_back(std::move(n));
             }
-            // Declarations are stored by kind; show them in source order.
             std::stable_sort(root.kids.begin(), root.kids.end(), [](const Node &a, const Node &b) {
                 return a.line != b.line ? a.line < b.line : a.col < b.col;
             });
@@ -346,8 +344,6 @@ namespace pgt
             }
             return root;
         }
-
-        // ---------------------------------------------------------------- output
 
         std::string json(const std::string &s)
         {
@@ -498,13 +494,11 @@ namespace pgt
         return ok;
     }
 
-
     namespace
     {
 
         namespace fs = std::filesystem;
 
-        // The groups the studio shows in a file overview.
         const char *tokenCategory(Tok k)
         {
             switch (k)
@@ -544,7 +538,7 @@ namespace pgt
         {
             fs::path abs;
             std::string display;
-            std::string packageDir; // key of its package
+            std::string packageDir;
             std::string text;
             std::vector<Token> tokens;
             std::optional<Program> prog;
@@ -554,10 +548,9 @@ namespace pgt
         struct ProjectPackage
         {
             std::string importPath;
-            std::vector<size_t> files; // indices into the file list
+            std::vector<size_t> files;
         };
 
-        // Groups the top-level declarations of a file the way the studio shows them.
         Node astView(const Program &p)
         {
             Node full = program(p);
@@ -618,7 +611,7 @@ namespace pgt
         };
 
         std::vector<ProjectFile> files;
-        std::map<std::string, ProjectPackage> packages; // by canonical directory
+        std::map<std::string, ProjectPackage> packages;
         std::deque<std::string> queue;
         std::vector<std::string> unresolved;
         size_t edges = 0;
@@ -658,8 +651,7 @@ namespace pgt
         std::vector<std::string> rootFiles = isDir ? listSources(in) : std::vector<std::string>{input};
         std::string rootKey = addPackage(rootDir, rootFiles, mod ? mod->name : "main");
 
-        // Breadth-first over imports; remembers where every import of every file points.
-        std::map<size_t, std::vector<std::pair<std::string, std::string>>> importsOf; // file -> (path, pkg key)
+        std::map<size_t, std::vector<std::pair<std::string, std::string>>> importsOf;
         while (!queue.empty())
         {
             std::string key = queue.front();
@@ -685,7 +677,6 @@ namespace pgt
             }
         }
 
-        // The entry file: the one with the final `return`, else the first one.
         size_t entry = packages[rootKey].files.empty() ? 0 : packages[rootKey].files.front();
         for (size_t fi : packages[rootKey].files)
             if (files[fi].prog && files[fi].prog->exitCode)
@@ -702,7 +693,6 @@ namespace pgt
             out << (i ? "," : "") << json(unresolved[i]);
         out << "],\"files\":[";
 
-        // Entry first, then the rest in discovery order.
         std::vector<size_t> order{entry};
         for (size_t i = 0; i < files.size(); ++i)
             if (i != entry)

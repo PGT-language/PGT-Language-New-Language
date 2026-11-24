@@ -1,0 +1,7 @@
+// error: 'var&' must be initialized with malloc(free[T] N)
+package main
+#use "pgt/std/memory"
+fn main() {
+    var& := x = 5
+}
+return 0

@@ -30,7 +30,6 @@ namespace Settings
         if (!inPath.isEmpty())
             return inPath;
 
-        // A development checkout: studio/build/pgt-studio next to build/pgt.
         QDir dir(QCoreApplication::applicationDirPath());
         for (const char *rel : {"pgt", "../../build/pgt", "../build/pgt"})
         {

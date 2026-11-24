@@ -45,7 +45,6 @@ namespace pgt
     namespace
     {
 
-        // The files `--debug` shows: the given file, every .pgt file of the given directory, or stdin.
         std::vector<DebugSource> debugSources(const std::string &input)
         {
             std::vector<DebugSource> out;

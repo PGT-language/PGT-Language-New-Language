@@ -1,0 +1,117 @@
+// memstats
+package main
+
+struct Point {
+    X int
+    Y int
+}
+
+struct Person {
+    Name string
+    Age int
+    Friends []string
+    Home *Point
+}
+
+struct Node {
+    Val int
+    Next *Node
+}
+
+struct Stack {
+    Head *Node
+    Size int
+}
+
+fn (s *Stack) Push(v int) {
+    s.Head = &Node{Val: v, Next: s.Head}
+    s.Size++
+}
+
+fn (s *Stack) Pop() int {
+    var* n = s.Head
+    s.Head = n.Next
+    s.Size--
+    return n.Val
+}
+
+fn push(head *Node, v int) *Node {
+    return &Node{Val: v, Next: head}
+}
+
+fn sum(head *Node) int {
+    var* t = 0
+    var* cur = head
+    while cur != nil {
+        t += cur.Val
+        cur = cur.Next
+    }
+    return t
+}
+
+fn newPerson(name string, age int) Person {
+    return Person{Name: name, Age: age, Friends: ["f1", name + "'s friend"], Home: &Point{X: age, Y: 2}}
+}
+
+fn mover(p *Point) {
+    p.X += 10
+}
+
+fn main() {
+    var* head *Node = nil
+    for i in 0..1000 {
+        head = push(head, i)
+    }
+    println(sum(head))
+    head = head.Next
+    println(sum(head))
+    head = nil
+
+    var* st Stack
+    for i in 0..50 {
+        st.Push(i)
+    }
+    var* top = 0
+    for i in 0..20 {
+        top += st.Pop()
+    }
+    println(top, " ", st.Size)
+    st.Head = nil
+
+    var* p = newPerson("ann", 30)
+    var* q = p
+    q.Name = "bob"
+    q.Friends = append(q.Friends, "x" + 1)
+    println(p.Name, " ", q.Name, " ", len(p.Friends), " ", len(q.Friends), " ", p.Home.X)
+
+    var* pt = new(Point)
+    pt.X = 5
+    mover(pt)
+    var* alias = pt
+    mover(alias)
+    println(pt.X, " ", alias.X)
+
+    var* local Point
+    var* lp = &local
+    mover(lp)
+    println(local.X)
+
+    var* cell = 1
+    var* cp = &cell
+    cell = 5
+    println(*cp)
+
+    var* people + {[]Person} = []
+    for i in 0..5 {
+        people = append(people, newPerson("p" + i, i))
+    }
+    println(people[4].Name, " ", people[2].Home.X)
+
+    var* tmp = new(Point)
+    free(tmp)
+    var* arr = make([]int, 4)
+    free(arr)
+    println(newPerson("zed", 1).Name)
+}
+
+return 0

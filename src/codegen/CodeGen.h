@@ -32,14 +32,14 @@ namespace pgt
         {
             llvm::Value *value = nullptr;
             TyP type = nullptr;
-            bool owned = false; // a fresh +1 reference still tracked in temps_
+            bool owned = false;
         };
         struct Var
         {
             llvm::Value *addr = nullptr;
             TyP type = nullptr;
             bool isConst = false;
-            bool isManual = false; // `var&`: memory is released by free(x); never tracked automatically
+            bool isManual = false;
         };
         struct Global
         {
@@ -49,16 +49,15 @@ namespace pgt
         };
         struct LoopTargets
         {
-            llvm::BasicBlock *continueTo; // null for `switch`
+            llvm::BasicBlock *continueTo;
             llvm::BasicBlock *breakTo;
-            size_t depth = 0; // scopes_.size() inside the loop body: break/continue release scopes above it
+            size_t depth = 0;
         };
-        // A local that owns a reference released when its scope ends (or on return/break/continue).
         struct OwnedLocal
         {
             llvm::Value *slot = nullptr;
             TyP type = nullptr;
-            bool boxed = false; // slot is a managed heap box (the variable's address escapes)
+            bool boxed = false;
         };
         struct Scope
         {
@@ -79,7 +78,6 @@ namespace pgt
             std::map<std::string, Global> globals;
             llvm::Function *init = nullptr;
         };
-        // The result of resolving a name or selector that is not a local variable.
         struct Addr
         {
             llvm::Value *addr = nullptr;
@@ -87,7 +85,6 @@ namespace pgt
             bool isConst = false;
         };
 
-        // ---- types (CodeGen.cpp)
         llvm::Type *llvmType(TyP t);
         llvm::Constant *sizeOf(TyP t);
         TyP resolveType(const TypeExpr &type, bool allowVoid = false);
@@ -96,7 +93,6 @@ namespace pgt
         static std::string mangle(const std::string &importPath, const std::string &name);
         [[noreturn]] void fail(const std::string &msg, int line, int col) const;
 
-        // ---- scopes
         llvm::AllocaInst *entryAlloca(llvm::Type *type, const std::string &name);
         llvm::Value *newVarSlot(TyP type, const std::string &name);
         void pushScope();
@@ -107,22 +103,20 @@ namespace pgt
         void declare(const std::string &name, Var var, int line, int col);
         void startDeadBlock();
 
-        // ---- automatic memory management (CodeGenMemory.cpp)
         bool isManaged(TyP t);
         void emitRetain(llvm::Value *v, TyP t);
         void emitRelease(llvm::Value *v, TyP t);
         llvm::Function *structHelper(TyP t, bool retain);
-        llvm::Constant *dropFn(TyP t);   // void(ptr): releases the value stored at ptr; null if unmanaged
-        llvm::Constant *retainFn(TyP t); // void(ptr): retains the value stored at ptr; null if unmanaged
-        Value owned(Value v);            // marks a fresh allocation: released at the end of the statement
-        llvm::Value *take(const Value &v);           // a +1 reference to store somewhere
+        llvm::Constant *dropFn(TyP t);
+        llvm::Constant *retainFn(TyP t);
+        Value owned(Value v);
+        llvm::Value *take(const Value &v);
         void flushTemps(size_t downTo = 0);
         void storeValue(llvm::Value *addr, TyP t, Value v, bool initial);
-        void holdValue(Value v);                      // keeps v alive until the current scope ends
+        void holdValue(Value v);
         void emitScopeReleases(size_t downTo);
         bool isManualElement(const Expr &target);
 
-        // ---- declarations
         void checkExitCodes(const Package &pkg) const;
         void declareTypes(const Package &pkg);
         void resolveTypeBodies(const Package &pkg);
@@ -134,7 +128,6 @@ namespace pgt
         void genFunction(const Function &fn, const FuncInfo &info);
         void genEntryPoint(const Package &root, const Expr &exitCode);
 
-        // ---- statements (CodeGenStmt.cpp)
         void genBlock(const Block &block);
         void genStmt(const Stmt &stmt);
         void genVarDecl(const VarDecl &decl);
@@ -146,7 +139,6 @@ namespace pgt
         void genForIn(const ForIn &loop);
         void genSwitch(const Switch &sw);
 
-        // ---- expressions (CodeGenExpr.cpp)
         Value genExpr(const Expr &expr, TyP hint = nullptr);
         Value genCond(const Expr &expr);
         Value coerce(Value v, TyP to, int line, int col, const std::string &what);
@@ -178,7 +170,6 @@ namespace pgt
         Value toStringValue(Value v, int line, int col);
         void nilCheck(llvm::Value *ptr);
 
-        // ---- builtins and runtime (CodeGenBuiltins.cpp)
         llvm::Value *rt(const std::string &name, llvm::Type *ret, std::vector<llvm::Value *> args,
                         bool noReturn = false);
         llvm::FunctionCallee rtDecl(const std::string &name, llvm::Type *ret,
@@ -221,4 +212,4 @@ namespace pgt
         std::map<TyP, llvm::Function *> printThunks_;
     };
 
-} // namespace pgt
+}

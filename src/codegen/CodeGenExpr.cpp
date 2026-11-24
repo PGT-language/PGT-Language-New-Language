@@ -10,7 +10,6 @@ namespace pgt
     namespace
     {
 
-        // Literal-only arithmetic adapts to the type of the other operand: `big + 1`, `ratio * 2`.
         bool isConstExpr(const Expr &e)
         {
             if (dynamic_cast<const IntLit *>(&e) || dynamic_cast<const FloatLit *>(&e))
@@ -55,7 +54,7 @@ namespace pgt
             return std::to_string(i);
         }
 
-    } // namespace
+    }
 
     CodeGen::Value CodeGen::genExpr(const Expr &expr, TyP hint)
     {
@@ -218,8 +217,6 @@ namespace pgt
         panicIf(builder_.CreateIsNull(ptr), "pgt_panic_nil", {});
     }
 
-    // ------------------------------------------------------------------ operators
-
     void CodeGen::genOperands(const Expr &lhs, const Expr &rhs, TyP hint, Value &l, Value &r)
     {
         bool lc = isConstExpr(lhs), rc = isConstExpr(rhs);
@@ -324,7 +321,7 @@ namespace pgt
         Value rhs = genExpr(*bin.rhs);
         if (!rhs.type->is(Type::Kind::Bool))
             needBool();
-        flushTemps(mark); // temporaries of the conditionally evaluated side die on that side
+        flushTemps(mark);
         llvm::BasicBlock *rhsEnd = builder_.GetInsertBlock();
         builder_.CreateBr(endBB);
 
@@ -348,7 +345,6 @@ namespace pgt
         auto result = [&](llvm::Value *isEqual)
         { return Value{op == BinOp::Eq ? isEqual : builder_.CreateNot(isEqual), types_.boolT}; };
 
-        // Comparisons with nil.
         if (l.type->is(Type::Kind::Nil) || r.type->is(Type::Kind::Nil))
         {
             Value v = l.type->is(Type::Kind::Nil) ? r : l;
@@ -476,7 +472,6 @@ namespace pgt
 
     CodeGen::Value CodeGen::genArith(BinOp op, Value l, Value r, int line, int col)
     {
-        // String concatenation: "n=" + 5, name + '!'.
         if (op == BinOp::Add && (l.type->is(Type::Kind::String) || r.type->is(Type::Kind::String)))
         {
             Value ls = toStringValue(l, line, col);
@@ -595,8 +590,6 @@ namespace pgt
         return genArith(bin.op, l, r, bin.line, bin.col);
     }
 
-    // ------------------------------------------------------------------ places
-
     std::optional<CodeGen::Addr> CodeGen::packageMember(const Selector &sel)
     {
         auto *ref = dynamic_cast<const VarRef *>(sel.base.get());
@@ -635,7 +628,6 @@ namespace pgt
         return builder_.CreateGEP(llvmType(arr.type->elem), data, idx);
     }
 
-    // Returns std::nullopt only when the expression is not addressable *and* nothing was evaluated.
     std::optional<CodeGen::Addr> CodeGen::addressOf(const Expr &expr, bool forWrite)
     {
         if (auto *ref = dynamic_cast<const VarRef *>(&expr))
@@ -735,7 +727,7 @@ namespace pgt
         if (auto a = addressOf(expr, forWrite))
             return *a;
         if (auto *ref = dynamic_cast<const VarRef *>(&expr))
-            genExpr(*ref); // reports the precise problem with the name
+            genExpr(*ref);
         fail(forWrite ? "cannot assign to this expression" : "cannot take the address of this expression",
              expr.line, expr.col);
     }
@@ -745,7 +737,6 @@ namespace pgt
         if (auto a = addressOf(sel, false))
             return {builder_.CreateLoad(llvmType(a->type), a->addr), a->type};
 
-        // The base is a temporary: a call result or a literal.
         Value v = genExpr(*sel.base);
         if (v.type->isPtrToStruct())
         {
@@ -798,8 +789,6 @@ namespace pgt
         }
         fail("cannot index " + base.type->name(), idx.line, idx.col);
     }
-
-    // ------------------------------------------------------------------ literals
 
     CodeGen::Value CodeGen::genArrayLit(const ArrayLit &lit, TyP hint)
     {
@@ -867,8 +856,6 @@ namespace pgt
         return owned({agg, t});
     }
 
-    // ------------------------------------------------------------------ calls
-
     CodeGen::Value CodeGen::callFunction(const FuncInfo &info, const std::string &name, const Call &call,
                                          std::vector<llvm::Value *> args, size_t firstParam)
     {
@@ -891,8 +878,6 @@ namespace pgt
         llvm::Value *result = builder_.CreateCall(info.fn, args);
         if (info.ret->is(Type::Kind::Void))
             return {nullptr, info.ret};
-        // Results are owned references. A string that an external C function returns is usually not a
-        // managed block; releasing it is then a no-op.
         return owned({result, info.ret});
     }
 
@@ -1068,8 +1053,6 @@ namespace pgt
         return owned({result, m.ret});
     }
 
-    // ------------------------------------------------------------------ interfaces
-
     std::string CodeGen::missingMethod(TyP concrete, const IfaceInfo &iface) const
     {
         StructInfo *st = concrete->is(Type::Kind::Struct) ? concrete->st
@@ -1100,8 +1083,6 @@ namespace pgt
         if (!why.empty())
             fail(v.type->name() + " does not implement " + ifaceType->name() + ": " + why, line, col);
 
-        // The interface holds one reference to its data block: the pointer itself, or a fresh box
-        // that owns a copy of the value.
         llvm::Value *data;
         if (v.type->is(Type::Kind::Pointer))
             data = take(v);
@@ -1138,7 +1119,6 @@ namespace pgt
         return gv;
     }
 
-    // Adapts a method to the interface calling convention: the receiver arrives as a pointer.
     llvm::Function *CodeGen::methodThunk(StructInfo *st, const FuncInfo &m)
     {
         std::string name = m.fn->getName().str() + ".thunk";

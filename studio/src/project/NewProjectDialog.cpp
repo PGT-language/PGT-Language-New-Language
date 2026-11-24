@@ -26,7 +26,6 @@ NewProjectDialog::NewProjectDialog(const QString &compiler, QWidget *parent)
     name_ = new QLineEdit("hello");
     name_->setValidator(new QRegularExpressionValidator(QRegularExpression("[A-Za-z_][A-Za-z0-9_-]*"), name_));
     location_ = new QLineEdit(Settings::projectsDir());
-    // Long paths must not squeeze the labels of the form.
     location_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     auto *browse = new QPushButton("Обзор…");
     browse->setAutoDefault(false);
@@ -83,7 +82,6 @@ NewProjectDialog::NewProjectDialog(const QString &compiler, QWidget *parent)
 
 void NewProjectDialog::loadTemplates()
 {
-    // `pgt new --list` prints "  name        description" per line.
     QProcess proc;
     proc.start(compiler_, {"new", "--list"});
     if (proc.waitForFinished(5000) && proc.exitCode() == 0)

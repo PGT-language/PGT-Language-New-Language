@@ -1,0 +1,7 @@
+// error: 'malloc' can only be used as the initializer of 'var&'
+package main
+#use "pgt/std/memory"
+fn main() {
+    var* x = malloc(free[byte] 4)
+}
+return 0

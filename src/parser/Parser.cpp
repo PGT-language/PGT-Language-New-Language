@@ -23,7 +23,6 @@ namespace pgt
             }
         };
 
-        // "pgt/std/memory" and "std/memory" are the standard package "memory".
         std::string normalizeImportPath(const std::string &path)
         {
             for (const char *prefix : {"pgt/std/", "std/"})
@@ -357,7 +356,6 @@ namespace pgt
             m.col = cur().col;
             m.name = expect(Tok::Ident, "as a method name").text;
             m.params = parseParams();
-            // `Name(` on the same position starts the next method, not a result type.
             if (atTypeStart() && !(check(Tok::Ident) && peekTok().kind == Tok::LParen))
                 m.ret = parseType("as the result type");
             decl.methods.push_back(std::move(m));
@@ -435,7 +433,6 @@ namespace pgt
         return decl;
     }
 
-    // `var& := name = malloc(free[T] N)`
     std::unique_ptr<VarDecl> Parser::parseManualVarDecl()
     {
         auto decl = make<VarDecl>(cur());
@@ -455,7 +452,6 @@ namespace pgt
         return decl;
     }
 
-    // `malloc(free[T] N)`; the current token is `malloc`.
     ExprPtr Parser::parseMalloc()
     {
         const Token &at = cur();
@@ -568,7 +564,6 @@ namespace pgt
             const Token &retTok = cur();
             auto stmt = make<Return>(retTok);
             advance();
-            // A value must start on the same line as 'return'.
             if (!check(Tok::RBrace) && !check(Tok::Semi) && cur().line == retTok.line)
                 stmt->value = parseExpr();
             return stmt;
@@ -680,7 +675,6 @@ namespace pgt
                     loop->body = parseBlock("after the 'for' condition");
                     return loop;
                 }
-                // It is the initializer of a three-part loop: parse it again as a statement.
                 pos_ = start;
                 first = parseSimpleStatement();
             }
@@ -944,7 +938,6 @@ namespace pgt
             if (t.text == "malloc" && peekTok().kind == Tok::LParen)
                 return parseMalloc();
             advance();
-            // `Name{...}` and `pkg.Name{...}` are struct literals.
             if (atStructLitBody())
                 return parseStructLit(TypeExpr::named(t.text, t.line, t.col), t);
             if (check(Tok::Dot) && peekTok().kind == Tok::Ident && !noStructLit_ &&

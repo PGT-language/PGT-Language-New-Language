@@ -113,7 +113,6 @@ void CodeEditor::keyPressEvent(QKeyEvent *event)
     }
     if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter)
     {
-        // Keep the indentation of the current line and add one level after '{'.
         QString line = cursor.block().text();
         QString indent;
         for (QChar c : line)
@@ -131,7 +130,6 @@ void CodeEditor::keyPressEvent(QKeyEvent *event)
     }
     if (event->text() == "}")
     {
-        // Typing '}' on an empty line removes one indentation level.
         QString line = cursor.block().text();
         if (line.trimmed().isEmpty() && line.size() >= indentUnit().size() &&
             cursor.positionInBlock() == line.size())

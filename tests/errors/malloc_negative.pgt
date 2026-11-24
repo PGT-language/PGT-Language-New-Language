@@ -1,0 +1,9 @@
+// panic: malloc: negative size
+package main
+#use "pgt/std/memory"
+fn main() {
+    var* n = 0 - 5
+    var& := x = malloc(free[int] n)
+    free(x)
+}
+return 0

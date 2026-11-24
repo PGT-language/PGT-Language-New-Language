@@ -9,7 +9,6 @@
 
 int main(int argc, char **argv)
 {
-    // System file dialogs follow the desktop theme and could be light; ours follow the studio theme.
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
 
     QApplication app(argc, argv);
@@ -18,7 +17,6 @@ int main(int argc, char **argv)
     QApplication::setApplicationVersion(PGT_STUDIO_VERSION);
     Theme::apply(app);
 
-    // Russian labels for the standard buttons (Save, Cancel, ...) when the translation is installed.
     QTranslator qtTranslator;
     if (qtTranslator.load("qtbase_ru", QLibraryInfo::path(QLibraryInfo::TranslationsPath)))
         app.installTranslator(&qtTranslator);

@@ -8,9 +8,6 @@ class QPushButton;
 class QTreeWidget;
 class QTreeWidgetItem;
 
-// "Граф токенов проекта": every file the program loads (the standard library included),
-// who imports whom, how many tokens each file weighs, its syntax tree and token stream.
-// Filled from `pgt build <dir> --debug=project`.
 class ProjectGraphView : public QWidget
 {
     Q_OBJECT
@@ -36,5 +33,5 @@ private:
     QPushButton *clearBtn_;
     QTreeWidget *tree_;
     QProcess *proc_;
-    QHash<QString, QJsonObject> files_; // by display path
+    QHash<QString, QJsonObject> files_;
 };

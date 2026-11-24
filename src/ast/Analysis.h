@@ -40,8 +40,6 @@ namespace pgt
         return false;
     }
 
-    // Does the block contain a `break` that leaves the enclosing loop?
-    // Breaks inside nested loops and switches belong to those statements.
     inline bool hasBreak(const Block &block)
     {
         for (const StmtPtr &s : block)

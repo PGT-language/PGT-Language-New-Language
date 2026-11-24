@@ -41,7 +41,6 @@ namespace
         item->setData(0, ColRole, col);
     }
 
-    // Token kinds grouped by color, the same palette as the editor.
     QColor tokenColor(const QString &kind)
     {
         if (kind.startsWith("Kw"))
@@ -183,7 +182,6 @@ void CompilerPanel::showResult(const QByteArray &json)
     }
     QJsonObject file = doc.object()["files"].toArray().first().toObject();
 
-    // Keep the expanded state readable: rebuild and expand everything.
     tokens_->setUpdatesEnabled(false);
     ast_->setUpdatesEnabled(false);
     tokens_->clear();
@@ -275,8 +273,6 @@ void CompilerPanel::syncWithCursor()
         return;
     QTextCursor c = editor_->textCursor();
     int line = c.blockNumber() + 1, col = c.positionInBlock() + 1;
-    // The last token that starts at or before the cursor on the same line,
-    // or the first token of the line when the cursor is in its indentation.
     QTreeWidgetItem *best = nullptr;
     for (int i = 0; i < tokens_->topLevelItemCount(); ++i)
     {

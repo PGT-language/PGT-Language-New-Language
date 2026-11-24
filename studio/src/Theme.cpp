@@ -36,7 +36,6 @@ namespace Theme
             set(QPalette::Highlight, selection);
             set(QPalette::HighlightedText, text);
             set(QPalette::Accent, accent);
-            // Fusion draws bevels and frames with these; keep them all dark.
             set(QPalette::Light, hover);
             set(QPalette::Midlight, raised);
             set(QPalette::Mid, border);
@@ -51,8 +50,6 @@ namespace Theme
             return p;
         }
 
-        // Small icons used by the style sheet, drawn from the theme colors at startup
-        // (1x and @2x for HiDPI screens). Returns the directory they were written to.
         QString writeIcons()
         {
             QString dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/theme";

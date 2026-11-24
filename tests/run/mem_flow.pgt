@@ -1,0 +1,71 @@
+// memstats
+package main
+
+struct P {
+    Name string
+    Tags []string
+}
+
+var* g = "g" + "1"
+
+fn clobber(s string) int {
+    g = "other" + "!"
+    return len(s)
+}
+
+fn find(ps []P, name string) string {
+    for p in ps {
+        var* tmp = "t" + p.Name
+        for t in p.Tags {
+            var* inner = t + tmp
+            if inner == "x" + tmp {
+                return inner
+            }
+            if t == "skip" {
+                continue
+            }
+            if t == "stop" {
+                break
+            }
+        }
+        if p.Name == name {
+            return tmp
+        }
+    }
+    return "none"
+}
+
+fn main() {
+    println(clobber(g), " ", g)
+    var* ps + {[]P} = []
+    for i in 0..4 {
+        ps = append(ps, P{Name: "n" + i, Tags: ["a" + i, "skip", "stop", "x"]})
+    }
+    println(find(ps, "n2"), " ", find(ps, "zz"))
+    for i in 0..5 {
+        var* esc = "e" + i
+        var* pe = &esc
+        if i == 1 {
+            continue
+        }
+        if i == 3 {
+            break
+        }
+        println(*pe)
+    }
+    var* sw = P{Name: "sw" + 1}
+    switch sw.Name + "" {
+    case "sw1" {
+        var* inside = "in" + sw.Name
+        println(inside)
+        if len(inside) > 1 {
+            return
+        }
+    }
+    default {
+        println("default")
+    }
+    }
+}
+
+return 0

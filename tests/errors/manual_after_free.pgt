@@ -1,0 +1,9 @@
+// panic: index out of range [0] with length 0
+package main
+#use "pgt/std/memory"
+fn main() {
+    var& := x = malloc(free[byte] 16)
+    free(x)
+    x[0] = 1
+}
+return 0

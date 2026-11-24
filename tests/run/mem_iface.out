@@ -1,0 +1,16 @@
+rect:r0=0
+circle1=3
+rect:r2=4
+circle1=27
+rect:r4=8
+circle1=75
+rect:r6=12
+circle1=147
+rect:r8=16
+circle1=243
+rect:r0=0
+rect:zz
+circle0 circle1=27
+true
+rect:r50
+pgt: live blocks: 0

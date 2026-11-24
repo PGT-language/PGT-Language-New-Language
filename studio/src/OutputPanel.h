@@ -5,8 +5,6 @@
 class QLineEdit;
 class QPlainTextEdit;
 
-// Output of the compiler and of the running program. Double-clicking a
-// `file:line:col: error:` line opens that place; the input line feeds the program's stdin.
 class OutputPanel : public QWidget
 {
     Q_OBJECT

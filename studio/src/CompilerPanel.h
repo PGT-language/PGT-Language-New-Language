@@ -12,8 +12,6 @@ class QTreeWidget;
 class QTreeWidgetItem;
 class QJsonObject;
 
-// Shows what the compiler sees in the current file: the tokens and the syntax tree.
-// Runs `pgt build - --debug=json` on the editor text (unsaved changes included) after each edit.
 class CompilerPanel : public QWidget
 {
     Q_OBJECT
@@ -22,7 +20,6 @@ public:
     explicit CompilerPanel(QWidget *parent = nullptr);
 
     void setEditor(CodeEditor *editor);
-    // Builds the project token graph and switches to its tab.
     void analyzeProject(const QString &projectDir);
 
 signals:

@@ -1,0 +1,72 @@
+// memstats
+package main
+
+fn greet(name string) string {
+    return "hello, " + name + "!"
+}
+
+fn pick(a string, b string, first bool) string {
+    if first {
+        return a
+    }
+    return b
+}
+
+fn build(n int) string {
+    var* s = ""
+    for i in 0..n {
+        s += str(i) + ","
+        if i == 7 {
+            return s + "early"
+        }
+    }
+    return s
+}
+
+fn main() {
+    var* acc = ""
+    for i in 0..200 {
+        acc = acc + "x"
+        var* t = "n" + i + "-" + acc
+        if len(t) > 100000 {
+            break
+        }
+    }
+    println(len(acc))
+    println(greet("pgt"))
+    println(greet("a" + "b"))
+    println(pick("p" + "q", "r" + "s", true), pick("p" + "q", "r" + "s", false))
+    println(build(5), " ", build(20))
+    var* words = ["a" + "1", "b" + "2", "c" + "3"]
+    var* joined = ""
+    for w in words {
+        if w == "b2" {
+            continue
+        }
+        joined += w
+    }
+    println(joined, " ", upper(joined), " ", substr(joined, 1, 2))
+    for i in 0..3 {
+        switch "k" + "ey" + i {
+        case "key0", "key1" {
+            if i == 1 {
+                break
+            }
+            println("matched ", i)
+        }
+        default {
+            println("no ", i)
+            continue
+        }
+        }
+        println("after ", i)
+    }
+    var* flag = len("ab" + "cd") == 4 && "x" + "y" == "xy" || "q" + "z" == "w"
+    println(flag)
+    println(str(12) + str(3.5) + str(true) + str('c'))
+    println(min("b" + "x", "a" + "y"), " ", max("b" + "x", "a" + "y"))
+    var* cs = chars("hey" + "!")
+    println(len(cs), " ", string(cs))
+}
+
+return 0

@@ -1,0 +1,85 @@
+// memstats
+package main
+
+struct Item {
+    Name string
+    Tags []string
+    N int
+}
+
+fn squares(n int) []int {
+    var* out + {[]int} = []
+    for i in 0..n {
+        out = append(out, i * i)
+    }
+    return out
+}
+
+fn names(n int) []string {
+    var* out + {[]string} = []
+    for i in 0..n {
+        out = append(out, "name" + i)
+    }
+    return out
+}
+
+fn firstBig(a []int, limit int) int {
+    for x in a {
+        if x > limit {
+            return x
+        }
+    }
+    return -1
+}
+
+fn makeItem(i int) Item {
+    return Item{Name: "item" + i, Tags: [str(i), "t" + i], N: i}
+}
+
+fn main() {
+    var* a = squares(40)
+    println(len(a), " ", a[39], " ", firstBig(a, 100))
+    var* b = a
+    a = append(a, 1)
+    b = append(b, 2)
+    println(a[len(a) - 1], " ", b[len(b) - 1], " ", len(a), " ", len(b))
+
+    var* ns = names(25)
+    var* copy = ns
+    ns = append(ns, "extra" + 1)
+    println(len(ns), " ", len(copy), " ", ns[25], " ", copy[24])
+
+    var* items + {[]Item} = []
+    for i in 0..30 {
+        items = append(items, makeItem(i))
+    }
+    var* total = 0
+    for it in items {
+        if it.N == 20 {
+            break
+        }
+        total += it.N + len(it.Tags)
+    }
+    println(total, " ", items[29].Name, " ", items[3].Tags)
+    items[3] = makeItem(100)
+    items[4].Name = "renamed" + 4
+    println(items[3].Name, " ", items[4].Name)
+
+    var* grid + {[][]int} = make([][]int, 5)
+    for i in 0..5 {
+        grid[i] = squares(i + 1)
+    }
+    println(grid)
+    grid = nil
+
+    var* m = make([]string, 3, 10)
+    m[0] = "a" + "b"
+    m[1] = m[0] + "c"
+    m = append(m, "d" + "e")
+    println(m, " ", len(m))
+    println(squares(3), names(2))
+    var* x = [squares(2), squares(3)]
+    println(x)
+}
+
+return 0

@@ -1,0 +1,31 @@
+// memstats
+package main
+
+var* names = ["a" + "1", "b" + "2"]
+var* label = "g" + "lobal"
+var* counter = 0
+
+struct Box {
+    Items []string
+}
+
+var* box = Box{Items: ["x" + "y"]}
+
+fn bump() {
+    counter++
+    label = label + str(counter)
+    names = append(names, label)
+    box.Items = append(box.Items, label)
+}
+
+fn main() {
+    for i in 0..10 {
+        bump()
+    }
+    println(label, " ", len(names), " ", len(box.Items))
+    label = "short"
+    names = nil
+    println(label, " ", len(names))
+}
+
+return 0

@@ -1,0 +1,10 @@
+package main
+
+#use "pgt/std/memory"
+
+fn main() {
+    var& := buf = malloc(free[byte] 1024 * 2)
+    free(buf)
+}
+
+return 0

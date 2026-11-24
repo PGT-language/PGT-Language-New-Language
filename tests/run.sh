@@ -6,6 +6,8 @@
 #
 # run/<name>.pgt         compiled and run; stdout must equal run/<name>.out
 #                        (stdin comes from <name>.in, arguments from <name>.args when present)
+#                        a first line `// memstats` runs it with PGT_MEMSTATS=1, so the expected output
+#                        ends with the runtime's `pgt: live blocks: N` line (0 = nothing leaked)
 # projects/<dir>/        a module with pgt.mod; same rules with <dir>.out / <dir>.in next to it
 # debug/<name>.pgt       `pgt build - --debug` (tokens and syntax tree) must equal debug/<name>.out
 # errors/<name>.pgt      the first line is `// error: <text>` (compilation must fail with <text>)
@@ -40,6 +42,11 @@ check_output() { # name input expected-file stdin-file args-file
     local args=()
     [ -f "$argsfile" ] && read -r -a args < "$argsfile"
     local out
+    if [ -f "$input" ] && [ "$(head -n 1 "$input")" = "// memstats" ]; then
+        export PGT_MEMSTATS=1
+    else
+        unset PGT_MEMSTATS
+    fi
     if [ -f "$stdin" ]; then
         out=$("$exe" "${args[@]}" < "$stdin" 2>&1)
     else

@@ -1,8 +1,5 @@
 package math
 
-// Математика. Базовые abs, min, max, sqrt, pow, floor, ceil, round, sin, cos, tan,
-// log, exp встроены в язык; здесь всё остальное.
-
 const (
     Pi = 3.141592653589793
     E = 2.718281828459045
@@ -27,8 +24,6 @@ extern fn tanh(x float) float
 extern fn log2(x float) float
 extern fn log10(x float) float
 extern fn fmod(x float, y float) float
-
-// ---- вещественные функции
 
 fn Sqrt(x float) float { return sqrt(x) }
 fn Cbrt(x float) float { return cbrt(x) }
@@ -56,7 +51,6 @@ fn Round(x float) float { return round(x) }
 fn Trunc(x float) float { return trunc(x) }
 fn Abs(x float) float { return abs(x) }
 
-// Mod — остаток от деления вещественных чисел (знак как у x).
 fn Mod(x float, y float) float { return fmod(x, y) }
 
 fn Min(a float, b float) float { return min(a, b) }
@@ -82,7 +76,6 @@ fn IsInf(x float) bool {
     return !IsNaN(x) && IsNaN(x - x)
 }
 
-// Sign возвращает -1, 0 или 1.
 fn Sign(x float) int {
     if x > 0 {
         return 1
@@ -92,8 +85,6 @@ fn Sign(x float) int {
     }
     return 0
 }
-
-// ---- целые числа
 
 fn ClampInt(x int, lo int, hi int) int {
     return max(lo, min(x, hi))
@@ -109,7 +100,6 @@ fn SignInt(x int) int {
     return 0
 }
 
-// PowInt возводит целое в неотрицательную степень (быстрое возведение).
 fn PowInt(base int64, exp int) int64 {
     var* result int64 = 1
     var* b = base
@@ -179,7 +169,6 @@ fn Fib(n int) int64 {
 fn IsEven(n int) bool { return n % 2 == 0 }
 fn IsOdd(n int) bool { return n % 2 != 0 }
 
-// DigitSum возвращает сумму цифр числа.
 fn DigitSum(n int) int {
     var* x = abs(n)
     var* s = 0

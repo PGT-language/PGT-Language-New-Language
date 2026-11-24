@@ -18,12 +18,11 @@
 
 namespace
 {
-    constexpr int PathRole = Qt::UserRole;     // absolute file path to open on click
+    constexpr int PathRole = Qt::UserRole;
     constexpr int LineRole = Qt::UserRole + 1;
     constexpr int ColRole = Qt::UserRole + 2;
-    constexpr int TokensRole = Qt::UserRole + 3; // display path of a not yet filled token stream
+    constexpr int TokensRole = Qt::UserRole + 3;
 
-    // Draws "main part\tsecondary part": the main part in the item color, the rest dimmed.
     class TwoToneDelegate : public QStyledItemDelegate
     {
     public:
@@ -215,7 +214,6 @@ void ProjectGraphView::showResult(const QByteArray &json)
     bold.setBold(true);
     top->setFont(0, bold);
 
-    // ---- overview
     QTreeWidgetItem *overview = section(top, "Обзор проекта");
     item(overview, "Точка входа\t" + entry);
     item(overview, "Загружено файлов\t" + QString::number(files.size()));
@@ -226,13 +224,11 @@ void ProjectGraphView::showResult(const QByteArray &json)
     for (const QJsonValue &u : unresolved)
         item(unres, "✖ " + u.toString(), Theme::error);
 
-    // ---- dependency tree
     QTreeWidgetItem *deps = section(top, "Дерево зависимостей");
     QStringList path;
     QSet<QString> shown;
     addDependencies(deps, entry, path, shown);
 
-    // ---- files
     QTreeWidgetItem *filesItem = section(top, QString("Файлы (%1)").arg(files.size()));
     for (const QJsonValue &v : files)
     {
@@ -267,7 +263,6 @@ void ProjectGraphView::addDependencies(QTreeWidgetItem *parent, const QString &f
     }
     if (shown.contains(file))
     {
-        // Every file is expanded once; later mentions only point back to it.
         node->setText(0, node->text(0) + " · показан выше");
         return;
     }
@@ -331,7 +326,7 @@ void ProjectGraphView::addFile(QTreeWidgetItem *parent, const QJsonObject &f, bo
 
     QTreeWidgetItem *stream = section(fileItem, "Поток токенов");
     stream->setData(0, TokensRole, display);
-    item(stream, "…", Theme::textFaint); // placeholder: filled when expanded
+    item(stream, "…", Theme::textFaint);
     if (expand)
     {
         fileItem->setExpanded(true);
@@ -356,11 +351,9 @@ void ProjectGraphView::addAst(QTreeWidgetItem *parent, const QJsonObject &node, 
     else if (kind == "Program")
         color = Theme::synKeyword;
 
-    // The top Program node itself is not repeated; its sections go straight under "AST".
     QString label = node["label"].toString();
     if (kind == "Section")
     {
-        // "functions (3)" from the compiler -> "функции (3)".
         static const QHash<QString, QString> ru = {{"imports", "импорты"},
                                                    {"constants and variables", "константы и переменные"},
                                                    {"structs", "структуры"},

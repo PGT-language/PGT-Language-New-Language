@@ -86,7 +86,6 @@ namespace pgt
     };
 
     const char *tokName(Tok kind);
-    // The enumerator name ("KwFn", "Ident"), used by `--debug`.
     const char *tokKindName(Tok kind);
 
 }

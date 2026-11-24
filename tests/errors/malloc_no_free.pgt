@@ -1,0 +1,7 @@
+// error: 'malloc' needs a block description: malloc(free[T] N)
+package main
+#use "pgt/std/memory"
+fn main() {
+    var& := x = malloc(1024)
+}
+return 0

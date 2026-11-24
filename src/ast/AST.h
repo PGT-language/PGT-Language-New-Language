@@ -108,7 +108,6 @@ namespace pgt
         return "?";
     }
 
-    // A type as written in the source: `int`, `geom.Point`, `[]T`, `*T`.
     struct TypeExpr
     {
         enum class Kind
@@ -118,7 +117,7 @@ namespace pgt
             Pointer
         };
         Kind kind = Kind::Named;
-        std::string qualifier; // package name for `pkg.Name`
+        std::string qualifier;
         std::string name;
         std::shared_ptr<TypeExpr> elem;
         int line = 0, col = 0;
@@ -199,8 +198,6 @@ namespace pgt
         ExprPtr lhs, rhs;
     };
 
-    // `callee(args)`; the callee is a VarRef (`f`) or a Selector (`pkg.F`, `value.Method`).
-    // `typeArg` is set for builtins whose first argument is a type: make([]int, n), new(Point).
     struct Call : Expr
     {
         ExprPtr callee;
@@ -208,7 +205,6 @@ namespace pgt
         std::vector<ExprPtr> args;
     };
 
-    // `base.name`: a struct field, or a constant/variable of an imported package.
     struct Selector : Expr
     {
         ExprPtr base;
@@ -239,8 +235,6 @@ namespace pgt
         std::vector<FieldInit> fields;
     };
 
-    // `malloc(free[T] N)`: a manually managed block of N elements of type T.
-    // Only valid as the initializer of `var&`.
     struct MallocExpr : Expr
     {
         TypeExpr elem;
@@ -261,7 +255,7 @@ namespace pgt
         std::optional<TypeExpr> type;
         ExprPtr init;
         bool isConst = false;
-        bool isManual = false; // `var& := x = malloc(free[T] N)`
+        bool isManual = false;
     };
 
     struct Assign : Stmt
@@ -292,13 +286,12 @@ namespace pgt
         Block body;
     };
 
-    // `for i in a..b`, `for x in arr`, `for i, x in arr`, `for ch in s`.
     struct ForIn : Stmt
     {
-        std::string key;   // index variable (only with two names)
-        std::string value; // element / range variable
-        ExprPtr iterable;  // or the start of the range
-        ExprPtr rangeEnd;  // set for `a..b`
+        std::string key;
+        std::string value;
+        ExprPtr iterable;
+        ExprPtr rangeEnd;
         Block body;
     };
 
@@ -311,7 +304,7 @@ namespace pgt
 
     struct Switch : Stmt
     {
-        ExprPtr tag; // null: every case value is a condition
+        ExprPtr tag;
         std::vector<Case> cases;
         Block defaultBody;
         bool hasDefault = false;
@@ -402,4 +395,4 @@ namespace pgt
         ExprPtr exitCode;
     };
 
-} // namespace pgt
+}

@@ -1,10 +1,5 @@
 package arrays
 
-// Функции для массивов. Массивы передаются по ссылке на данные (как срезы в Go),
-// поэтому Sort, Reverse и Fill меняют сам массив.
-
-// ---- []int
-
 fn Sum(a []int) int {
     var* s = 0
     for x in a {
@@ -85,7 +80,6 @@ fn Copy(a []int) []int {
     return out
 }
 
-// Slice возвращает копию элементов [from, to).
 fn Slice(a []int, from int, to int) []int {
     var* lo = max(0, from)
     var* hi = min(len(a), to)
@@ -104,7 +98,6 @@ fn Concat(a []int, b []int) []int {
     return out
 }
 
-// Range возвращает [from, from+1, ..., to-1].
 fn Range(from int, to int) []int {
     var* out + {[]int} = []
     for i in from..to {
@@ -143,7 +136,6 @@ fn IsSorted(a []int) bool {
     return true
 }
 
-// Sort сортирует массив по возрастанию (быстрая сортировка + вставки для малых кусков).
 fn Sort(a []int) {
     quicksort(a, 0, len(a) - 1)
 }
@@ -170,7 +162,6 @@ fn quicksort(a []int, lo int, hi int) {
                 j--
             }
         }
-        // Рекурсия по меньшей части, цикл по большей: глубина стека O(log n).
         if j - lo < hi - i {
             quicksort(a, lo, j)
             lo = i
@@ -201,7 +192,6 @@ fn median(a int, b int, c int) int {
     return b
 }
 
-// BinarySearch ищет v в отсортированном массиве; -1, если не найден.
 fn BinarySearch(a []int, v int) int {
     var* lo = 0
     var* hi = len(a) - 1
@@ -219,7 +209,6 @@ fn BinarySearch(a []int, v int) int {
     return -1
 }
 
-// Unique возвращает элементы без повторов, сохраняя порядок первого появления.
 fn Unique(a []int) []int {
     var* out + {[]int} = []
     for x in a {
@@ -229,8 +218,6 @@ fn Unique(a []int) []int {
     }
     return out
 }
-
-// ---- []float
 
 fn SumFloat(a []float) float {
     var* s = 0.0
@@ -259,8 +246,6 @@ fn SortFloat(a []float) {
     }
 }
 
-// ---- []string
-
 fn ContainsString(a []string, v string) bool {
     return IndexOfString(a, v) >= 0
 }
@@ -283,7 +268,6 @@ fn ReverseStrings(a []string) {
     }
 }
 
-// SortStrings сортирует строки лексикографически (сортировка Шелла).
 fn SortStrings(a []string) {
     var* gap = len(a) / 2
     while gap > 0 {

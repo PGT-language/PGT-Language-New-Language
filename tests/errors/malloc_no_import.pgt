@@ -1,0 +1,7 @@
+// error: malloc needs #use "pgt/std/memory"
+package main
+fn main() {
+    var& := x = malloc(free[byte] 16)
+    free(x)
+}
+return 0

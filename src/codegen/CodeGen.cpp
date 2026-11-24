@@ -14,8 +14,6 @@ namespace pgt
     namespace
     {
 
-        // Collects the variables whose address is taken with `&name` (or `&name.field`).
-        // Those live on the heap so that the pointer stays valid after the function returns.
         void collectExpr(const Expr *e, std::set<std::string> &out);
 
         void collectBlock(const Block &b, std::set<std::string> &out);
@@ -127,7 +125,7 @@ namespace pgt
             throw e;
         }
 
-    } // namespace
+    }
 
     CodeGen::CodeGen(const std::string &moduleName)
         : module_(std::make_unique<llvm::Module>(moduleName, ctx_)), builder_(ctx_)
@@ -142,8 +140,6 @@ namespace pgt
     {
         throw CompileError(msg, line, col);
     }
-
-    // ------------------------------------------------------------------ types
 
     llvm::Type *CodeGen::llvmType(TyP t)
     {
@@ -259,8 +255,6 @@ namespace pgt
         return "pgt." + importPath + "." + name;
     }
 
-    // ------------------------------------------------------------------ scopes
-
     llvm::AllocaInst *CodeGen::entryAlloca(llvm::Type *type, const std::string &name)
     {
         llvm::Function *f = builder_.GetInsertBlock()->getParent();
@@ -330,8 +324,6 @@ namespace pgt
         llvm::Function *f = builder_.GetInsertBlock()->getParent();
         builder_.SetInsertPoint(llvm::BasicBlock::Create(ctx_, "dead", f));
     }
-
-    // ------------------------------------------------------------------ declarations
 
     void CodeGen::checkExitCodes(const Package &pkg) const
     {
@@ -516,8 +508,7 @@ namespace pgt
 
     void CodeGen::checkStructCycles()
     {
-        // A struct may not contain itself by value (only through a pointer or an array).
-        std::map<StructInfo *, int> state; // 1 = visiting, 2 = done
+        std::map<StructInfo *, int> state;
         std::function<void(StructInfo *)> visit = [&](StructInfo *st)
         {
             int &s = state[st];
@@ -558,7 +549,6 @@ namespace pgt
                 fail("external functions cannot take struct or interface parameters", param.type.line,
                      param.type.col);
             info.params.push_back(t);
-            // Arrays are passed to C by pointer to the {data, len, cap} triple.
             llvmParams.push_back(fn.isExtern && t->is(Type::Kind::Array) ? builder_.getPtrTy()
                                                                          : llvmType(t));
         }
@@ -732,7 +722,7 @@ namespace pgt
             arg.setName(name);
             llvm::Value *slot = newVarSlot(info.params[i], name);
             builder_.CreateStore(&arg, slot);
-            emitRetain(&arg, info.params[i]); // the callee owns a reference for as long as it runs
+            emitRetain(&arg, info.params[i]);
             declare(name, Var{slot, info.params[i], false}, pos.first, pos.second);
             ++i;
         }
@@ -785,4 +775,4 @@ namespace pgt
         builder_.CreateRet(code.value);
     }
 
-} // namespace pgt
+}

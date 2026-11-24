@@ -3,6 +3,7 @@ package main
 #use (
     "shapes/render"
     "shapes/geom"
+    "std/memory"
 )
 
 fn main() {
@@ -10,6 +11,7 @@ fn main() {
     var* big = geom.NewCircle(3, 4, 2)
     big.Scale(1.5)
     var* all + {[]geom.Shape} = [c, big, geom.Square{Side: 2}]
+    var& := x = malloc(free[byte] 1024)
     render.Report(all)
     println("distance: ", c.Center.Dist(big.Center), " created: ", geom.Created(), " unit: ", geom.Unit)
     var* p = geom.Point{X: 1}

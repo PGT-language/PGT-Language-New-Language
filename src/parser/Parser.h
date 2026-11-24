@@ -33,7 +33,6 @@ namespace pgt
             return true;
         }
         const Token &advance();
-        // True when the current token starts a new line: it cannot continue the expression.
         bool atLineStart() const
         {
             return pos_ > 0 && toks_[pos_ - 1].line < cur().line;
@@ -82,9 +81,7 @@ namespace pgt
 
         std::vector<Token> toks_;
         size_t pos_ = 0;
-        // Inside `if`/`for`/`switch` headers `Name {` starts the body, not a struct literal.
         bool noStructLit_ = false;
-        // `malloc(...)` is only legal as the initializer of `var&`.
         bool allowMalloc_ = false;
     };
 

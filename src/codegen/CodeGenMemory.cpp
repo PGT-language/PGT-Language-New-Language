@@ -1,14 +1,3 @@
-// Automatic memory management: compiler-inserted reference counting.
-//
-// Ownership rules (see syntax.md, "Память"):
-//   * an expression that allocates (a call result, a literal, a concatenation, ...) is OWNED: it is
-//     a fresh +1 reference, registered in temps_ and released at the end of the statement;
-//   * reading a variable, field, element or dereferencing is BORROWED (+0);
-//   * storing a value (variable, field, element, global, literal, interface box, append, return)
-//     goes through take(): an owned value is moved out of temps_, a borrowed one is retained;
-//   * overwriting a slot releases the old value after the new one is retained;
-//   * locals are released when their scope ends, and on return/break/continue;
-//   * `var&` variables are never tracked.
 #include "codegen/CodeGen.h"
 
 namespace pgt
@@ -40,14 +29,13 @@ namespace pgt
 
     namespace
     {
-        // The block pointer of a managed non-struct value.
         llvm::Value *blockPtr(llvm::IRBuilder<> &b, llvm::Value *v, const Type &t)
         {
             if (t.kind == Type::Kind::Array || t.kind == Type::Kind::Interface)
                 return b.CreateExtractValue(v, 0);
             return v;
         }
-    } // namespace
+    }
 
     void CodeGen::emitRetain(llvm::Value *v, TyP t)
     {
@@ -73,7 +61,6 @@ namespace pgt
         rt("pgt_release", builder_.getVoidTy(), {blockPtr(builder_, v, *t)});
     }
 
-    // void(T): retains or releases every managed field of a struct value.
     llvm::Function *CodeGen::structHelper(TyP t, bool retain)
     {
         auto key = std::make_pair(t, retain ? 1 : 0);
@@ -101,7 +88,6 @@ namespace pgt
         builder_.CreateRetVoid();
         return fn;
     }
-
 
     llvm::Constant *CodeGen::dropFn(TyP t)
     {
@@ -175,7 +161,6 @@ namespace pgt
         }
     }
 
-    // Stores a value into a slot that already holds a valid value (or `initial`: a fresh slot).
     void CodeGen::storeValue(llvm::Value *addr, TyP t, Value v, bool initial)
     {
         llvm::Value *nv = take(v);
@@ -214,8 +199,6 @@ namespace pgt
         }
     }
 
-    // `x[i] = v` where x is a `var&` block: the block is not tracked, so the stored value is retained
-    // and never released (releasing the old element would touch memory nobody owns automatically).
     bool CodeGen::isManualElement(const Expr &target)
     {
         const Expr *e = &target;
@@ -238,4 +221,4 @@ namespace pgt
         return false;
     }
 
-} // namespace pgt
+}

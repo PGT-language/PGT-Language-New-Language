@@ -1,0 +1,8 @@
+// error: package name 'memory' is imported more than once
+package main
+#use (
+    "pgt/std/memory"
+    "memory"
+)
+fn main() {}
+return 0

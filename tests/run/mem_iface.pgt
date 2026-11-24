@@ -1,0 +1,61 @@
+// memstats
+package main
+
+interface Shape {
+    Area() float
+    Name() string
+}
+
+struct Rect {
+    W, H float
+    Label string
+}
+
+struct Circle {
+    R float
+    Tags []string
+}
+
+fn (r Rect) Area() float { return r.W * r.H }
+fn (r Rect) Name() string { return "rect:" + r.Label }
+fn (c *Circle) Area() float { return 3 * c.R * c.R }
+fn (c *Circle) Name() string { return "circle" + len(c.Tags) }
+
+fn describe(s Shape) string {
+    return s.Name() + "=" + str(s.Area())
+}
+
+fn mk(i int) Shape {
+    if i % 2 == 0 {
+        return Rect{W: 2, H: float(i), Label: "r" + i}
+    }
+    return &Circle{R: float(i), Tags: ["a" + i]}
+}
+
+fn main() {
+    var* shapes + {[]Shape} = []
+    for i in 0..10 {
+        shapes = append(shapes, mk(i))
+    }
+    for s in shapes {
+        println(describe(s))
+    }
+    var* first = shapes[0]
+    shapes = nil
+    println(describe(first))
+    var* s2 Shape = Rect{W: 1, H: 1, Label: "z" + "z"}
+    println(s2.Name())
+    s2 = &Circle{R: 2}
+    println(s2.Name(), " ", describe(mk(3)))
+    var* none Shape
+    println(none == nil)
+    for i in 0..100 {
+        var* t Shape = mk(i)
+        if i == 50 {
+            println(t.Name())
+            break
+        }
+    }
+}
+
+return 0

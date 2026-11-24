@@ -71,7 +71,6 @@ namespace pgt
         fail("internal error: unknown statement", stmt.line, stmt.col);
     }
 
-    // `var& := x = malloc(free[T] N)`: x is a zeroed []T with len = cap = N, released by free(x).
     void CodeGen::genManualVarDecl(const VarDecl &decl)
     {
         const auto &m = static_cast<const MallocExpr &>(*decl.init);
@@ -198,7 +197,7 @@ namespace pgt
                 fail("missing return value of type " + currentRet_->name(), ret.line, ret.col);
             Value v = genExpr(*ret.value, currentRet_);
             v = coerce(v, currentRet_, ret.line, ret.col, "return");
-            llvm::Value *result = take(v); // the caller receives an owned reference
+            llvm::Value *result = take(v);
             flushTemps();
             emitScopeReleases(0);
             builder_.CreateRet(result);
@@ -315,7 +314,7 @@ namespace pgt
         }
 
         Value seq = genExpr(*loop.iterable);
-        holdValue(seq); // the sequence stays alive for the whole loop
+        holdValue(seq);
         flushTemps();
         TyP elemTy;
         llvm::Value *len, *data;
@@ -380,7 +379,7 @@ namespace pgt
         llvm::Function *f = builder_.GetInsertBlock()->getParent();
         auto *endBB = llvm::BasicBlock::Create(ctx_, "switch.end", f);
 
-        pushScope(); // owns the tag while the cases run
+        pushScope();
         Value tag;
         if (sw.tag)
         {
@@ -396,7 +395,6 @@ namespace pgt
             bodies.push_back(llvm::BasicBlock::Create(ctx_, "case.body", f));
         auto *defaultBB = sw.hasDefault ? llvm::BasicBlock::Create(ctx_, "switch.default", f) : endBB;
 
-        // Test the cases one after another; the first match wins.
         for (size_t i = 0; i < sw.cases.size(); ++i)
         {
             const Case &c = sw.cases[i];

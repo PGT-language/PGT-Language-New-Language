@@ -115,7 +115,6 @@ namespace pgt
                 return mod->root / importPath.substr(name.size() + 1);
         }
 
-        // Anything else comes from the standard library: #use "strings", #use "math".
         if (stdDir && importPath.find("..") == std::string::npos)
         {
             fs::path dir = *stdDir / importPath;

@@ -1,0 +1,137 @@
+// memstats
+package main
+
+#use "pgt/std/memory"
+
+struct Inner {
+    Label string
+    Vals []int
+}
+
+struct Outer {
+    In Inner
+    Name string
+    Ptr *Inner
+}
+
+struct Node {
+    Val int
+    Next *Node
+}
+
+interface Namer {
+    Name() string
+}
+
+struct Dog {
+    N string
+}
+
+fn (d Dog) Name() string { return d.N }
+
+fn rename(s string) string {
+    s = s + "!"
+    s = s + "?"
+    return s
+}
+
+fn fib(n int) string {
+    if n < 2 {
+        return str(n)
+    }
+    return fib(n - 1) + fib(n - 2)
+}
+
+fn mkOuter(i int) Outer {
+    return Outer{In: Inner{Label: "l" + i, Vals: [i, i + 1]}, Name: "o" + i, Ptr: &Inner{Label: "p" + i}}
+}
+
+fn label(o Outer) string {
+    return o.In.Label + o.Name + o.Ptr.Label
+}
+
+fn longList(n int) *Node {
+    var* head *Node = nil
+    for i in 0..n {
+        head = &Node{Val: i, Next: head}
+    }
+    return head
+}
+
+fn isMatch(s string, want string) bool {
+    return s == want
+}
+
+fn main() {
+    println(rename("a" + "b"))
+    println(fib(10))
+
+    var* o = mkOuter(1)
+    o.Name = o.Name + "x"
+    o.In.Label = o.In.Label + o.Name
+    o.In.Vals = append(o.In.Vals, 9)
+    var* o2 = o
+    o2.In.Label = "changed"
+    println(label(o), " ", label(o2), " ", o.In.Vals, " ", o2.In.Vals)
+
+    var* os + {[]Outer} = make([]Outer, 3)
+    for i in 0..3 {
+        os[i] = mkOuter(i)
+    }
+    os[0] = os[2]
+    println(label(os[0]), " ", label(os[1]))
+    os = nil
+
+    var* arr = ["a" + "1", "b" + "2", "c" + "3"]
+    arr[0] = arr[1]
+    arr[2] = arr[0] + arr[1]
+    println(arr)
+
+    var* n = 0
+    while isMatch("k" + n, "k" + 3) == false && n < 10 {
+        n++
+    }
+    println(n)
+
+    var* list = longList(200000)
+    var* count = 0
+    var* cur = list
+    while cur != nil {
+        count++
+        cur = cur.Next
+    }
+    println(count)
+    list = nil
+    cur = nil
+
+    var* nm Namer = Dog{N: "rex" + 1}
+    println(nm.Name())
+    nm = Dog{N: "fido"}
+    println(nm.Name())
+
+    var* ptrs + {[]*int} = []
+    for i in 0..5 {
+        var* v = i * 2
+        ptrs = append(ptrs, &v)
+    }
+    println(*ptrs[3], " ", *ptrs[4])
+
+    var* e = ""
+    if e == nil {
+        println("empty is nil")
+    }
+    var* big = 0
+    for i in 0..100000 {
+        var* s = "k" + i
+        big += len(s)
+    }
+    println(big)
+
+    var& := raw = malloc(free[byte] 8)
+    raw[1] = byte(7)
+    var* copy = raw
+    println(len(copy), " ", copy[1])
+    free(raw)
+}
+
+return 0

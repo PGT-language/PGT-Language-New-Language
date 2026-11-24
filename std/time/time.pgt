@@ -1,7 +1,5 @@
 package time
 
-// Время и паузы. Моменты времени — секунды или миллисекунды Unix (int64).
-
 extern fn pgt_time_unix() int64
 extern fn pgt_time_ms() int64
 extern fn pgt_clock_ms() int64
@@ -14,17 +12,14 @@ const (
     Clock = "%H:%M:%S"
 )
 
-// Now — текущее время в секундах Unix.
 fn Now() int64 {
     return pgt_time_unix()
 }
 
-// NowMs — текущее время в миллисекундах Unix.
 fn NowMs() int64 {
     return pgt_time_ms()
 }
 
-// Ticks — монотонные миллисекунды: годятся для замеров, не зависят от смены часов.
 fn Ticks() int64 {
     return pgt_clock_ms()
 }
@@ -37,7 +32,6 @@ fn Sleep(ms int) {
     pgt_sleep_ms(ms)
 }
 
-// Format форматирует время по шаблону strftime: time.Format(time.Now(), time.DateTime).
 fn Format(seconds int64, layout string) string {
     return pgt_format_time(seconds, layout)
 }
@@ -46,7 +40,6 @@ fn Today() string {
     return pgt_format_time(pgt_time_unix(), Date)
 }
 
-// Stopwatch измеряет прошедшее время.
 struct Stopwatch {
     start int64
 }

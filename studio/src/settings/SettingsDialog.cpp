@@ -21,7 +21,6 @@ SettingsDialog::SettingsDialog(QWidget *parent) : QDialog(parent)
     setWindowTitle("Настройки");
     setMinimumWidth(580);
 
-    // ---- compiler
     auto *compilerBox = new QGroupBox("Компилятор PGT");
     compilerEdit_ = new QLineEdit(Settings::compilerPath());
     QString detected = Settings::resolvedCompiler();
@@ -52,7 +51,6 @@ SettingsDialog::SettingsDialog(QWidget *parent) : QDialog(parent)
     compilerLayout->addWidget(hint);
     compilerLayout->addWidget(compilerStatus_);
 
-    // ---- editor
     auto *editorBox = new QGroupBox("Редактор");
     QFont font = Settings::editorFont();
     fontBox_ = new QFontComboBox;
@@ -71,7 +69,6 @@ SettingsDialog::SettingsDialog(QWidget *parent) : QDialog(parent)
     editorLayout->addRow("Размер:", fontSize_);
     editorLayout->addRow("Отступ (Tab):", tabWidth_);
 
-    // ---- projects
     auto *projectsBox = new QGroupBox("Проекты");
     projectsDir_ = new QLineEdit(Settings::projectsDir());
     auto *browseDir = new QPushButton("Обзор…");

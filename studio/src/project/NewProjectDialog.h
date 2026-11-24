@@ -5,7 +5,6 @@ class QComboBox;
 class QLabel;
 class QLineEdit;
 
-// Creates a project with `pgt new <name> -t <template>`.
 class NewProjectDialog : public QDialog
 {
     Q_OBJECT
@@ -13,7 +12,6 @@ class NewProjectDialog : public QDialog
 public:
     explicit NewProjectDialog(const QString &compiler, QWidget *parent = nullptr);
 
-    // The directory of the created project (valid after exec() returned Accepted).
     QString projectDir() const { return projectDir_; }
 
 private:

@@ -37,7 +37,6 @@ MainWindow::MainWindow()
 {
     resize(1200, 800);
 
-    // ---- editor tabs and the welcome page
     tabs_ = new QTabWidget;
     tabs_->setTabsClosable(true);
     tabs_->setMovable(true);
@@ -54,9 +53,7 @@ MainWindow::MainWindow()
     center_->addWidget(tabs_);
     setCentralWidget(center_);
 
-    // ---- project tree
     fsModel_ = new QFileSystemModel(this);
-    // Renaming happens only when asked for (context menu or F2), never on a click.
     fsModel_->setReadOnly(false);
     connect(fsModel_, &QFileSystemModel::fileRenamed, this, &MainWindow::onEntryRenamed);
     tree_ = new QTreeView;
@@ -75,7 +72,6 @@ MainWindow::MainWindow()
     connect(tree_, &QTreeView::clicked, this, openIndex);
     connect(tree_, &QTreeView::activated, this, openIndex);
 
-    // Keyboard shortcuts of the tree, active only while it has focus.
     auto treeShortcut = [this](const QKeySequence &key, auto handler) {
         auto *a = new QAction(tree_);
         a->setShortcut(key);
@@ -91,7 +87,6 @@ MainWindow::MainWindow()
     treeDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable);
     addDockWidget(Qt::LeftDockWidgetArea, treeDock);
 
-    // ---- output
     output_ = new OutputPanel;
     connect(output_, &OutputPanel::locationActivated, this, [this](const QString &file, int line, int col) {
         if (CodeEditor *e = openFile(file))
@@ -131,7 +126,6 @@ MainWindow::MainWindow()
     resizeDocks({treeDock, compilerDock}, {240, 360}, Qt::Horizontal);
     resizeDocks({outDock}, {220}, Qt::Vertical);
 
-    // ---- status bar
     cursorInfo_ = new QLabel;
     compilerInfo_ = new QLabel;
     statusBar()->addPermanentWidget(cursorInfo_);
@@ -297,8 +291,6 @@ void MainWindow::updateCursorInfo()
     cursorInfo_->setText(QString("Стр %1, стлб %2").arg(c.blockNumber() + 1).arg(c.positionInBlock() + 1));
 }
 
-// ------------------------------------------------------------------ projects and files
-
 void MainWindow::openProject(const QString &dir)
 {
     QFileInfo info(dir);
@@ -398,7 +390,6 @@ void MainWindow::createEntry(const QString &dir, bool folder)
     }
     if (path.endsWith(".pgt"))
     {
-        // A new file belongs to the package of its directory.
         QString dirName = QFileInfo(path).absoluteDir().canonicalPath();
         QString pkg = dirName == projectDir_ ? "main" : QFileInfo(dirName).fileName();
         f.write(QString("package %1\n\n").arg(pkg).toUtf8());
@@ -443,7 +434,7 @@ void MainWindow::showTreeMenu(const QPoint &pos)
 void MainWindow::renameEntry(const QModelIndex &index)
 {
     if (index.isValid())
-        tree_->edit(index); // inline editing; the model reports the result through fileRenamed
+        tree_->edit(index);
 }
 
 void MainWindow::onEntryRenamed(const QString &dir, const QString &oldName, const QString &newName)
@@ -476,7 +467,6 @@ void MainWindow::deleteEntry(const QModelIndex &index)
     if (answer != QMessageBox::Yes)
         return;
 
-    // Tabs of the deleted files are closed without asking: the files are gone.
     for (int i = tabs_->count() - 1; i >= 0; --i)
     {
         QString p = editorAt(i)->filePath();
@@ -485,7 +475,6 @@ void MainWindow::deleteEntry(const QModelIndex &index)
     }
     if (!QFile::moveToTrash(path))
     {
-        // Never delete for good without a second, explicit confirmation.
         auto permanently = QMessageBox::warning(this, "Удалить",
                                             "Не удалось переместить в корзину.\nУдалить «" +
                                                 QFileInfo(path).fileName() + "» навсегда?",
@@ -581,8 +570,6 @@ CodeEditor *MainWindow::editorAt(int index) const
     return qobject_cast<CodeEditor *>(tabs_->widget(index));
 }
 
-// ------------------------------------------------------------------ build and run
-
 QString MainWindow::compilerOrAsk()
 {
     QString compiler = Settings::resolvedCompiler();
@@ -621,8 +608,6 @@ void MainWindow::debug()
 
 void MainWindow::runBinary()
 {
-    // `pgt build <dir>` names the executable after the directory. It is started directly
-    // (not through `pgt run`) so that "Stop" kills the program itself.
     QString exe = QDir(projectDir_).filePath(QFileInfo(projectDir_).fileName());
     if (!QFileInfo(exe).isExecutable())
     {
@@ -632,8 +617,6 @@ void MainWindow::runBinary()
     output_->start(exe, {}, projectDir_);
     updateActions();
 }
-
-// ------------------------------------------------------------------ misc
 
 void MainWindow::showSettings()
 {

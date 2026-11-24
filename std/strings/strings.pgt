@@ -1,14 +1,10 @@
 package strings
 
-// Работа со строками. Строки неизменяемы: каждая функция возвращает новую строку.
-
 extern fn pgt_join(parts []string, sep string) string
 extern fn pgt_replace(s string, old string, with string, limit int) string
 extern fn pgt_repeat(s string, n int) string
 extern fn pgt_index_from(s string, sub string, from int) int
 extern fn pgt_last_index_of(s string, sub string) int
-
-// ---- поиск
 
 fn Contains(s string, sub string) bool {
     return contains(s, sub)
@@ -30,7 +26,6 @@ fn Index(s string, sub string) int {
     return indexOf(s, sub)
 }
 
-// IndexFrom ищет sub, начиная с позиции from.
 fn IndexFrom(s string, sub string, from int) int {
     return pgt_index_from(s, sub, from)
 }
@@ -48,7 +43,6 @@ fn IndexChar(s string, c char) int {
     return -1
 }
 
-// Count возвращает число непересекающихся вхождений sub в s.
 fn Count(s string, sub string) int {
     if len(sub) == 0 {
         return len(s) + 1
@@ -62,8 +56,6 @@ fn Count(s string, sub string) int {
     return n
 }
 
-// ---- преобразование
-
 fn Upper(s string) string {
     return upper(s)
 }
@@ -72,7 +64,6 @@ fn Lower(s string) string {
     return lower(s)
 }
 
-// Title делает заглавной первую букву каждого слова.
 fn Title(s string) string {
     var* out = chars(s)
     var* start = true
@@ -97,7 +88,6 @@ fn Replace(s string, old string, with string) string {
     return pgt_replace(s, old, with, -1)
 }
 
-// ReplaceN заменяет не больше n первых вхождений.
 fn ReplaceN(s string, old string, with string, n int) string {
     return pgt_replace(s, old, with, n)
 }
@@ -113,12 +103,9 @@ fn Reverse(s string) string {
     return string(out)
 }
 
-// EqualFold сравнивает строки без учёта регистра.
 fn EqualFold(a string, b string) bool {
     return lower(a) == lower(b)
 }
-
-// ---- обрезка
 
 fn TrimSpace(s string) string {
     var* from = 0
@@ -148,7 +135,6 @@ fn TrimRight(s string) string {
     return substr(s, 0, to)
 }
 
-// Trim убирает с обоих концов все символы, входящие в cutset.
 fn Trim(s string, cutset string) string {
     var* from = 0
     var* to = len(s)
@@ -175,8 +161,6 @@ fn TrimSuffix(s string, suffix string) string {
     return s
 }
 
-// ---- выравнивание
-
 fn PadLeft(s string, width int, fill char) string {
     var* n = width - len(s)
     if n <= 0 {
@@ -202,9 +186,6 @@ fn Center(s string, width int, fill char) string {
     return pgt_repeat(str(fill), left) + s + pgt_repeat(str(fill), n - left)
 }
 
-// ---- разбиение и склейка
-
-// Split делит s по разделителю sep. Пустой sep делит строку на отдельные символы.
 fn Split(s string, sep string) []string {
     var* out + {[]string} = []
     if len(sep) == 0 {
@@ -223,7 +204,6 @@ fn Split(s string, sep string) []string {
     return append(out, substr(s, start, len(s) - start))
 }
 
-// Fields делит строку по пробельным символам, пропуская пустые части.
 fn Fields(s string) []string {
     var* out + {[]string} = []
     var* start = -1
@@ -258,8 +238,6 @@ fn Lines(s string) []string {
 fn Join(parts []string, sep string) string {
     return pgt_join(parts, sep)
 }
-
-// ---- символы
 
 fn IsDigit(c char) bool {
     return c >= '0' && c <= '9'
@@ -298,8 +276,6 @@ fn ToLower(c char) char {
     }
     return c
 }
-
-// ---- Builder собирает строку по частям без лишнего копирования.
 
 struct Builder {
     parts []string

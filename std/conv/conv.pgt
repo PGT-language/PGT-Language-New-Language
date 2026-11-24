@@ -1,7 +1,5 @@
 package conv
 
-// Преобразования между строками и числами.
-
 extern fn pgt_is_int(s string) bool
 extern fn pgt_is_float(s string) bool
 extern fn pgt_str_float_prec(x float, prec int) string
@@ -22,7 +20,6 @@ fn ParseFloat(s string) float {
     return parseFloat(s)
 }
 
-// ParseBool понимает true/false, 1/0, yes/no.
 fn ParseBool(s string) bool {
     var* l = lower(s)
     return l == "true" || l == "1" || l == "yes" || l == "y"
@@ -36,12 +33,10 @@ fn IsFloat(s string) bool {
     return pgt_is_float(s)
 }
 
-// FormatFloat печатает число с фиксированным числом знаков после точки.
 fn FormatFloat(x float, prec int) string {
     return pgt_str_float_prec(x, prec)
 }
 
-// FormatInt записывает число в системе счисления base (2..36).
 fn FormatInt(n int64, base int) string {
     if base < 2 || base > 36 {
         panic("conv.FormatInt: base must be between 2 and 36")
@@ -76,7 +71,6 @@ fn FormatInt(n int64, base int) string {
 fn ToBinary(n int64) string { return FormatInt(n, 2) }
 fn ToHex(n int64) string { return FormatInt(n, 16) }
 
-// ParseIntBase читает число в системе счисления base; неизвестные символы пропускаются.
 fn ParseIntBase(s string, base int) int64 {
     var* r int64 = 0
     var* neg = false

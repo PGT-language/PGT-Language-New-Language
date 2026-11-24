@@ -4,7 +4,6 @@
 #include <QTextCharFormat>
 #include <vector>
 
-// Syntax highlighting for .pgt files.
 class PgtHighlighter : public QSyntaxHighlighter
 {
     Q_OBJECT

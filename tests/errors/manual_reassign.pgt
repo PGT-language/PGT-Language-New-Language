@@ -1,0 +1,8 @@
+// error: a 'var&' variable is manually managed and cannot be reassigned
+package main
+#use "memory"
+fn main() {
+    var& := x = malloc(free[byte] 16)
+    x = nil
+}
+return 0

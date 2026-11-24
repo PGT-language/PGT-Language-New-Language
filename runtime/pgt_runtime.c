@@ -34,7 +34,6 @@ void pgt_rt_init(int argc, char **argv)
     }
 }
 
-
 _Noreturn void pgt_panic(const char *msg)
 {
     fflush(stdout);
@@ -60,19 +59,6 @@ _Noreturn void pgt_panic_div(void)
     pgt_panic("integer divide by zero");
 }
 
-
-// ---------------------------------------------------------------------------------------------
-// Automatic memory management (compiler-inserted reference counting).
-//
-// A managed block is `{ rc, drop, count, stride }` followed by the user bytes; the user pointer
-// is what the program sees. `drop` (optional) releases the nested managed values of one element
-// (it is called `count` times, `stride` bytes apart) just before the block is freed.
-//
-// A pointer is not necessarily a block: it may point to a string literal, to C memory, to a
-// `var&` block or into the middle of a block (`&s.field`, `&a[i]`). Every live block start is
-// recorded in a hash set, and retain/release of a pointer that is not in the set do nothing.
-// An interior pointer therefore does not keep its parent block alive.
-// ---------------------------------------------------------------------------------------------
 typedef struct
 {
     int64_t rc;
@@ -137,7 +123,6 @@ static void tabRemove(uintptr_t p)
             return;
         i = (i + 1) & mask;
     }
-    // Backward-shift deletion keeps probe sequences intact without tombstones.
     size_t j = i;
     for (;;)
     {
@@ -194,8 +179,6 @@ void pgt_retain(void *p)
         ++((Hdr *)p - 1)->rc;
 }
 
-// Blocks whose count reached zero while another block was being destroyed wait here, so that
-// freeing a long chain (a linked list) does not recurse once per node.
 static Hdr **g_pending;
 static size_t g_pendingLen, g_pendingCap;
 static bool g_destroying;
@@ -241,7 +224,6 @@ void pgt_release(void *p)
         destroy(h);
 }
 
-// free(p) on an automatically managed pointer: destroy the block right now. Optional.
 void pgt_free(void *p)
 {
     if (p && tabHas((uintptr_t)p))
@@ -254,7 +236,6 @@ static void *keep(const void *p)
     return (void *)p;
 }
 
-// Blocks of `var& := x = malloc(free[T] N)`: zeroed, released only by free(x).
 void *pgt_manual_alloc(int64_t bytes)
 {
     if (bytes < 0)
@@ -270,7 +251,6 @@ void pgt_manual_free(void *p)
     free(p);
 }
 
-// std/memory
 int32_t pgt_mem_copy(PgtArray *dst, PgtArray *src)
 {
     int64_t n = dst->len < src->len ? dst->len : src->len;
@@ -285,8 +265,6 @@ void pgt_mem_set(PgtArray *buf, uint8_t v)
         memset(buf->data, v, (size_t)buf->len);
 }
 
-// `*a` is borrowed on entry and owned (+1) on return: either the same block, retained, or a
-// new block holding retained copies of the elements. Other holders of the old block keep it.
 void pgt_array_reserve(PgtArray *a, int64_t need, int64_t elemSize, void (*dropElem)(void *),
                        void (*retainElem)(void *))
 {
@@ -321,7 +299,6 @@ void pgt_array_make(PgtArray *out, int64_t len, int64_t cap, int64_t elemSize,
     out->len = len;
     out->cap = cap;
 }
-
 
 static const char *S(const char *s)
 {

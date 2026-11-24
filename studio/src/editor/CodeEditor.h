@@ -3,7 +3,6 @@
 
 class LineNumberArea;
 
-// A source editor: line numbers, current line highlight, automatic indentation.
 class CodeEditor : public QPlainTextEdit
 {
     Q_OBJECT

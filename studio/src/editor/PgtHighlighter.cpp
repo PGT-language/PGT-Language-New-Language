@@ -38,7 +38,6 @@ PgtHighlighter::PgtHighlighter(QTextDocument *doc) : QSyntaxHighlighter(doc)
         "readFile", "writeFile", "appendFile", "fileExists", "rand",     "srand",      "exit",
         "panic"};
 
-    // Later rules win, so the most specific ones come last.
     rules_.push_back({QRegularExpression("\\b[A-Z]\\w*\\b"), makeFormat(Theme::synExported)});
     rules_.push_back({QRegularExpression("\\b\\w+(?=\\s*\\()"), makeFormat(Theme::synFunction)});
     rules_.push_back({QRegularExpression(words(builtins) + "(?=\\s*\\()"), makeFormat(Theme::synBuiltin)});
@@ -67,8 +66,6 @@ void PgtHighlighter::highlightBlock(const QString &text)
         }
     }
 
-    // Strings, chars and comments are scanned by hand so that `//` inside "a//b" is not a comment.
-    // Block state 1 means "inside /* */ that started on an earlier line".
     int i = 0;
     const int n = text.size();
     if (previousBlockState() == 1)

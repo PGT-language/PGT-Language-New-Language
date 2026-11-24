@@ -34,7 +34,7 @@ namespace pgt
             Interface
         };
         Kind kind = Kind::Void;
-        const Type *elem = nullptr; // Array, Pointer
+        const Type *elem = nullptr;
         StructInfo *st = nullptr;
         IfaceInfo *iface = nullptr;
 
@@ -46,7 +46,6 @@ namespace pgt
         {
             return kind == Kind::Int || kind == Kind::Int64 || kind == Kind::Char || kind == Kind::Byte;
         }
-        // char and byte are unsigned 8-bit integers; int and int64 are signed.
         bool isUnsigned() const
         {
             return kind == Kind::Char || kind == Kind::Byte;
@@ -59,7 +58,6 @@ namespace pgt
         {
             return isNumeric() || kind == Kind::Bool || kind == Kind::String;
         }
-        // Types whose zero value is spelled `nil`.
         bool isNillable() const
         {
             return kind == Kind::Pointer || kind == Kind::Array || kind == Kind::String ||
@@ -75,9 +73,9 @@ namespace pgt
 
     struct FuncInfo
     {
-        std::string name; // as written, for messages
+        std::string name;
         llvm::Function *fn = nullptr;
-        std::vector<TyP> params; // for methods: the receiver comes first
+        std::vector<TyP> params;
         TyP ret = nullptr;
         bool isExtern = false;
         bool ptrRecv = false;
@@ -135,7 +133,6 @@ namespace pgt
         }
     };
 
-    // Owns every Type; equal types are the same pointer.
     class TypeTable
     {
     public:

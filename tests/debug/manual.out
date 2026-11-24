@@ -1,0 +1,50 @@
+==== <stdin> ====
+
+-- tokens (31)
+  1:1     KwPackage     package
+  1:9     Ident         main
+  3:1     KwUse         #use
+  3:6     String        "pgt/std/memory"
+  5:1     KwFn          fn
+  5:4     Ident         main
+  5:8     LParen        (
+  5:9     RParen        )
+  5:11    LBrace        {
+  6:5     KwVarManual   var&
+  6:10    ColonAssign   :=
+  6:13    Ident         buf
+  6:17    Assign        =
+  6:19    Ident         malloc
+  6:25    LParen        (
+  6:26    Ident         free
+  6:30    LBracket      [
+  6:31    Ident         byte
+  6:35    RBracket      ]
+  6:37    Int           1024
+  6:42    Star          *
+  6:44    Int           2
+  6:45    RParen        )
+  7:5     Ident         free
+  7:9     LParen        (
+  7:10    Ident         buf
+  7:13    RParen        )
+  8:1     RBrace        }
+  10:1    KwReturn      return
+  10:8    Int           0
+  11:1    Eof           
+
+-- syntax tree
+Program package main (1:1)
+├─ Import #use "memory" (3:6)
+├─ Function fn main() (5:1)
+│  ├─ VarDecl var& buf (6:5)
+│  │  └─ Malloc malloc (6:19)
+│  │     ├─ Type byte (6:31)
+│  │     └─ Binary * (6:42)
+│  │        ├─ IntLit 1024 (6:37)
+│  │        └─ IntLit 2 (6:44)
+│  └─ Call call (7:5)
+│     ├─ Name free (7:5)
+│     └─ Name buf (7:10)
+└─ ExitCode return (exit code) (10:8)
+   └─ IntLit 0 (10:8)

@@ -5,8 +5,6 @@
 namespace pgt
 {
 
-    // ------------------------------------------------------------------ runtime calls
-
     llvm::FunctionCallee CodeGen::rtDecl(const std::string &name, llvm::Type *ret,
                                          std::vector<llvm::Type *> params, bool noReturn)
     {
@@ -51,8 +49,6 @@ namespace pgt
         builder_.CreateStore(arr, tmp);
         return tmp;
     }
-
-    // ------------------------------------------------------------------ builtins
 
     CodeGen::Value CodeGen::genConversion(const Call &call, TyP target)
     {
@@ -115,7 +111,6 @@ namespace pgt
         auto str = [&](size_t i)
         { return argOf(i, types_.stringT); };
 
-        // ---- arrays and memory
         if (name == "len")
         {
             arity(1);
@@ -144,7 +139,6 @@ namespace pgt
             llvm::Value *tmp = arrayToPtr(arr.value);
             llvm::Value *len = builder_.CreateExtractValue(arr.value, 1);
             llvm::Value *newLen = builder_.CreateAdd(len, builder_.getInt64(items.size()));
-            // The result owns a reference to its block: the old block (retained) or a grown copy.
             rt("pgt_array_reserve", builder_.getVoidTy(),
                {tmp, newLen, sizeOf(elemTy), dropFn(elemTy), retainFn(elemTy)});
             llvm::Value *grown = builder_.CreateLoad(arrayTy_, tmp);
@@ -152,7 +146,6 @@ namespace pgt
             for (size_t i = 0; i < items.size(); ++i)
             {
                 llvm::Value *at = builder_.CreateAdd(len, builder_.getInt64(i));
-                // The slot may hold a value written by another holder of the same block.
                 storeValue(builder_.CreateGEP(llvmType(elemTy), data, at), elemTy, items[i], false);
             }
             return owned(Value{builder_.CreateInsertValue(grown, newLen, 1), arr.type});
@@ -187,7 +180,6 @@ namespace pgt
             arity(1);
             if (auto *ref = dynamic_cast<const VarRef *>(call.args[0].get()))
             {
-                // A `var&` block: release it and leave an empty array behind.
                 if (Var *var = lookupLocal(ref->name); var && var->isManual)
                 {
                     llvm::Value *cur = builder_.CreateLoad(arrayTy_, var->addr);
@@ -196,8 +188,6 @@ namespace pgt
                     return voidV;
                 }
             }
-            // Automatically managed memory: destroy the block now. This is optional, the compiler would
-            // release it anyway. The variable is cleared so that its scope does not release it again.
             Value v;
             std::optional<Addr> where = addressOf(*call.args[0], false);
             if (where)
@@ -215,7 +205,6 @@ namespace pgt
             return voidV;
         }
 
-        // ---- strings
         if (name == "str")
         {
             arity(1);
@@ -274,7 +263,6 @@ namespace pgt
             return owned(Value{rt(name == "upper" ? "pgt_upper" : "pgt_lower", ptr, {str(0)}), types_.stringT});
         }
 
-        // ---- math
         if (name == "abs")
         {
             arity(1);
@@ -311,7 +299,6 @@ namespace pgt
             if (name == m)
                 return genMath(call, name);
 
-        // ---- files
         if (name == "readFile")
         {
             arity(1);
@@ -331,7 +318,6 @@ namespace pgt
             return Value{rt("pgt_file_exists", i1, {str(0)}), types_.boolT};
         }
 
-        // ---- misc
         if (name == "rand")
         {
             arity(0);
@@ -362,8 +348,6 @@ namespace pgt
         }
         return std::nullopt;
     }
-
-    // ------------------------------------------------------------------ output
 
     void CodeGen::genPrint(const Call &call, bool newline)
     {
@@ -457,7 +441,6 @@ namespace pgt
         }
     }
 
-    // One printing function per array and struct type: prints `[a b c]` and `{a b}`.
     llvm::Function *CodeGen::printFunction(TyP t)
     {
         if (auto it = printFns_.find(t); it != printFns_.end())
@@ -489,7 +472,6 @@ namespace pgt
             return fn;
         }
 
-        // Array.
         TyP elem = t->elem;
         text("[");
         llvm::Value *data = builder_.CreateExtractValue(arg, 0);
@@ -525,7 +507,6 @@ namespace pgt
         return fn;
     }
 
-    // Slot 0 of every vtable: prints the dynamic value stored in an interface.
     llvm::Function *CodeGen::printThunk(TyP concrete)
     {
         if (auto it = printThunks_.find(concrete); it != printThunks_.end())
@@ -545,8 +526,6 @@ namespace pgt
         builder_.CreateRetVoid();
         return fn;
     }
-
-    // ------------------------------------------------------------------ input
 
     void CodeGen::genInput(const Call &call, bool wholeLine)
     {
@@ -597,7 +576,7 @@ namespace pgt
         }
         llvm::Type *ty = llvmType(target.type);
         llvm::Value *cur = builder_.CreateLoad(ty, target.addr);
-        llvm::Value *result = rt(reader, ty, {cur}); // strings: an owned reference (cur is retained if kept)
+        llvm::Value *result = rt(reader, ty, {cur});
         builder_.CreateStore(result, target.addr);
         if (target.type->is(Type::Kind::String))
             emitRelease(cur, target.type);

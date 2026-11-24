@@ -1,36 +1,24 @@
 package memory
 
-// Работа с блоками памяти. Блок создаётся так:
-//
-//     var& := buf = malloc(free[byte] memory.KB(4))
-//     ...
-//     free(buf)
-
 extern fn pgt_mem_copy(dst []byte, src []byte) int
 extern fn pgt_mem_set(buf []byte, v byte)
 
-// Copy копирует min(len(dst), len(src)) байт из src в dst и возвращает их число.
-// Области могут пересекаться.
 fn Copy(dst []byte, src []byte) int {
     return pgt_mem_copy(dst, src)
 }
 
-// Set записывает v во все байты buf.
 fn Set(buf []byte, v byte) {
     pgt_mem_set(buf, v)
 }
 
-// Zero обнуляет buf.
 fn Zero(buf []byte) {
     pgt_mem_set(buf, byte(0))
 }
 
-// KB возвращает n килобайт в байтах.
 fn KB(n int) int {
     return n * 1024
 }
 
-// MB возвращает n мегабайт в байтах.
 fn MB(n int) int {
     return n * 1024 * 1024
 }
