@@ -1,5 +1,6 @@
 const vscode = require('vscode');
 const { LanguageClient } = require('vscode-languageclient/node');
+const { spawnSync } = require('child_process');
 
 let client;
 
@@ -14,11 +15,35 @@ function serverOptions() {
   return { command, args: ['lsp'], options: { env } };
 }
 
+function checkCompiler(command) {
+  const result = spawnSync(command, ['--help'], { encoding: 'utf8', timeout: 5000 });
+  if (result.error) {
+    return 'cannot run "' + command + '": ' + result.error.message;
+  }
+  const output = (result.stdout || '') + (result.stderr || '');
+  if (!/\blsp\b/.test(output)) {
+    return '"' + command + '" does not support "pgt lsp" (an old build?)';
+  }
+  return null;
+}
+
 async function start(context) {
+  const options = serverOptions();
+  const problem = checkCompiler(options.command);
+  if (problem) {
+    const action = await vscode.window.showErrorMessage(
+      'PGT: ' + problem + '. Set "pgt.compilerPath" to a current pgt compiler.',
+      'Open Settings'
+    );
+    if (action === 'Open Settings') {
+      vscode.commands.executeCommand('workbench.action.openSettings', 'pgt.compilerPath');
+    }
+    return;
+  }
   client = new LanguageClient(
     'pgt',
     'PGT Language Server',
-    serverOptions(),
+    options,
     {
       documentSelector: [{ scheme: 'file', language: 'pgt' }],
       synchronize: {
