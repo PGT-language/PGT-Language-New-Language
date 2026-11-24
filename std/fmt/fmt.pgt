@@ -456,7 +456,14 @@ fn assignWord(p any, w string) bool {
     return true
 }
 
+fn checkTargets(fnName string, args []any) {
+    for i in 0..len(args) {
+        pointerKind(fnName, args[i])
+    }
+}
+
 fn Scan(args ...any) int {
+    checkTargets("Scan", args)
     var* count = 0
     for i in 0..len(args) {
         var* w = pgt_read_word(nil)
@@ -472,6 +479,7 @@ fn Scan(args ...any) int {
 }
 
 fn Scanln(args ...any) int {
+    checkTargets("Scanln", args)
     var* ok = false
     var* line = pgt_read_raw_line(&ok)
     if !ok {

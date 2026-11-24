@@ -1,0 +1,9 @@
+// panic: anyInt: unsupported value of type string
+package main
+
+fn main() {
+    var* a any = "text"
+    var* n = anyInt(a)
+}
+
+return 0

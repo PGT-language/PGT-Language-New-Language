@@ -1,0 +1,8 @@
+// error: undefined: println (use fmt.Println from #use "fmt")
+package main
+
+fn main() {
+    println("hello")
+}
+
+return 0

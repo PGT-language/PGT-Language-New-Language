@@ -1,0 +1,9 @@
+// error: undefined: input (use fmt.Input from #use "fmt")
+package main
+
+fn main() {
+    var* n = 0
+    input("n? ", n)
+}
+
+return 0

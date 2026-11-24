@@ -1,0 +1,12 @@
+n? big? f? c? ok? w? 42 5000000000 2.5 x true hello
+line? [the whole line  here]
+{7 text} [0 9]
+bad? 5 notanumber
+3 11 abc 3.5 []
+2 1 2
+1 only 1
+rest=free text
+blank= 0
+last= 0
+0
+pgt: live blocks: 0

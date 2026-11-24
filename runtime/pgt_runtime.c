@@ -755,7 +755,7 @@ static void *setTarget(const char *fn, void *data, const PgtType *t, int32_t wan
     if (!t || t->kind != K_POINTER || t->elem->kind != want)
     {
         char buf[256];
-        snprintf(buf, sizeof buf, "%s: expected a pointer to a %s, got %s", fn,
+        snprintf(buf, sizeof buf, "%s: expected *%s, got %s", fn,
                  want == K_INT ? "int" : want == K_FLOAT ? "float" : want == K_BOOL ? "bool" : want == K_CHAR ? "char" : "string",
                  t ? t->name : "nil");
         pgt_panic(dupRange(buf, strlen(buf)));

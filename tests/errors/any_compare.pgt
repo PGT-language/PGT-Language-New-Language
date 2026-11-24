@@ -1,0 +1,11 @@
+// error: any values can only be compared with nil
+package main
+
+fn main() {
+    var* a any = 1
+    var* b any = 2
+    if a == b {
+    }
+}
+
+return 0

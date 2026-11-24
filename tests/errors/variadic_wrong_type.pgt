@@ -1,0 +1,12 @@
+// error: cannot use string as int in argument 3 of 'sum'
+package main
+
+fn sum(base int, xs ...int) int {
+    return base
+}
+
+fn main() {
+    sum(1, 2, "three")
+}
+
+return 0

@@ -1,0 +1,9 @@
+// error: variadic parameters are not allowed here
+package main
+
+extern fn pgt_variadic(a ...int)
+
+fn main() {
+}
+
+return 0

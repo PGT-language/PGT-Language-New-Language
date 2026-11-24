@@ -1,3 +1,4 @@
+// memstats
 package main
 
 #use "fmt"

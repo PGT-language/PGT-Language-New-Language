@@ -1,0 +1,8 @@
+// error: undefined: print (use fmt.Print from #use "fmt")
+package main
+
+fn main() {
+    print("hello")
+}
+
+return 0

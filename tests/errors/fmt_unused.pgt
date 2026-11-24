@@ -1,0 +1,9 @@
+// error: "fmt" imported and not used
+package main
+
+#use "fmt"
+
+fn main() {
+}
+
+return 0

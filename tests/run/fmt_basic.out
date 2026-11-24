@@ -1,0 +1,46 @@
+ints: 1 -2 3000000000 250
+floats: 2.5 1 0.3 0.333333 1e+08
+chars: ab true false
+strings: xy
+arrays: [1 2 3] [[1 2] [3]] [a b] [1.5 2.5]
+empty: [] [1 2] [x y]
+structs: {1 2.5} {{1 2.5} {3 0} ab [t1 t2]}
+pointers: &{1 2.5} &{{1 2.5} {3 0} ab [t1 t2]}
+nil: <nil> <nil>
+ifaces: {2} &{2} <nil> [{2} &{2}]
+{&{2} {2}} {<nil> 42} {<nil> &{1 2.5}}
+
+no newline12
+a12.5|b2
+|
+|plain
+42|   42|42   |-0042|+42
+3.141590|3.14|   2.500|2.5     |-0002.50|+2.5
+hi|     right|left      |"q\"uo\nte"|z|true
+ff|FF|-ff|6869|'q'|{1 2.5}|[1 2]
+1 s 2.5 <nil>
+100% sure
+%!d(string=str) %!s(int=5)
+%!d(MISSING)
+1
+%!(EXTRA int=2, string=x)%!z(int=1)|
+97 7
+[ true][false  ]
+1 3 6
+60 65
+a,b,c||only
+x+y
+0143
+[1 two 3] 3
+1two3
+int:1 int64:2 char:99 byte:9
+float:2.5 bool:true string:s nil
+array2[int:1,int:2,] Point{X=int:1;Y=float:2.5;}
+ptr->Point{X=int:1;Y=float:2.5;} nilptr Line{From=Point{X=int:1;Y=float:2.5;};To=Point{X=int:3;Y=float:0;};Name=string:ab;Tags=array2[string:t1,string:t2,];}
+Square{Side=float:2;} ptr->Disc{R=float:2;} nil
+false true false true true
+99 *int 9 true 0
+2.5 new true z 5000000000 200
+int Point []Shape *Point Square *Disc
+Y true true false true
+pgt: live blocks: 0

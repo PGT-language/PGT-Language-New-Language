@@ -1,0 +1,9 @@
+// error: external functions cannot take struct or interface parameters
+package main
+
+extern fn pgt_takes_any(a any)
+
+fn main() {
+}
+
+return 0

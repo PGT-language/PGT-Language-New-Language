@@ -1,0 +1,11 @@
+// panic: fmt.Scan needs a non-nil pointer, found int
+package main
+
+#use "fmt"
+
+fn main() {
+    var* n = 1
+    fmt.Scan(n)
+}
+
+return 0

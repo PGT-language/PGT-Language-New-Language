@@ -1,0 +1,13 @@
+// error: '...' must be applied to the argument for the variadic parameter of 'sum'
+package main
+
+fn sum(base int, xs ...int) int {
+    return base
+}
+
+fn main() {
+    var* a = [1, 2]
+    sum(1, 2, a...)
+}
+
+return 0

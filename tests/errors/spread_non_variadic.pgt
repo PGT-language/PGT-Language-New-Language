@@ -1,0 +1,12 @@
+// error: cannot use '...' when calling 'one': it has no variadic parameter
+package main
+
+fn one(xs []int) {
+}
+
+fn main() {
+    var* a = [1, 2]
+    one(a...)
+}
+
+return 0

@@ -1,0 +1,12 @@
+// error: 'sum' takes at least 1 argument(s), got 0
+package main
+
+fn sum(base int, xs ...int) int {
+    return base
+}
+
+fn main() {
+    sum()
+}
+
+return 0
