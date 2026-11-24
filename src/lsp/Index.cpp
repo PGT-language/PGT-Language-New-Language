@@ -261,8 +261,32 @@ namespace pgt::lsp
                         if (!is(n, Tok::Ident))
                             continue;
                         size_t blockEnd = enclosingEnd(k, close);
+                        if (kind == Tok::KwVar && is(n + 1, Tok::Comma))
+                        {
+                            std::string text = lineText(k);
+                            while (is(n, Tok::Ident))
+                            {
+                                if (t_[n].text != "_")
+                                    add(SymKind::Local, t_[n], "", text, "", posOf(t_[n]), endOf(blockEnd));
+                                if (!is(n + 1, Tok::Comma))
+                                    break;
+                                n += 2;
+                            }
+                            continue;
+                        }
                         std::string ty = declType(n + 1, kind == Tok::KwVarManual);
                         add(SymKind::Local, t_[n], "", lineText(k), ty, posOf(t_[n]), endOf(blockEnd));
+                    }
+                    else if (kind == Tok::KwSwitch && is(k + 1, Tok::Ident) && is(k + 2, Tok::Assign))
+                    {
+                        size_t brace = k + 3;
+                        while (brace < close && !is(brace, Tok::LBrace))
+                            ++brace;
+                        if (brace >= close || match_[brace] < 0)
+                            continue;
+                        if (t_[k + 1].text != "_")
+                            add(SymKind::Local, t_[k + 1], "", lineText(k), "", posOf(t_[k + 1]),
+                                endOf(static_cast<size_t>(match_[brace])));
                     }
                     else if (kind == Tok::KwFor)
                     {
@@ -515,7 +539,7 @@ namespace pgt::lsp
                            !is(e, Tok::RParen))
                         ++e;
                     std::string ty;
-                    if (is(k + 1, Tok::Ident) && !is(k + 2, Tok::Dot))
+                    if (is(k + 1, Tok::Ident) && !is(k + 2, Tok::Dot) && t_[k + 1].line == t_[k].line)
                         ty = t_[k + 1].text;
                     add(SymKind::Const, t_[k], "", "const " + join(k, e), ty);
                     return e;

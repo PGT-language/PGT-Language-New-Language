@@ -28,7 +28,7 @@ PgtHighlighter::PgtHighlighter(QTextDocument *doc) : QSyntaxHighlighter(doc)
                                   "for",     "in",     "break",  "continue", "struct", "interface",
                                   "const",   "switch", "case",   "default", "extern", "map"};
     const QStringList types = {"int", "int64", "float", "char", "byte", "string", "bool", "void", "any"};
-    const QStringList constants = {"true", "false", "nil"};
+    const QStringList constants = {"true", "false", "nil", "iota"};
     const QStringList builtins = {
         "len",         "append",       "make",       "new",         "free",         "str",
         "chars",       "parseInt",     "parseInt64", "parseFloat",  "substr",       "contains",

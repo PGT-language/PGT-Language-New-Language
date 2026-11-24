@@ -1,0 +1,9 @@
+// panic: interface conversion: string is not int
+package main
+
+fn main() {
+    var* x any = "text"
+    var* n = x.(int)
+}
+
+return 0

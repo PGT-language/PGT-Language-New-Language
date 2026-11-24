@@ -1,0 +1,9 @@
+// panic: interface conversion: nil is not string
+package main
+
+fn main() {
+    var* x any = nil
+    var* s = x.(string)
+}
+
+return 0

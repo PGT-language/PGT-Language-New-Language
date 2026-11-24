@@ -202,6 +202,12 @@ namespace pgt
                 }
                 return n;
             }
+            if (auto *x = dynamic_cast<const TypeAssert *>(e))
+            {
+                Node n = node("TypeAssert", x->isTypeKeyword ? ".(type)" : ".(" + x->type.text() + ")", *x);
+                n.kids.push_back(expr(x->base.get()));
+                return n;
+            }
             return group("Unknown", "?", e ? e->line : 0, e ? e->col : 0);
         }
 
@@ -226,6 +232,27 @@ namespace pgt
                 Node n = node("Assign", ops[static_cast<int>(x->op)], *x);
                 n.kids.push_back(expr(x->target.get()));
                 n.kids.push_back(expr(x->value.get()));
+                return n;
+            }
+            if (auto *x = dynamic_cast<const MultiVarDecl *>(s))
+            {
+                std::string names;
+                for (size_t i = 0; i < x->names.size(); ++i)
+                    names += (i ? ", " : "") + x->names[i];
+                Node n = node("MultiVarDecl", "var* " + names, *x);
+                for (const ExprPtr &v : x->values)
+                    n.kids.push_back(expr(v.get()));
+                return n;
+            }
+            if (auto *x = dynamic_cast<const MultiAssign *>(s))
+            {
+                Node n = node("MultiAssign", "=", *x);
+                Node t = group("Part", "targets", x->line, x->col);
+                for (const ExprPtr &v : x->targets)
+                    t.kids.push_back(expr(v.get()));
+                n.kids.push_back(std::move(t));
+                for (const ExprPtr &v : x->values)
+                    n.kids.push_back(expr(v.get()));
                 return n;
             }
             if (auto *x = dynamic_cast<const ExprStmt *>(s))
@@ -277,7 +304,7 @@ namespace pgt
             }
             if (auto *x = dynamic_cast<const Switch *>(s))
             {
-                Node n = node("Switch", "switch", *x);
+                Node n = node("Switch", x->typeSwitch ? "switch " + x->bind + " .(type)" : "switch", *x);
                 if (x->tag)
                     n.kids.push_back(wrap("value", x->tag.get()));
                 for (const Case &c : x->cases)
@@ -285,6 +312,8 @@ namespace pgt
                     Node cn = node("Case", "case", c);
                     for (const ExprPtr &v : c.values)
                         cn.kids.push_back(expr(v.get()));
+                    for (const TypeExpr &t : c.types)
+                        cn.kids.push_back(node("Type", t.text(), t));
                     cn.kids.push_back(block(c.body, "body", c.line, c.col));
                     n.kids.push_back(std::move(cn));
                 }
@@ -297,6 +326,8 @@ namespace pgt
                 Node n = node("Return", "return", *x);
                 if (x->value)
                     n.kids.push_back(expr(x->value.get()));
+                for (const ExprPtr &r : x->rest)
+                    n.kids.push_back(expr(r.get()));
                 return n;
             }
             if (auto *x = dynamic_cast<const AsmStmt *>(s))

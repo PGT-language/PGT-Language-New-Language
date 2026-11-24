@@ -144,6 +144,22 @@ namespace pgt
         void genForIn(const ForIn &loop);
         void genSwitch(const Switch &sw);
         void genAsm(const AsmStmt &stmt);
+        void genMultiVarDecl(const MultiVarDecl &decl);
+        void genMultiAssign(const MultiAssign &assign);
+        void genMultiReturn(const Return &ret);
+        void genTypeSwitch(const Switch &sw);
+        std::vector<Value> expandTuple(Value v);
+        std::vector<Value> genValueList(const std::vector<ExprPtr> &values, size_t want,
+                                        const std::vector<TyP> &hints, int line, int col);
+        Value genTypeAssert(const TypeAssert &ta);
+        std::vector<Value> genAssertOk(const TypeAssert &ta);
+        llvm::Value *dynTypeDesc(Value v);
+        llvm::Function *ifaceAssertFn(TyP ifaceType);
+        void finishAssertFns();
+        llvm::Value *assertMatch(llvm::Value *desc, TyP target);
+        llvm::Value *assertExtract(llvm::Value *data, llvm::Value *desc, TyP target);
+        Value assertTo(Value src, TyP target, bool commaOk, llvm::Value **okOut);
+        void checkAssertable(Value src, TyP target, int line, int col);
 
         Value genExpr(const Expr &expr, TyP hint = nullptr);
         Value genCond(const Expr &expr);
@@ -236,6 +252,7 @@ namespace pgt
         std::set<std::string> heapVars_;
         std::map<std::pair<TyP, TyP>, llvm::GlobalVariable *> vtables_;
         std::map<std::string, llvm::Function *> thunks_;
+        std::map<TyP, llvm::Function *> assertFns_;
     };
 
 }

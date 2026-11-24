@@ -1,0 +1,8 @@
+// error: 'iota' can only be used inside a const block
+package main
+
+fn main() {
+    var* x = iota
+}
+
+return 0

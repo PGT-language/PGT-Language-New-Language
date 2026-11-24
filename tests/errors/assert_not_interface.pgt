@@ -1,0 +1,9 @@
+// error: invalid type assertion
+package main
+
+fn main() {
+    var* x = 5
+    var* s = x.(int)
+}
+
+return 0

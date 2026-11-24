@@ -1,0 +1,9 @@
+// error: external functions cannot return multiple values
+package main
+
+extern fn two() (int, int)
+
+fn main() {
+}
+
+return 0

@@ -185,6 +185,13 @@ namespace pgt
             return ifaceTy_;
         case Type::Kind::Struct:
             return t->st->llvm;
+        case Type::Kind::Tuple:
+        {
+            std::vector<llvm::Type *> tys;
+            for (TyP e : t->elems)
+                tys.push_back(llvmType(e));
+            return llvm::StructType::get(ctx_, tys);
+        }
         }
         return nullptr;
     }
@@ -214,6 +221,13 @@ namespace pgt
                          " (keys can be int, int64, char, byte, bool or string)",
                      type.key->line, type.key->col);
             return types_.mapOf(k, resolveType(*type.elem));
+        }
+        case TypeExpr::Kind::Tuple:
+        {
+            std::vector<TyP> elems;
+            for (const TypeExpr &e : type.elems)
+                elems.push_back(resolveType(e));
+            return types_.tupleOf(elems);
         }
         case TypeExpr::Kind::Named:
             break;
@@ -447,6 +461,8 @@ namespace pgt
             throw;
         }
 
+        finishAssertFns();
+
         std::string err;
         llvm::raw_string_ostream os(err);
         if (llvm::verifyModule(*module_, &os))
@@ -600,6 +616,8 @@ namespace pgt
                                                                          : llvmType(t));
         }
         info.ret = fn.ret ? resolveType(*fn.ret, true) : types_.voidT;
+        if (fn.isExtern && info.ret->is(Type::Kind::Tuple))
+            fail("external functions cannot return multiple values", fn.line, fn.col);
         info.variadic = !fn.params.empty() && fn.params.back().variadic;
         if (fn.isExtern && !intrinsic && (info.ret->is(Type::Kind::Struct) || info.ret->is(Type::Kind::Interface) ||
                             info.ret->is(Type::Kind::Any) || info.ret->is(Type::Kind::Array)))

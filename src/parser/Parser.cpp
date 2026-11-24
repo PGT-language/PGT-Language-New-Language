@@ -266,6 +266,27 @@ namespace pgt
         return out;
     }
 
+    TypeExpr Parser::parseResult()
+    {
+        if (!check(Tok::LParen))
+            return parseType("as the result type");
+        TypeExpr tuple;
+        tuple.kind = TypeExpr::Kind::Tuple;
+        tuple.line = cur().line;
+        tuple.col = cur().col;
+        advance();
+        do
+        {
+            tuple.elems.push_back(parseType("as a result type"));
+        } while (accept(Tok::Comma));
+        expect(Tok::RParen, "after the result types");
+        if (tuple.elems.size() < 2)
+            throw CompileError("a result list needs at least two types; write a single result type "
+                               "without parentheses",
+                               tuple.line, tuple.col);
+        return tuple;
+    }
+
     std::vector<Param> Parser::parseParams(bool allowVariadic)
     {
         std::vector<Param> params;
@@ -328,8 +349,8 @@ namespace pgt
         }
         fn.name = expect(Tok::Ident, "as the function name").text;
         fn.params = parseParams(true);
-        if (atTypeStart())
-            fn.ret = parseType("as the result type");
+        if (atTypeStart() || check(Tok::LParen))
+            fn.ret = parseResult();
         fn.body = parseBlock("before the function body");
         if (!fn.ret && hasValueReturn(fn.body))
             fn.ret = TypeExpr::named("int", fn.line, fn.col);
@@ -346,8 +367,8 @@ namespace pgt
         expect(Tok::KwFn, "after 'extern'");
         fn.name = expect(Tok::Ident, "as the name of the external function").text;
         fn.params = parseParams(false);
-        if (atTypeStart())
-            fn.ret = parseType("as the result type");
+        if (atTypeStart() || check(Tok::LParen))
+            fn.ret = parseResult();
         return fn;
     }
 
@@ -401,8 +422,9 @@ namespace pgt
             m.col = cur().col;
             m.name = expect(Tok::Ident, "as a method name").text;
             m.params = parseParams(false);
-            if (atTypeStart() && !(check(Tok::Ident) && peekTok().kind == Tok::LParen))
-                m.ret = parseType("as the result type");
+            if (check(Tok::LParen) ||
+                (atTypeStart() && !(check(Tok::Ident) && peekTok().kind == Tok::LParen)))
+                m.ret = parseResult();
             decl.methods.push_back(std::move(m));
             accept(Tok::Semi);
         }
@@ -410,33 +432,64 @@ namespace pgt
         return decl;
     }
 
-    std::unique_ptr<VarDecl> Parser::parseConstSpec()
+    std::unique_ptr<VarDecl> Parser::parseConstSpec(int iota, ConstTemplate &tmpl)
     {
         auto decl = make<VarDecl>(cur());
         decl->isConst = true;
-        decl->name = expect(Tok::Ident, "as the constant name").text;
-        if (atTypeStart())
-            decl->type = parseType("after the constant name");
-        expect(Tok::Assign, "after the constant name (a constant needs a value)");
-        decl->init = parseExpr();
+        const Token &nameTok = expect(Tok::Ident, "as the constant name");
+        decl->name = nameTok.text;
+        long long savedIota = iota_;
+        iota_ = iota;
+        bool implicit = tmpl.valid && (atLineStart() || check(Tok::RParen));
+        if (implicit)
+        {
+            size_t resume = pos_;
+            pos_ = tmpl.typePos;
+            if (tmpl.hasType)
+                decl->type = parseType("after the constant name");
+            pos_ = tmpl.exprPos;
+            decl->init = parseExpr();
+            pos_ = resume;
+        }
+        else
+        {
+            if (atTypeStart())
+            {
+                tmpl.hasType = true;
+                tmpl.typePos = pos_;
+                decl->type = parseType("after the constant name");
+            }
+            else
+            {
+                tmpl.hasType = false;
+                tmpl.typePos = pos_;
+            }
+            expect(Tok::Assign, "after the constant name (a constant needs a value)");
+            tmpl.exprPos = pos_;
+            tmpl.valid = true;
+            decl->init = parseExpr();
+        }
+        iota_ = savedIota;
         return decl;
     }
 
     void Parser::parseConsts(std::vector<std::unique_ptr<VarDecl>> &out)
     {
         advance();
+        ConstTemplate tmpl;
         if (accept(Tok::LParen))
         {
+            int iota = 0;
             while (!check(Tok::RParen))
             {
                 if (check(Tok::Eof))
                     errorHere("unexpected end of file, expected ')'");
-                out.push_back(parseConstSpec());
+                out.push_back(parseConstSpec(iota++, tmpl));
             }
             advance();
             return;
         }
-        out.push_back(parseConstSpec());
+        out.push_back(parseConstSpec(0, tmpl));
     }
 
     Block Parser::parseBlock(const char *context)
@@ -475,6 +528,25 @@ namespace pgt
             decl->init = parseExpr();
         else if (!decl->type)
             errorHere("expected '=' or a type after the variable name");
+        return decl;
+    }
+
+    StmtPtr Parser::parseVarStmt()
+    {
+        if (peekTok(2).kind != Tok::Comma)
+            return parseVarDecl();
+        auto decl = make<MultiVarDecl>(cur());
+        advance();
+        do
+        {
+            decl->cols.push_back(cur().col);
+            decl->names.push_back(expect(Tok::Ident, "after 'var*'").text);
+        } while (accept(Tok::Comma));
+        expect(Tok::Assign, "after the variable names");
+        do
+        {
+            decl->values.push_back(parseExpr());
+        } while (accept(Tok::Comma));
         return decl;
     }
 
@@ -524,12 +596,25 @@ namespace pgt
     StmtPtr Parser::parseSimpleStatement()
     {
         if (check(Tok::KwVar))
-            return parseVarDecl();
+            return parseVarStmt();
         if (check(Tok::KwVarManual))
             return parseManualVarDecl();
 
         const Token &start = cur();
         ExprPtr target = parseExpr();
+        if (check(Tok::Comma))
+        {
+            auto multi = make<MultiAssign>(start);
+            multi->targets.push_back(std::move(target));
+            while (accept(Tok::Comma))
+                multi->targets.push_back(parseExpr());
+            expect(Tok::Assign, "after the assignment targets");
+            do
+            {
+                multi->values.push_back(parseExpr());
+            } while (accept(Tok::Comma));
+            return multi;
+        }
         if (!isAssignOp(cur().kind))
         {
             auto stmt = make<ExprStmt>(start);
@@ -591,7 +676,7 @@ namespace pgt
         switch (cur().kind)
         {
         case Tok::KwVar:
-            return parseVarDecl();
+            return parseVarStmt();
         case Tok::KwVarManual:
             return parseManualVarDecl();
         case Tok::KwConst:
@@ -610,7 +695,11 @@ namespace pgt
             auto stmt = make<Return>(retTok);
             advance();
             if (!check(Tok::RBrace) && !check(Tok::Semi) && cur().line == retTok.line)
+            {
                 stmt->value = parseExpr();
+                while (accept(Tok::Comma))
+                    stmt->rest.push_back(parseExpr());
+            }
             return stmt;
         }
         case Tok::KwBreak:
@@ -752,7 +841,24 @@ namespace pgt
         auto sw = make<Switch>(cur());
         advance();
         if (!check(Tok::LBrace))
+        {
+            if (check(Tok::Ident) && peekTok().kind == Tok::Assign)
+            {
+                sw->bind = cur().text;
+                advance();
+                advance();
+            }
             sw->tag = parseHeaderExpr();
+            auto *ta = dynamic_cast<TypeAssert *>(sw->tag.get());
+            if (ta && ta->isTypeKeyword)
+            {
+                sw->typeSwitch = true;
+                ExprPtr base = std::move(ta->base);
+                sw->tag = std::move(base);
+            }
+            else if (!sw->bind.empty())
+                errorHere("'name =' in a 'switch' header needs a type switch: switch v = x.(type)");
+        }
         expect(Tok::LBrace, "after the 'switch' value");
         while (!check(Tok::RBrace))
         {
@@ -764,7 +870,15 @@ namespace pgt
                 advance();
                 do
                 {
-                    c.values.push_back(parseHeaderExpr());
+                    if (!sw->typeSwitch)
+                        c.values.push_back(parseHeaderExpr());
+                    else if (check(Tok::KwNil))
+                    {
+                        c.types.push_back(TypeExpr::named("nil", cur().line, cur().col));
+                        advance();
+                    }
+                    else
+                        c.types.push_back(parseType("as a type in 'case'"));
                 } while (accept(Tok::Comma));
                 c.body = parseBlock("after the 'case' values");
                 sw->cases.push_back(std::move(c));
@@ -853,7 +967,26 @@ namespace pgt
         ExprPtr e = parsePrimary();
         while (true)
         {
-            if (check(Tok::Dot))
+            if (check(Tok::Dot) && peekTok().kind == Tok::LParen)
+            {
+                auto ta = make<TypeAssert>(cur());
+                advance();
+                advance();
+                if (check(Tok::Ident) && cur().text == "type" && peekTok().kind == Tok::RParen)
+                {
+                    ta->isTypeKeyword = true;
+                    advance();
+                }
+                else
+                {
+                    FlagGuard guard(noStructLit_, false);
+                    ta->type = parseType("in a type assertion");
+                }
+                expect(Tok::RParen, "after the asserted type");
+                ta->base = std::move(e);
+                e = std::move(ta);
+            }
+            else if (check(Tok::Dot))
             {
                 auto sel = make<Selector>(cur());
                 advance();
@@ -998,6 +1131,13 @@ namespace pgt
         {
             if (t.text == "malloc" && peekTok().kind == Tok::LParen)
                 return parseMalloc();
+            if (t.text == "iota" && iota_ >= 0)
+            {
+                auto lit = make<IntLit>(t);
+                lit->value = iota_;
+                advance();
+                return lit;
+            }
             advance();
             if (atStructLitBody())
                 return parseStructLit(TypeExpr::named(t.text, t.line, t.col), t);
