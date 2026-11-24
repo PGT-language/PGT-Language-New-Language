@@ -379,240 +379,115 @@ namespace pgt
             startDeadBlock();
             return voidV;
         }
+        if (name.rfind("any", 0) == 0 || name == "typeKind" || name == "typeName")
+        {
+            auto anyOf = [&](size_t i) -> llvm::Value *
+            {
+                const Expr &a = *call.args[i];
+                return coerce(genExpr(a), types_.anyT, a.line, a.col,
+                              "argument " + std::to_string(i + 1) + " of '" + name + "'")
+                    .value;
+            };
+            auto dataOf = [&](llvm::Value *a)
+            { return builder_.CreateExtractValue(a, 0); };
+            auto descOf = [&](llvm::Value *a)
+            { return builder_.CreateExtractValue(a, 1); };
+            auto viaOut = [&](const char *fn, std::vector<llvm::Value *> args) -> Value
+            {
+                llvm::Value *tmp = entryAlloca(ifaceTy_, "any.tmp");
+                args.insert(args.begin(), tmp);
+                rt(fn, builder_.getVoidTy(), args);
+                return owned(Value{builder_.CreateLoad(ifaceTy_, tmp), types_.anyT});
+            };
+
+            if (name == "typeKind")
+            {
+                arity(1);
+                return Value{rt("pgt_any_kind", i32, {descOf(anyOf(0))}), types_.intT};
+            }
+            if (name == "typeName")
+            {
+                arity(1);
+                return Value{rt("pgt_any_name", ptr, {descOf(anyOf(0))}), types_.stringT};
+            }
+            struct Getter
+            {
+                const char *builtin;
+                const char *fn;
+                int ret;
+            };
+            static const Getter getters[] = {{"anyInt", "pgt_any_int", 0},   {"anyFloat", "pgt_any_float", 1},
+                                             {"anyBool", "pgt_any_bool", 2}, {"anyLen", "pgt_any_len", 3},
+                                             {"anyNumField", "pgt_any_numfield", 3},
+                                             {"anyIsNil", "pgt_any_isnil", 2}, {"anyAddr", "pgt_any_addr", 0}};
+            for (const Getter &g : getters)
+            {
+                if (name != g.builtin)
+                    continue;
+                arity(1);
+                llvm::Value *a = anyOf(0);
+                llvm::Type *rty[] = {i64, builder_.getDoubleTy(), i1, i32};
+                TyP rtys[] = {types_.int64T, types_.floatT, types_.boolT, types_.intT};
+                return Value{rt(g.fn, rty[g.ret], {dataOf(a), descOf(a)}), rtys[g.ret]};
+            }
+            if (name == "anyString")
+            {
+                arity(1);
+                llvm::Value *a = anyOf(0);
+                return owned(Value{rt("pgt_any_string", ptr, {dataOf(a), descOf(a)}), types_.stringT});
+            }
+            if (name == "anyFieldName")
+            {
+                arity(2);
+                llvm::Value *a = anyOf(0);
+                return Value{rt("pgt_any_fieldname", ptr, {descOf(a), argOf(1, types_.intT)}),
+                             types_.stringT};
+            }
+            if (name == "anySlotIface")
+            {
+                arity(2);
+                llvm::Value *a = anyOf(0);
+                return Value{rt("pgt_any_slotiface", i1, {descOf(a), argOf(1, types_.intT)}),
+                             types_.boolT};
+            }
+            if (name == "anyIndex" || name == "anyField")
+            {
+                arity(2);
+                llvm::Value *a = anyOf(0);
+                return viaOut(name == "anyIndex" ? "pgt_any_index" : "pgt_any_field",
+                              {dataOf(a), descOf(a), argOf(1, types_.intT)});
+            }
+            if (name == "anyElem")
+            {
+                arity(1);
+                llvm::Value *a = anyOf(0);
+                return viaOut("pgt_any_elem", {dataOf(a), descOf(a)});
+            }
+            struct Setter
+            {
+                const char *builtin;
+                const char *fn;
+                int arg;
+            };
+            static const Setter setters[] = {{"anySetInt", "pgt_any_set_int", 0},
+                                             {"anySetFloat", "pgt_any_set_float", 1},
+                                             {"anySetBool", "pgt_any_set_bool", 2},
+                                             {"anySetString", "pgt_any_set_string", 3},
+                                             {"anySetChar", "pgt_any_set_char", 4}};
+            for (const Setter &s : setters)
+            {
+                if (name != s.builtin)
+                    continue;
+                arity(2);
+                llvm::Value *a = anyOf(0);
+                TyP want[] = {types_.int64T, types_.floatT, types_.boolT, types_.stringT, types_.charT};
+                llvm::Value *v = argOf(1, want[s.arg]);
+                rt(s.fn, builder_.getVoidTy(), {dataOf(a), descOf(a), v});
+                return voidV;
+            }
+        }
+
         return std::nullopt;
-    }
-
-    void CodeGen::genPrint(const Call &call, bool newline)
-    {
-        std::vector<Value> values;
-        for (const ExprPtr &a : call.args)
-            values.push_back(genExpr(*a));
-        for (const Value &v : values)
-            printValue(v, true);
-        if (newline)
-            rt("pgt_print_char", builder_.getVoidTy(), {builder_.getInt8('\n')});
-    }
-
-    void CodeGen::printValue(Value v, bool topLevel)
-    {
-        auto *voidTy = builder_.getVoidTy();
-        auto text = [&](const char *s)
-        { rt("pgt_print_str", voidTy, {builder_.CreateGlobalString(s, ".str")}); };
-
-        switch (v.type->kind)
-        {
-        case Type::Kind::Int:
-            rt("pgt_print_int", voidTy, {v.value});
-            return;
-        case Type::Kind::Int64:
-            rt("pgt_print_int64", voidTy, {v.value});
-            return;
-        case Type::Kind::Float:
-            rt("pgt_print_float", voidTy, {v.value});
-            return;
-        case Type::Kind::Char:
-            rt("pgt_print_char", voidTy, {v.value});
-            return;
-        case Type::Kind::Byte:
-            rt("pgt_print_int", voidTy, {builder_.CreateZExt(v.value, builder_.getInt32Ty())});
-            return;
-        case Type::Kind::Bool:
-            rt("pgt_print_bool", voidTy, {v.value});
-            return;
-        case Type::Kind::String:
-            rt("pgt_print_str", voidTy, {v.value});
-            return;
-        case Type::Kind::Nil:
-            text("<nil>");
-            return;
-        case Type::Kind::Void:
-            return;
-        case Type::Kind::Array:
-        case Type::Kind::Struct:
-            builder_.CreateCall(printFunction(v.type), {v.value});
-            return;
-        case Type::Kind::Pointer:
-            if (topLevel && v.type->elem->is(Type::Kind::Struct))
-            {
-                llvm::Function *f = builder_.GetInsertBlock()->getParent();
-                auto *nilBB = llvm::BasicBlock::Create(ctx_, "print.nil", f);
-                auto *valBB = llvm::BasicBlock::Create(ctx_, "print.ptr", f);
-                auto *endBB = llvm::BasicBlock::Create(ctx_, "print.end", f);
-                builder_.CreateCondBr(builder_.CreateIsNull(v.value), nilBB, valBB);
-                builder_.SetInsertPoint(nilBB);
-                text("<nil>");
-                builder_.CreateBr(endBB);
-                builder_.SetInsertPoint(valBB);
-                text("&");
-                TyP st = v.type->elem;
-                builder_.CreateCall(printFunction(st), {builder_.CreateLoad(llvmType(st), v.value)});
-                builder_.CreateBr(endBB);
-                builder_.SetInsertPoint(endBB);
-                return;
-            }
-            rt("pgt_print_ptr", voidTy, {v.value});
-            return;
-        case Type::Kind::Interface:
-        {
-            llvm::Function *f = builder_.GetInsertBlock()->getParent();
-            auto *nilBB = llvm::BasicBlock::Create(ctx_, "print.nil", f);
-            auto *valBB = llvm::BasicBlock::Create(ctx_, "print.iface", f);
-            auto *endBB = llvm::BasicBlock::Create(ctx_, "print.end", f);
-            llvm::Value *data = builder_.CreateExtractValue(v.value, 0);
-            llvm::Value *vt = builder_.CreateExtractValue(v.value, 1);
-            builder_.CreateCondBr(builder_.CreateIsNull(vt), nilBB, valBB);
-            builder_.SetInsertPoint(nilBB);
-            text("<nil>");
-            builder_.CreateBr(endBB);
-            builder_.SetInsertPoint(valBB);
-            auto *thunkTy = llvm::FunctionType::get(voidTy, {builder_.getPtrTy()}, false);
-            builder_.CreateCall(thunkTy, builder_.CreateLoad(builder_.getPtrTy(), vt), {data});
-            builder_.CreateBr(endBB);
-            builder_.SetInsertPoint(endBB);
-            return;
-        }
-        }
-    }
-
-    llvm::Function *CodeGen::printFunction(TyP t)
-    {
-        if (auto it = printFns_.find(t); it != printFns_.end())
-            return it->second;
-        auto *fnTy = llvm::FunctionType::get(builder_.getVoidTy(), {llvmType(t)}, false);
-        auto *fn = llvm::Function::Create(fnTy, llvm::Function::InternalLinkage,
-                                          "pgt.print." + t->name(), module_.get());
-        printFns_[t] = fn;
-
-        llvm::IRBuilderBase::InsertPointGuard guard(builder_);
-        builder_.SetInsertPoint(llvm::BasicBlock::Create(ctx_, "entry", fn));
-        auto text = [&](const char *s)
-        { rt("pgt_print_str", builder_.getVoidTy(), {builder_.CreateGlobalString(s, ".str")}); };
-        llvm::Value *arg = fn->getArg(0);
-
-        if (t->is(Type::Kind::Struct))
-        {
-            text("{");
-            const auto &fields = t->st->fields;
-            for (size_t i = 0; i < fields.size(); ++i)
-            {
-                if (i)
-                    text(" ");
-                printValue({builder_.CreateExtractValue(arg, static_cast<unsigned>(i)), fields[i].type},
-                           false);
-            }
-            text("}");
-            builder_.CreateRetVoid();
-            return fn;
-        }
-
-        TyP elem = t->elem;
-        text("[");
-        llvm::Value *data = builder_.CreateExtractValue(arg, 0);
-        llvm::Value *len = builder_.CreateExtractValue(arg, 1);
-        auto *idx = entryAlloca(builder_.getInt64Ty(), "i");
-        builder_.CreateStore(builder_.getInt64(0), idx);
-        auto *condBB = llvm::BasicBlock::Create(ctx_, "cond", fn);
-        auto *bodyBB = llvm::BasicBlock::Create(ctx_, "body", fn);
-        auto *sepBB = llvm::BasicBlock::Create(ctx_, "sep", fn);
-        auto *elemBB = llvm::BasicBlock::Create(ctx_, "elem", fn);
-        auto *endBB = llvm::BasicBlock::Create(ctx_, "end", fn);
-        builder_.CreateBr(condBB);
-
-        builder_.SetInsertPoint(condBB);
-        llvm::Value *i = builder_.CreateLoad(builder_.getInt64Ty(), idx);
-        builder_.CreateCondBr(builder_.CreateICmpSLT(i, len), bodyBB, endBB);
-
-        builder_.SetInsertPoint(bodyBB);
-        builder_.CreateCondBr(builder_.CreateICmpEQ(i, builder_.getInt64(0)), elemBB, sepBB);
-        builder_.SetInsertPoint(sepBB);
-        text(" ");
-        builder_.CreateBr(elemBB);
-
-        builder_.SetInsertPoint(elemBB);
-        llvm::Value *p = builder_.CreateGEP(llvmType(elem), data, i);
-        printValue({builder_.CreateLoad(llvmType(elem), p), elem}, false);
-        builder_.CreateStore(builder_.CreateAdd(i, builder_.getInt64(1)), idx);
-        builder_.CreateBr(condBB);
-
-        builder_.SetInsertPoint(endBB);
-        text("]");
-        builder_.CreateRetVoid();
-        return fn;
-    }
-
-    llvm::Function *CodeGen::printThunk(TyP concrete)
-    {
-        if (auto it = printThunks_.find(concrete); it != printThunks_.end())
-            return it->second;
-        auto *fnTy = llvm::FunctionType::get(builder_.getVoidTy(), {builder_.getPtrTy()}, false);
-        auto *fn = llvm::Function::Create(fnTy, llvm::Function::InternalLinkage,
-                                          "pgt.print.iface." + concrete->name(), module_.get());
-        printThunks_[concrete] = fn;
-
-        llvm::IRBuilderBase::InsertPointGuard guard(builder_);
-        builder_.SetInsertPoint(llvm::BasicBlock::Create(ctx_, "entry", fn));
-        llvm::Value *data = fn->getArg(0);
-        if (concrete->is(Type::Kind::Pointer))
-            printValue({data, concrete}, true);
-        else
-            printValue({builder_.CreateLoad(llvmType(concrete), data), concrete}, true);
-        builder_.CreateRetVoid();
-        return fn;
-    }
-
-    void CodeGen::genInput(const Call &call, bool wholeLine)
-    {
-        const std::string name = wholeLine ? "inputln" : "input";
-        if (call.args.empty() || call.args.size() > 2)
-            fail("'" + name + "' takes an optional prompt and a variable", call.line, call.col);
-
-        if (call.args.size() == 2)
-        {
-            Value prompt = genExpr(*call.args.front());
-            if (!prompt.type->is(Type::Kind::String))
-                fail("the prompt of '" + name + "' must be a string", call.line, call.col);
-            rt("pgt_print_str", builder_.getVoidTy(), {prompt.value});
-        }
-
-        const Expr &targetExpr = *call.args.back();
-        Addr target = requireAddress(targetExpr, true);
-        if (wholeLine && !target.type->is(Type::Kind::String))
-            fail("'inputln' needs a string variable", call.line, call.col);
-
-        const char *reader = nullptr;
-        switch (target.type->kind)
-        {
-        case Type::Kind::Int:
-            reader = "pgt_read_int";
-            break;
-        case Type::Kind::Int64:
-            reader = "pgt_read_int64";
-            break;
-        case Type::Kind::Float:
-            reader = "pgt_read_float";
-            break;
-        case Type::Kind::Char:
-            reader = "pgt_read_char";
-            break;
-        case Type::Kind::Byte:
-            fail("'" + name + "' cannot read a byte; read an int and convert it with byte(...)",
-                 targetExpr.line, targetExpr.col);
-        case Type::Kind::Bool:
-            reader = "pgt_read_bool";
-            break;
-        case Type::Kind::String:
-            reader = wholeLine ? "pgt_read_line" : "pgt_read_word";
-            break;
-        default:
-            fail("'" + name + "' cannot read a value of type " + target.type->name(), targetExpr.line,
-                 targetExpr.col);
-        }
-        llvm::Type *ty = llvmType(target.type);
-        llvm::Value *cur = builder_.CreateLoad(ty, target.addr);
-        llvm::Value *result = rt(reader, ty, {cur});
-        builder_.CreateStore(result, target.addr);
-        if (target.type->is(Type::Kind::String))
-            emitRelease(cur, target.type);
     }
 
 }

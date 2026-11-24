@@ -134,6 +134,13 @@ namespace pgt
             ctx_, {builder_.getPtrTy(), builder_.getInt64Ty(), builder_.getInt64Ty()}, "pgt.array");
         ifaceTy_ =
             llvm::StructType::create(ctx_, {builder_.getPtrTy(), builder_.getPtrTy()}, "pgt.iface");
+        fieldDescTy_ = llvm::StructType::create(
+            ctx_, {builder_.getPtrTy(), builder_.getPtrTy(), builder_.getInt64Ty()}, "pgt.fielddesc");
+        descTy_ = llvm::StructType::create(
+            ctx_,
+            {builder_.getInt32Ty(), builder_.getInt32Ty(), builder_.getPtrTy(), builder_.getPtrTy(),
+             builder_.getInt64Ty(), builder_.getPtrTy(), builder_.getPtrTy(), builder_.getPtrTy()},
+            "pgt.typedesc");
     }
 
     void CodeGen::fail(const std::string &msg, int line, int col) const
@@ -165,6 +172,7 @@ namespace pgt
         case Type::Kind::Array:
             return arrayTy_;
         case Type::Kind::Interface:
+        case Type::Kind::Any:
             return ifaceTy_;
         case Type::Kind::Struct:
             return t->st->llvm;
@@ -211,7 +219,9 @@ namespace pgt
 
         const std::string &n = type.name;
         TyP t = nullptr;
-        if (n == "int")
+        if (n == "any")
+            t = types_.anyT;
+        else if (n == "int")
             t = types_.intT;
         else if (n == "int64")
             t = types_.int64T;
@@ -557,7 +567,8 @@ namespace pgt
         for (const Param &param : fn.params)
         {
             TyP t = resolveType(param.type);
-            if (fn.isExtern && (t->is(Type::Kind::Struct) || t->is(Type::Kind::Interface)))
+            if (fn.isExtern && (t->is(Type::Kind::Struct) || t->is(Type::Kind::Interface) ||
+                                t->is(Type::Kind::Any)))
                 fail("external functions cannot take struct or interface parameters", param.type.line,
                      param.type.col);
             info.params.push_back(t);
@@ -565,8 +576,9 @@ namespace pgt
                                                                          : llvmType(t));
         }
         info.ret = fn.ret ? resolveType(*fn.ret, true) : types_.voidT;
+        info.variadic = !fn.params.empty() && fn.params.back().variadic;
         if (fn.isExtern && (info.ret->is(Type::Kind::Struct) || info.ret->is(Type::Kind::Interface) ||
-                            info.ret->is(Type::Kind::Array)))
+                            info.ret->is(Type::Kind::Any) || info.ret->is(Type::Kind::Array)))
             fail("external functions can only return scalars, strings and pointers", fn.line, fn.col);
 
         auto *fnTy = llvm::FunctionType::get(llvmType(info.ret), llvmParams, false);

@@ -11,6 +11,7 @@ namespace pgt
         case Type::Kind::Array:
         case Type::Kind::Pointer:
         case Type::Kind::Interface:
+        case Type::Kind::Any:
             return true;
         case Type::Kind::Struct:
         {
@@ -31,7 +32,7 @@ namespace pgt
     {
         llvm::Value *blockPtr(llvm::IRBuilder<> &b, llvm::Value *v, const Type &t)
         {
-            if (t.kind == Type::Kind::Array || t.kind == Type::Kind::Interface)
+            if (t.kind == Type::Kind::Array || t.kind == Type::Kind::Interface || t.kind == Type::Kind::Any)
                 return b.CreateExtractValue(v, 0);
             return v;
         }

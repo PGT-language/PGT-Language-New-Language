@@ -169,6 +169,9 @@ namespace pgt
         Value genMethodCall(const Call &call, const Selector &sel);
         Value genIfaceCall(Value iface, const Call &call, const std::string &method);
         Value makeIface(Value v, TyP ifaceType, int line, int col);
+        Value makeAny(Value v);
+        llvm::Constant *typeDesc(TyP t);
+        Value packArray(TyP elemTy, const std::vector<Value> &values);
         std::string missingMethod(TyP concrete, const IfaceInfo &iface) const;
         llvm::Value *vtableFor(TyP concrete, TyP ifaceType);
         llvm::Function *methodThunk(StructInfo *st, const FuncInfo &m);
@@ -183,11 +186,6 @@ namespace pgt
         llvm::Value *arrayToPtr(llvm::Value *arr);
         std::optional<Value> genBuiltin(const Call &call, const std::string &name, TyP hint);
         Value genConversion(const Call &call, TyP target);
-        void genPrint(const Call &call, bool newline);
-        void genInput(const Call &call, bool wholeLine);
-        void printValue(Value v, bool topLevel);
-        llvm::Function *printFunction(TyP t);
-        llvm::Function *printThunk(TyP concrete);
         Value genMath(const Call &call, const std::string &name);
 
         llvm::LLVMContext ctx_;
@@ -196,6 +194,9 @@ namespace pgt
         TypeTable types_;
         llvm::StructType *arrayTy_ = nullptr;
         llvm::StructType *ifaceTy_ = nullptr;
+        llvm::StructType *descTy_ = nullptr;
+        llvm::StructType *fieldDescTy_ = nullptr;
+        std::map<TyP, llvm::GlobalVariable *> descs_;
 
         const Workspace *ws_ = nullptr;
         PackageSyms *pkg_ = nullptr;
@@ -213,8 +214,6 @@ namespace pgt
         std::set<std::string> heapVars_;
         std::map<std::pair<TyP, TyP>, llvm::GlobalVariable *> vtables_;
         std::map<std::string, llvm::Function *> thunks_;
-        std::map<TyP, llvm::Function *> printFns_;
-        std::map<TyP, llvm::Function *> printThunks_;
     };
 
 }

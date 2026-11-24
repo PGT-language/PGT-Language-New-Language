@@ -145,8 +145,11 @@ namespace pgt
         if (v.type->is(Type::Kind::Nil) && to->isNillable())
             return {zeroValue(to), to};
         if (to->is(Type::Kind::Interface) && !v.type->is(Type::Kind::Void) &&
-            !v.type->is(Type::Kind::Nil) && !v.type->is(Type::Kind::Interface))
+            !v.type->is(Type::Kind::Nil) && !v.type->is(Type::Kind::Interface) &&
+            !v.type->is(Type::Kind::Any))
             return makeIface(v, to, line, col);
+        if (to->is(Type::Kind::Any) && !v.type->is(Type::Kind::Void))
+            return makeAny(v);
         if (v.type->is(Type::Kind::Void))
             fail("a call that returns nothing cannot be used in " + what, line, col);
         fail("cannot use " + v.type->name() + " as " + to->name() + " in " + what, line, col);
@@ -363,6 +366,7 @@ namespace pgt
                 return result(builder_.CreateICmpEQ(builder_.CreateExtractValue(v.value, 1),
                                                     builder_.getInt64(0)));
             case Type::Kind::Interface:
+            case Type::Kind::Any:
                 return result(builder_.CreateIsNull(builder_.CreateExtractValue(v.value, 1)));
             default:
                 fail("cannot compare " + v.type->name() + " with nil", line, col);
@@ -813,6 +817,11 @@ namespace pgt
             values.push_back(coerce(v, elemTy, e.line, e.col, "an array element"));
         }
 
+        return packArray(elemTy, values);
+    }
+
+    CodeGen::Value CodeGen::packArray(TyP elemTy, const std::vector<Value> &values)
+    {
         TyP arrTy = types_.arrayOf(elemTy);
         if (values.empty())
             return {zeroValue(arrTy), arrTy};
@@ -859,21 +868,56 @@ namespace pgt
     CodeGen::Value CodeGen::callFunction(const FuncInfo &info, const std::string &name, const Call &call,
                                          std::vector<llvm::Value *> args, size_t firstParam)
     {
-        size_t expected = info.params.size() - firstParam;
-        if (call.args.size() != expected)
-            fail("'" + name + "' takes " + std::to_string(expected) + " argument(s), got " +
-                     std::to_string(call.args.size()),
-                 call.line, call.col);
+        size_t fixed = info.params.size() - firstParam - (info.variadic ? 1 : 0);
         if (call.typeArg)
             fail("'" + name + "' does not take a type argument", call.line, call.col);
+        if (call.spread && !info.variadic)
+            fail("cannot use '...' when calling '" + name + "': it has no variadic parameter", call.line,
+                 call.col);
+        if (info.variadic)
+        {
+            if (call.args.size() < fixed)
+                fail("'" + name + "' takes at least " + std::to_string(fixed) + " argument(s), got " +
+                         std::to_string(call.args.size()),
+                     call.line, call.col);
+            if (call.spread && call.args.size() != fixed + 1)
+                fail("'...' must be applied to the argument for the variadic parameter of '" + name + "'",
+                     call.line, call.col);
+        }
+        else if (call.args.size() != fixed)
+            fail("'" + name + "' takes " + std::to_string(fixed) + " argument(s), got " +
+                     std::to_string(call.args.size()),
+                 call.line, call.col);
 
-        for (size_t i = 0; i < call.args.size(); ++i)
+        for (size_t i = 0; i < fixed; ++i)
         {
             TyP pt = info.params[firstParam + i];
             const Expr &a = *call.args[i];
             Value v = coerce(genExpr(a, pt), pt, a.line, a.col,
                              "argument " + ordinal(i + 1) + " of '" + name + "'");
             args.push_back(info.isExtern && pt->is(Type::Kind::Array) ? arrayToPtr(v.value) : v.value);
+        }
+        if (info.variadic)
+        {
+            TyP arrTy = info.params.back();
+            if (call.spread)
+            {
+                const Expr &a = *call.args[fixed];
+                Value v = coerce(genExpr(a, arrTy), arrTy, a.line, a.col,
+                                 "argument " + ordinal(fixed + 1) + " of '" + name + "'");
+                args.push_back(v.value);
+            }
+            else
+            {
+                std::vector<Value> extra;
+                for (size_t i = fixed; i < call.args.size(); ++i)
+                {
+                    const Expr &a = *call.args[i];
+                    extra.push_back(coerce(genExpr(a, arrTy->elem), arrTy->elem, a.line, a.col,
+                                           "argument " + ordinal(i + 1) + " of '" + name + "'"));
+                }
+                args.push_back(packArray(arrTy->elem, extra).value);
+            }
         }
         llvm::Value *result = builder_.CreateCall(info.fn, args);
         if (info.ret->is(Type::Kind::Void))
@@ -886,18 +930,10 @@ namespace pgt
         if (auto *ref = dynamic_cast<const VarRef *>(call.callee.get()))
         {
             const std::string &name = ref->name;
-            if (name == "print" || name == "println")
-            {
-                genPrint(call, name == "println");
-                return {nullptr, types_.voidT};
-            }
-            if (name == "input" || name == "inputln")
-            {
-                genInput(call, name == "inputln");
-                return {nullptr, types_.voidT};
-            }
             if (auto it = pkg_->functions.find(name); it != pkg_->functions.end())
                 return callFunction(it->second, name, call, {}, 0);
+            if (call.spread)
+                fail("'...' can only be used when calling a variadic function", call.line, call.col);
 
             static const std::pair<const char *, int> conversions[] = {
                 {"int", 0}, {"int64", 1}, {"float", 2}, {"char", 3}, {"bool", 4}, {"string", 5}, {"byte", 6}};
@@ -915,6 +951,15 @@ namespace pgt
                 fail("'" + name + "' is a variable, not a function", call.line, call.col);
             if (pkg_->structs.count(name))
                 fail("'" + name + "' is a struct; create it with " + name + "{Field: value}", call.line,
+                     call.col);
+            static const std::map<std::string, std::string> removed = {
+                {"print", "fmt.Print"},
+                {"println", "fmt.Println"},
+                {"input", "fmt.Input"},
+                {"inputln", "fmt.InputLine"},
+                {"output", "fmt.Print"}};
+            if (auto it = removed.find(name); it != removed.end())
+                fail("undefined: " + name + " (use " + it->second + " from #use \"fmt\")", call.line,
                      call.col);
             fail("call to undefined function '" + name + "'", call.line, call.col);
         }
@@ -1017,6 +1062,8 @@ namespace pgt
 
     CodeGen::Value CodeGen::genIfaceCall(Value iface, const Call &call, const std::string &method)
     {
+        if (call.spread)
+            fail("'...' can only be used when calling a variadic function", call.line, call.col);
         IfaceInfo *ii = iface.type->iface;
         int idx = ii->methodIndex(method);
         if (idx < 0)
@@ -1098,13 +1145,139 @@ namespace pgt
         return owned({res, ifaceType});
     }
 
+    CodeGen::Value CodeGen::makeAny(Value v)
+    {
+        auto *ptr = builder_.getPtrTy();
+        if (v.type->is(Type::Kind::Any))
+            return v;
+        if (v.type->is(Type::Kind::Nil))
+            return {zeroValue(types_.anyT), types_.anyT};
+
+        llvm::Value *data;
+        llvm::Value *desc;
+        if (v.type->is(Type::Kind::Interface))
+        {
+            desc = rt("pgt_iface_type", ptr, {builder_.CreateExtractValue(v.value, 1)});
+            data = builder_.CreateExtractValue(take(v), 0);
+        }
+        else if (v.type->is(Type::Kind::Pointer))
+        {
+            desc = typeDesc(v.type);
+            data = take(v);
+        }
+        else
+        {
+            desc = typeDesc(v.type);
+            llvm::Value *copy = take(v);
+            data = rt("pgt_alloc", ptr, {sizeOf(v.type), dropFn(v.type)});
+            builder_.CreateStore(copy, data);
+        }
+        llvm::Value *res = llvm::UndefValue::get(ifaceTy_);
+        res = builder_.CreateInsertValue(res, data, 0);
+        res = builder_.CreateInsertValue(res, desc, 1);
+        return owned({res, types_.anyT});
+    }
+
+    llvm::Constant *CodeGen::typeDesc(TyP t)
+    {
+        if (auto it = descs_.find(t); it != descs_.end())
+            return it->second;
+        auto *gv = new llvm::GlobalVariable(*module_, descTy_, true, llvm::GlobalValue::InternalLinkage,
+                                            nullptr, "pgt.type." + t->name());
+        descs_[t] = gv;
+
+        auto *ptrTy = builder_.getPtrTy();
+        auto *null = llvm::ConstantPointerNull::get(ptrTy);
+        int kind = 0;
+        switch (t->kind)
+        {
+        case Type::Kind::Int:
+            kind = 1;
+            break;
+        case Type::Kind::Int64:
+            kind = 2;
+            break;
+        case Type::Kind::Float:
+            kind = 3;
+            break;
+        case Type::Kind::Char:
+            kind = 4;
+            break;
+        case Type::Kind::Byte:
+            kind = 5;
+            break;
+        case Type::Kind::Bool:
+            kind = 6;
+            break;
+        case Type::Kind::String:
+            kind = 7;
+            break;
+        case Type::Kind::Array:
+            kind = 8;
+            break;
+        case Type::Kind::Pointer:
+            kind = 9;
+            break;
+        case Type::Kind::Struct:
+            kind = 10;
+            break;
+        case Type::Kind::Interface:
+            kind = 11;
+            break;
+        case Type::Kind::Any:
+            kind = 12;
+            break;
+        default:
+            break;
+        }
+
+        llvm::Constant *elem = null;
+        if (t->is(Type::Kind::Array) || t->is(Type::Kind::Pointer))
+            elem = typeDesc(t->elem);
+
+        llvm::Constant *fields = null;
+        size_t nfields = 0;
+        if (t->is(Type::Kind::Struct))
+        {
+            std::vector<llvm::Constant *> items;
+            for (size_t i = 0; i < t->st->fields.size(); ++i)
+            {
+                const FieldInfo &f = t->st->fields[i];
+                llvm::Constant *offset = llvm::ConstantExpr::getPtrToInt(
+                    llvm::ConstantExpr::getGetElementPtr(
+                        t->st->llvm, null,
+                        llvm::ArrayRef<llvm::Constant *>{builder_.getInt32(0),
+                                                         builder_.getInt32(static_cast<uint32_t>(i))}),
+                    builder_.getInt64Ty());
+                items.push_back(llvm::ConstantStruct::get(
+                    fieldDescTy_,
+                    {builder_.CreateGlobalString(f.name, ".fname", 0, module_.get()), typeDesc(f.type),
+                     offset}));
+            }
+            nfields = items.size();
+            if (!items.empty())
+            {
+                auto *arrTy = llvm::ArrayType::get(fieldDescTy_, items.size());
+                fields = new llvm::GlobalVariable(*module_, arrTy, true, llvm::GlobalValue::InternalLinkage,
+                                                  llvm::ConstantArray::get(arrTy, items), "pgt.fields");
+            }
+        }
+
+        gv->setInitializer(llvm::ConstantStruct::get(
+            descTy_, {builder_.getInt32(static_cast<uint32_t>(kind)),
+                      builder_.getInt32(static_cast<uint32_t>(nfields)),
+                      builder_.CreateGlobalString(t->name(), ".tname", 0, module_.get()), elem, sizeOf(t),
+                      dropFn(t), retainFn(t), fields}));
+        return gv;
+    }
+
     llvm::Value *CodeGen::vtableFor(TyP concrete, TyP ifaceType)
     {
         auto key = std::make_pair(concrete, ifaceType);
         if (auto it = vtables_.find(key); it != vtables_.end())
             return it->second;
 
-        std::vector<llvm::Constant *> entries{printThunk(concrete)};
+        std::vector<llvm::Constant *> entries{typeDesc(concrete)};
         StructInfo *st = concrete->is(Type::Kind::Struct) ? concrete->st
                          : concrete->isPtrToStruct()     ? concrete->elem->st
                                                          : nullptr;
