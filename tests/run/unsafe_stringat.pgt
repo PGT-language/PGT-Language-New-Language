@@ -1,0 +1,28 @@
+#use "unsafe"
+
+extern fn strdup(s *byte) *byte
+extern fn getenv(name *byte) *byte
+extern fn free(p *byte)
+
+fn main() {
+    var* src = make([]byte, 6)
+    src[0] = 104
+    src[1] = 101
+    src[2] = 108
+    src[3] = 108
+    src[4] = 111
+    var* c = strdup(unsafe.BytesData(src))
+    for i in 0..1000 {
+        var* s = unsafe.StringAt(c)
+        if i == 999 {
+            println(s, len(s))
+        }
+    }
+    var* t = unsafe.StringAt(c) + " world"
+    free(c)
+    println(t)
+    var* e = getenv(unsafe.BytesData(src))
+    println(e == nil)
+    var* sub = unsafe.StringAt(unsafe.Add(unsafe.BytesData(src), 1))
+    println(sub)
+}

@@ -190,13 +190,7 @@ fn ReadDir(dir string) []DirEntry {
         if e == nil {
             break
         }
-        var* name = ""
-        var* np = unsafe.Add(e, 19)
-        var* k = 0
-        while unsafe.LoadByte(unsafe.Add(np, int64(k))) != 0 {
-            name = name + char(unsafe.LoadByte(unsafe.Add(np, int64(k))))
-            k++
-        }
+        var* name = unsafe.StringAt(unsafe.Add(e, 19))
         var* kind = unsafe.LoadByte(unsafe.Add(e, 18))
         if name == "." || name == ".." {
             continue

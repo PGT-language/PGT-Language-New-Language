@@ -277,6 +277,13 @@ static char *dupRange(const char *s, size_t n)
     return p;
 }
 
+const char *pgt_cstr_dup(const char *s)
+{
+    if (!s)
+        return dupRange("", 0);
+    return dupRange(s, strlen(s));
+}
+
 int32_t pgt_strlen(const char *s)
 {
     return (int32_t)strlen(S(s));

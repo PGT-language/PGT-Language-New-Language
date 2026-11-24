@@ -440,6 +440,8 @@ namespace pgt
             return Value{builder_.CreatePtrToInt(args[0], builder_.getInt64Ty()), info.ret};
         if (op == "cast")
             return Value{args[0], info.ret};
+        if (op == "cstring")
+            return owned(Value{rt("pgt_cstr_dup", ptr, {args[0]}), info.ret});
         if (op == "mkany")
         {
             rt("pgt_retain", builder_.getVoidTy(), {args[0]});

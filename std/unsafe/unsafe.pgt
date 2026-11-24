@@ -8,7 +8,7 @@ extern fn pgt_i_desc(a any) *byte
 extern fn pgt_i_ptoi(p *byte) int64
 extern fn pgt_i_data(a any) *byte
 extern fn pgt_i_mkany(data *byte, desc *byte) any
-extern fn pgt_i_cast_string(p *byte) string
+extern fn pgt_i_cstring(p *byte) string
 extern fn pgt_i_cast_ptr(s string) *byte
 extern fn pgt_i_load_int(p *byte) int
 extern fn pgt_i_load_int64(p *byte) int64
@@ -60,7 +60,7 @@ fn MakeAny(data *byte, desc *byte) any {
 }
 
 fn StringAt(p *byte) string {
-    return pgt_i_cast_string(p)
+    return pgt_i_cstring(p)
 }
 
 fn StringData(s string) *byte {

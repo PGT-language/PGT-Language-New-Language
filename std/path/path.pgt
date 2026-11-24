@@ -1,6 +1,7 @@
 package path
 
 #use "strings"
+#use "unsafe"
 
 extern fn getcwd(buf *byte, size int64) *byte
 
@@ -114,13 +115,7 @@ fn Getwd() string {
     if r == nil {
         return ""
     }
-    var* out = ""
-    var* n = 0
-    while buf[n] != 0 {
-        out = out + char(buf[n])
-        n++
-    }
-    return out
+    return unsafe.StringAt(unsafeData(buf))
 }
 
 fn Abs(p string) string {
