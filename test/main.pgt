@@ -3,6 +3,7 @@ package main
 #use (
     "test/greet"
     "test/mathx"
+    "std/memory"
 )
 
 fn main() {
