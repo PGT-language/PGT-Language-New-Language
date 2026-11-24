@@ -1,0 +1,151 @@
+// memstats
+package main
+
+#use "fmt"
+
+interface Shape {
+    Area() int
+}
+
+interface Named {
+    Name() string
+}
+
+struct Circle {
+    R int
+}
+
+struct Square {
+    S int
+}
+
+struct Rect {
+    W int
+    H int
+}
+
+fn (c *Circle) Area() int {
+    return c.R * 3
+}
+
+fn (s Square) Area() int {
+    return s.S * s.S
+}
+
+fn (s Square) Name() string {
+    return "square"
+}
+
+fn (r Rect) Area() int {
+    return r.W * r.H
+}
+
+fn describe(x any) string {
+    switch v = x.(type) {
+        case int {
+            return "int " + string(v + 1)
+        }
+        case string {
+            return "string " + v
+        }
+        case *Circle {
+            return "circle " + string(v.R)
+        }
+        case Square, Rect {
+            return "shape"
+        }
+        case nil {
+            return "nil"
+        }
+        default {
+            return "other"
+        }
+    }
+    return ""
+}
+
+fn area(s Shape) int {
+    switch v = s.(type) {
+        case *Circle {
+            return v.R
+        }
+        case Square {
+            return v.S
+        }
+        case nil {
+            return -1
+        }
+        default {
+            return v.Area()
+        }
+    }
+    return 0
+}
+
+fn main() {
+    fmt.Println(describe(5))
+    fmt.Println(describe("hi"))
+    fmt.Println(describe(&Circle{R: 2}))
+    fmt.Println(describe(Square{S: 3}))
+    fmt.Println(describe(Rect{W: 1, H: 2}))
+    fmt.Println(describe(nil))
+    fmt.Println(describe(2.5))
+
+    fmt.Println(area(&Circle{R: 4}))
+    fmt.Println(area(Square{S: 5}))
+    fmt.Println(area(Rect{W: 3, H: 4}))
+    var* none Shape = nil
+    fmt.Println(area(none))
+
+    var* x any = "text"
+    switch x.(type) {
+        case int {
+            fmt.Println("int")
+        }
+        case string {
+            fmt.Println("string")
+        }
+    }
+
+    for i in 0..3 {
+        var* y any = i
+        switch y.(type) {
+            case int {
+                if i == 1 {
+                    break
+                }
+                fmt.Println("loop int")
+            }
+        }
+    }
+
+    var* s any = "abc"
+    var* str = s.(string)
+    fmt.Println(str)
+    var* n, ok = s.(int)
+    fmt.Println(n, ok)
+    var* str2, ok2 = s.(string)
+    fmt.Println(str2, ok2)
+    n, ok = s.(int)
+    fmt.Println(ok)
+
+    var* sh Shape = Square{S: 2}
+    var* sq = sh.(Square)
+    fmt.Println(sq.S)
+    var* nm, hasName = sh.(Named)
+    fmt.Println(hasName)
+    if hasName {
+        fmt.Println(nm.Name())
+    }
+    var* rc Shape = Rect{W: 1, H: 1}
+    var* nm2, has2 = rc.(Named)
+    fmt.Println(has2)
+    var* anyShape any = rc
+    var* back, isShape = anyShape.(Shape)
+    fmt.Println(isShape)
+    fmt.Println(back.Area())
+    var* other, isCircle = anyShape.(*Circle)
+    fmt.Println(isCircle)
+}
+
+return 0

@@ -1,0 +1,12 @@
+// error: used in a single-value context
+package main
+
+fn two() (int, int) {
+    return 1, 2
+}
+
+fn main() {
+    var* a = two()
+}
+
+return 0

@@ -1,0 +1,12 @@
+// error: wrong number of return values: expected 2, got 1
+package main
+
+fn two() (int, int) {
+    return 1
+}
+
+fn main() {
+    two()
+}
+
+return 0

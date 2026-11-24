@@ -48,8 +48,17 @@ namespace pgt
         Function parseExtern();
         StructDecl parseStruct();
         InterfaceDecl parseInterface();
+        struct ConstTemplate
+        {
+            bool valid = false;
+            bool hasType = false;
+            size_t typePos = 0;
+            size_t exprPos = 0;
+        };
+        TypeExpr parseResult();
+        StmtPtr parseVarStmt();
         void parseConsts(std::vector<std::unique_ptr<VarDecl>> &out);
-        std::unique_ptr<VarDecl> parseConstSpec();
+        std::unique_ptr<VarDecl> parseConstSpec(int iota, ConstTemplate &tmpl);
         Block parseBlock(const char *context);
         StmtPtr parseStatement();
         std::unique_ptr<VarDecl> parseVarDecl();
@@ -83,6 +92,7 @@ namespace pgt
         size_t pos_ = 0;
         bool noStructLit_ = false;
         bool allowMalloc_ = false;
+        long long iota_ = -1;
     };
 
 }

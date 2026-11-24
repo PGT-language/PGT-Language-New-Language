@@ -34,11 +34,13 @@ namespace pgt
             Interface,
             Any,
             Map,
-            Uint64
+            Uint64,
+            Tuple
         };
         Kind kind = Kind::Void;
         const Type *elem = nullptr;
         const Type *key = nullptr;
+        std::vector<const Type *> elems;
         StructInfo *st = nullptr;
         IfaceInfo *iface = nullptr;
 
@@ -149,6 +151,7 @@ namespace pgt
         TyP arrayOf(TyP elem);
         TyP pointerTo(TyP elem);
         TyP mapOf(TyP key, TyP elem);
+        TyP tupleOf(const std::vector<TyP> &elems);
         TyP structT(StructInfo *st);
         TyP ifaceT(IfaceInfo *iface);
 
@@ -157,6 +160,7 @@ namespace pgt
         std::deque<Type> storage_;
         std::map<TyP, TyP> arrays_, pointers_;
         std::map<std::pair<TyP, TyP>, TyP> maps_;
+        std::map<std::vector<TyP>, TyP> tuples_;
         std::map<const void *, TyP> named_;
     };
 

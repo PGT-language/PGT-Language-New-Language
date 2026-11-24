@@ -109,7 +109,7 @@
       "name": "support.type.primitive.pgt"
     },
     "constants": {
-      "match": "\\b(true|false|nil)\\b",
+      "match": "\\b(true|false|nil|iota)\\b",
       "name": "constant.language.pgt"
     },
     "numbers": {

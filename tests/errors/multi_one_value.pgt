@@ -1,0 +1,12 @@
+// error: assignment mismatch: 2 variables but the call returns 1 value
+package main
+
+fn one() int {
+    return 1
+}
+
+fn main() {
+    var* a, b = one()
+}
+
+return 0

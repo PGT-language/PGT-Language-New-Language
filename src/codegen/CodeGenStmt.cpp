@@ -23,6 +23,18 @@ namespace pgt
             flushTemps();
             return;
         }
+        if (auto *md = dynamic_cast<const MultiVarDecl *>(&stmt))
+        {
+            genMultiVarDecl(*md);
+            flushTemps();
+            return;
+        }
+        if (auto *ma = dynamic_cast<const MultiAssign *>(&stmt))
+        {
+            genMultiAssign(*ma);
+            flushTemps();
+            return;
+        }
         if (auto *assign = dynamic_cast<const Assign *>(&stmt))
         {
             genAssign(*assign);
@@ -33,7 +45,9 @@ namespace pgt
             return genReturn(*ret);
         if (auto *es = dynamic_cast<const ExprStmt *>(&stmt))
         {
-            genCall(*static_cast<const Call *>(es->expr.get()), nullptr);
+            Value v = genCall(*static_cast<const Call *>(es->expr.get()), nullptr);
+            if (v.type->is(Type::Kind::Tuple))
+                expandTuple(v);
             flushTemps();
             return;
         }
@@ -409,6 +423,10 @@ namespace pgt
 
     void CodeGen::genReturn(const Return &ret)
     {
+        if (currentRet_->is(Type::Kind::Tuple) && ret.value)
+            return genMultiReturn(ret);
+        if (!ret.rest.empty())
+            fail("this function returns a single value", ret.line, ret.col);
         if (currentRet_->is(Type::Kind::Void))
         {
             if (ret.value)
@@ -611,6 +629,8 @@ namespace pgt
 
     void CodeGen::genSwitch(const Switch &sw)
     {
+        if (sw.typeSwitch)
+            return genTypeSwitch(sw);
         llvm::Function *f = builder_.GetInsertBlock()->getParent();
         auto *endBB = llvm::BasicBlock::Create(ctx_, "switch.end", f);
 

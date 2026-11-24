@@ -116,13 +116,15 @@ namespace pgt
             Named,
             Array,
             Pointer,
-            Map
+            Map,
+            Tuple
         };
         Kind kind = Kind::Named;
         std::string qualifier;
         std::string name;
         std::shared_ptr<TypeExpr> elem;
         std::shared_ptr<TypeExpr> key;
+        std::vector<TypeExpr> elems;
         int line = 0, col = 0;
 
         static TypeExpr named(std::string name, int line, int col)
@@ -143,6 +145,13 @@ namespace pgt
                 return "*" + elem->text();
             case Kind::Map:
                 return "map[" + key->text() + "]" + elem->text();
+            case Kind::Tuple:
+            {
+                std::string out = "(";
+                for (size_t i = 0; i < elems.size(); ++i)
+                    out += (i ? ", " : "") + elems[i].text();
+                return out + ")";
+            }
             case Kind::Named:
                 break;
             }
@@ -261,6 +270,13 @@ namespace pgt
         ExprPtr count;
     };
 
+    struct TypeAssert : Expr
+    {
+        ExprPtr base;
+        TypeExpr type;
+        bool isTypeKeyword = false;
+    };
+
     struct Stmt
     {
         int line = 0, col = 0;
@@ -276,6 +292,19 @@ namespace pgt
         ExprPtr init;
         bool isConst = false;
         bool isManual = false;
+    };
+
+    struct MultiVarDecl : Stmt
+    {
+        std::vector<std::string> names;
+        std::vector<int> cols;
+        std::vector<ExprPtr> values;
+    };
+
+    struct MultiAssign : Stmt
+    {
+        std::vector<ExprPtr> targets;
+        std::vector<ExprPtr> values;
     };
 
     struct Assign : Stmt
@@ -318,6 +347,7 @@ namespace pgt
     struct Case
     {
         std::vector<ExprPtr> values;
+        std::vector<TypeExpr> types;
         Block body;
         int line = 0, col = 0;
     };
@@ -328,6 +358,8 @@ namespace pgt
         std::vector<Case> cases;
         Block defaultBody;
         bool hasDefault = false;
+        bool typeSwitch = false;
+        std::string bind;
     };
 
     struct Break : Stmt
@@ -346,6 +378,7 @@ namespace pgt
     struct Return : Stmt
     {
         ExprPtr value;
+        std::vector<ExprPtr> rest;
     };
 
     struct Param

@@ -1,0 +1,87 @@
+// memstats
+package main
+
+#use "fmt"
+
+struct Pair {
+    A string
+    B string
+}
+
+struct Box {
+    Name string
+}
+
+interface Splitter {
+    Split(s string) (string, string)
+}
+
+fn (p Pair) Split(s string) (string, string) {
+    return p.A + s, p.B + s
+}
+
+fn (b *Box) Take() (string, int, bool) {
+    return b.Name + "!", len(b.Name), true
+}
+
+fn divmod(a int, b int) (int, int) {
+    return a / b, a % b
+}
+
+fn names(prefix string) (string, string) {
+    return prefix + "x", prefix + "y"
+}
+
+fn forward(prefix string) (string, string) {
+    return names(prefix)
+}
+
+fn lookup(items []string, i int) (string, bool) {
+    if i < 0 || i >= len(items) {
+        return "", false
+    }
+    return items[i], true
+}
+
+fn main() {
+    var* q, r = divmod(7, 2)
+    fmt.Println(q, r)
+    q, r = divmod(9, 4)
+    fmt.Println(q, r)
+    var* _, m = divmod(17, 5)
+    fmt.Println(m)
+
+    var* a, b = names("p")
+    fmt.Println(a, b)
+    a, b = b, a
+    fmt.Println(a, b)
+    var* c, d = forward("z")
+    fmt.Println(c + d)
+
+    var* items = ["one", "two"]
+    var* v, ok = lookup(items, 1)
+    fmt.Println(v, ok)
+    v, ok = lookup(items, 5)
+    fmt.Println(v == "", ok)
+
+    var* i, j = 0, 1
+    i, j = j, i
+    fmt.Println(i, j)
+    items[0], items[1] = items[1], items[0]
+    fmt.Println(items[0], items[1])
+
+    var* box = &Box{Name: "bob"}
+    var* s, n, flag = box.Take()
+    fmt.Println(s, n, flag)
+
+    var* sp Splitter = Pair{A: "l", B: "r"}
+    var* left, right = sp.Split("-")
+    fmt.Println(left, right)
+
+    var* _, other = names("q")
+    fmt.Println(other)
+    names("ignored")
+    divmod(1, 1)
+}
+
+return 0

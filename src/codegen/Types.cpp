@@ -39,6 +39,13 @@ namespace pgt
             return "any";
         case Kind::Map:
             return "map[" + key->name() + "]" + elem->name();
+        case Kind::Tuple:
+        {
+            std::string out = "(";
+            for (size_t i = 0; i < elems.size(); ++i)
+                out += (i ? ", " : "") + elems[i]->name();
+            return out + ")";
+        }
         }
         return "?";
     }
@@ -105,6 +112,19 @@ namespace pgt
             t.kind = Type::Kind::Map;
             t.key = key;
             t.elem = elem;
+            slot = add(t);
+        }
+        return slot;
+    }
+
+    TyP TypeTable::tupleOf(const std::vector<TyP> &elems)
+    {
+        auto &slot = tuples_[elems];
+        if (!slot)
+        {
+            Type t;
+            t.kind = Type::Kind::Tuple;
+            t.elems = elems;
             slot = add(t);
         }
         return slot;

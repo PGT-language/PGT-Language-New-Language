@@ -112,8 +112,12 @@ namespace pgt
             if (pkg_->functions.count(ref->name))
                 fail("function '" + ref->name + "' is not a value; call it: " + ref->name + "(...)",
                      ref->line, ref->col);
+            if (ref->name == "iota")
+                fail("'iota' can only be used inside a const block", ref->line, ref->col);
             fail("undefined variable '" + ref->name + "'", ref->line, ref->col);
         }
+        if (auto *ta = dynamic_cast<const TypeAssert *>(&expr))
+            return genTypeAssert(*ta);
         if (auto *un = dynamic_cast<const Unary *>(&expr))
             return genUnary(*un, hint);
         if (auto *bin = dynamic_cast<const Binary *>(&expr))
@@ -123,6 +127,10 @@ namespace pgt
             Value v = genCall(*call, hint);
             if (v.type->is(Type::Kind::Void))
                 fail("this call does not return a value", call->line, call->col);
+            if (v.type->is(Type::Kind::Tuple))
+                fail("multi-value call (returns " + v.type->name() +
+                         ") used in a single-value context",
+                     call->line, call->col);
             return v;
         }
         if (auto *sel = dynamic_cast<const Selector *>(&expr))

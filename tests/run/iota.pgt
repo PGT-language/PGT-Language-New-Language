@@ -1,0 +1,43 @@
+package main
+
+#use "fmt"
+
+const (
+    Red = iota
+    Green
+    Blue
+)
+
+const (
+    FlagA = 1 << iota
+    FlagB
+    FlagC
+)
+
+const (
+    KindA int64 = iota
+    KindB
+    KindC
+)
+
+const (
+    First = iota + 10
+    Second
+    Third = 100
+    Fourth
+    Fifth = iota * 2
+)
+
+const Solo = iota
+
+fn main() {
+    fmt.Println(Red, Green, Blue)
+    fmt.Println(FlagA, FlagB, FlagC)
+    fmt.Println(KindA, KindB, KindC)
+    fmt.Println(First, Second, Third, Fourth, Fifth)
+    fmt.Println(Solo)
+    var* k int64 = KindC
+    fmt.Println(k + 1)
+}
+
+return 0

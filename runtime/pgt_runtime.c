@@ -37,6 +37,13 @@ void pgt_rt_init(int argc, char **argv)
 
 extern _Noreturn void pgt_panic(const char *msg) __asm__("pgt.runtime.panicString");
 
+_Noreturn void pgt_assert_fail(const char *dyn, const char *want)
+{
+    char buf[512];
+    snprintf(buf, sizeof buf, "interface conversion: %s is not %s", dyn, want);
+    pgt_panic(buf);
+}
+
 typedef struct
 {
     int64_t rc;
