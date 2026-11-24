@@ -20,6 +20,14 @@ fn panicIndex(index int64, length int64) {
     panicString("index out of range [" + str(index) + "] with length " + str(length))
 }
 
+fn panicSlice(lo int64, hi int64, length int64) {
+    panicString("slice bounds out of range [" + str(lo) + ":" + str(hi) + "] with length " + str(length))
+}
+
+fn panicSliceCap(lo int64, hi int64, capacity int64) {
+    panicString("slice bounds out of range [" + str(lo) + ":" + str(hi) + "] with capacity " + str(capacity))
+}
+
 fn panicNil() {
     panicString("nil pointer dereference")
 }

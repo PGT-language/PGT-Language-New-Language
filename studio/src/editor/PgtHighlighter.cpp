@@ -27,7 +27,7 @@ PgtHighlighter::PgtHighlighter(QTextDocument *doc) : QSyntaxHighlighter(doc)
     const QStringList keywords = {"package", "fn",     "return", "if",      "else",   "while",
                                   "for",     "in",     "break",  "continue", "struct", "interface",
                                   "const",   "switch", "case",   "default", "extern", "map"};
-    const QStringList types = {"int", "int64", "float", "char", "byte", "string", "bool", "void", "any"};
+    const QStringList types = {"int", "int64", "uint64", "float", "char", "byte", "string", "bool", "void", "any"};
     const QStringList constants = {"true", "false", "nil"};
     const QStringList builtins = {
         "len",         "append",       "make",       "new",         "free",         "str",

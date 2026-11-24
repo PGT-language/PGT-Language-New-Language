@@ -105,6 +105,12 @@ namespace pgt
                 collectExpr(i->base.get(), out);
                 collectExpr(i->index.get(), out);
             }
+            else if (auto *sl = dynamic_cast<const SliceExpr *>(e))
+            {
+                collectExpr(sl->base.get(), out);
+                collectExpr(sl->lo.get(), out);
+                collectExpr(sl->hi.get(), out);
+            }
             else if (auto *a = dynamic_cast<const ArrayLit *>(e))
             {
                 for (const ExprPtr &x : a->elems)
@@ -139,7 +145,7 @@ namespace pgt
         : module_(std::make_unique<llvm::Module>(moduleName, ctx_)), builder_(ctx_)
     {
         arrayTy_ = llvm::StructType::create(
-            ctx_, {builder_.getPtrTy(), builder_.getInt64Ty(), builder_.getInt64Ty()}, "pgt.array");
+            ctx_, {builder_.getPtrTy(), builder_.getInt64Ty(), builder_.getInt64Ty(), builder_.getPtrTy()}, "pgt.array");
         ifaceTy_ =
             llvm::StructType::create(ctx_, {builder_.getPtrTy(), builder_.getPtrTy()}, "pgt.iface");
         fieldDescTy_ = llvm::StructType::create(
@@ -165,6 +171,7 @@ namespace pgt
         case Type::Kind::Int:
             return builder_.getInt32Ty();
         case Type::Kind::Int64:
+        case Type::Kind::Uint64:
             return builder_.getInt64Ty();
         case Type::Kind::Float:
             return builder_.getDoubleTy();
@@ -243,6 +250,8 @@ namespace pgt
             t = types_.intT;
         else if (n == "int64")
             t = types_.int64T;
+        else if (n == "uint64")
+            t = types_.uint64T;
         else if (n == "float")
             t = types_.floatT;
         else if (n == "char")
@@ -396,7 +405,7 @@ namespace pgt
             checkStructCycles();
             for (const auto &pkg : workspace.packages)
                 declareFunctions(*pkg);
-            for (const char *name : {"panicString", "panicIndex", "panicNil", "panicDiv"})
+            for (const char *name : {"panicString", "panicIndex", "panicSlice", "panicSliceCap", "panicNil", "panicDiv"})
                 runtimeFn(name).fn->addFnAttr(llvm::Attribute::NoReturn);
             runtimeFn("panicString").fn->setLinkage(llvm::Function::ExternalLinkage);
             for (const auto &pkg : workspace.packages)

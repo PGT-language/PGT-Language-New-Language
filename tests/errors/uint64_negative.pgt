@@ -1,0 +1,8 @@
+// error: unary '-' is not defined for uint64
+package main
+
+fn main() {
+    var* a uint64 = -1
+}
+
+return 0

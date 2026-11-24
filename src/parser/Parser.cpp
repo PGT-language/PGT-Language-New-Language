@@ -863,13 +863,29 @@ namespace pgt
             }
             else if (check(Tok::LBracket) && !atLineStart())
             {
-                auto idx = make<Index>(cur());
+                const Token &open = cur();
+                auto idx = make<Index>(open);
+                auto slice = make<SliceExpr>(open);
                 advance();
                 FlagGuard guard(noStructLit_, false);
-                idx->index = parseExpr();
-                expect(Tok::RBracket, "after the index");
-                idx->base = std::move(e);
-                e = std::move(idx);
+                if (!check(Tok::Colon))
+                    idx->index = parseExpr();
+                if (check(Tok::Colon))
+                {
+                    advance();
+                    slice->lo = std::move(idx->index);
+                    if (!check(Tok::RBracket))
+                        slice->hi = parseExpr();
+                    expect(Tok::RBracket, "after the slice bounds");
+                    slice->base = std::move(e);
+                    e = std::move(slice);
+                }
+                else
+                {
+                    expect(Tok::RBracket, "after the index");
+                    idx->base = std::move(e);
+                    e = std::move(idx);
+                }
             }
             else if (check(Tok::LParen) && !atLineStart())
             {
@@ -951,7 +967,7 @@ namespace pgt
             auto lit = make<IntLit>(t);
             try
             {
-                lit->value = std::stoll(t.text);
+                lit->value = std::stoull(t.text);
             }
             catch (const std::out_of_range &)
             {

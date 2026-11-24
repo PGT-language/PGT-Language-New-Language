@@ -33,7 +33,8 @@ namespace pgt
             Struct,
             Interface,
             Any,
-            Map
+            Map,
+            Uint64
         };
         Kind kind = Kind::Void;
         const Type *elem = nullptr;
@@ -47,11 +48,12 @@ namespace pgt
         }
         bool isIntegral() const
         {
-            return kind == Kind::Int || kind == Kind::Int64 || kind == Kind::Char || kind == Kind::Byte;
+            return kind == Kind::Int || kind == Kind::Int64 || kind == Kind::Uint64 || kind == Kind::Char ||
+                   kind == Kind::Byte;
         }
         bool isUnsigned() const
         {
-            return kind == Kind::Char || kind == Kind::Byte;
+            return kind == Kind::Char || kind == Kind::Byte || kind == Kind::Uint64;
         }
         bool isNumeric() const
         {
@@ -142,7 +144,7 @@ namespace pgt
     {
     public:
         TypeTable();
-        TyP voidT, intT, int64T, floatT, charT, byteT, boolT, stringT, nilT, anyT;
+        TyP voidT, intT, int64T, uint64T, floatT, charT, byteT, boolT, stringT, nilT, anyT;
 
         TyP arrayOf(TyP elem);
         TyP pointerTo(TyP elem);

@@ -14,6 +14,7 @@ typedef struct
     void *data;
     int64_t len;
     int64_t cap;
+    void *base;
 } PgtArray;
 
 static bool g_memstats;
@@ -218,7 +219,7 @@ void pgt_array_reserve(PgtArray *a, int64_t need, int64_t elemSize, void (*dropE
 {
     if (need <= a->cap)
     {
-        pgt_retain(a->data);
+        pgt_retain(a->base);
         return;
     }
     int64_t cap = a->cap ? a->cap * 2 : 4;
@@ -233,6 +234,7 @@ void pgt_array_reserve(PgtArray *a, int64_t need, int64_t elemSize, void (*dropE
                 retainElem((char *)data + i * elemSize);
     }
     a->data = data;
+    a->base = data;
     a->cap = cap;
 }
 
@@ -244,6 +246,7 @@ void pgt_array_make(PgtArray *out, int64_t len, int64_t cap, int64_t elemSize,
     if (cap < len)
         cap = len;
     out->data = cap ? pgt_alloc_n(cap, elemSize, dropElem) : NULL;
+    out->base = out->data;
     out->len = len;
     out->cap = cap;
 }
@@ -300,6 +303,13 @@ const char *pgt_str_int64(int64_t v)
 {
     char buf[32];
     int n = snprintf(buf, sizeof buf, "%lld", (long long)v);
+    return dupRange(buf, (size_t)n);
+}
+
+const char *pgt_str_uint64(uint64_t v)
+{
+    char buf[32];
+    int n = snprintf(buf, sizeof buf, "%llu", (unsigned long long)v);
     return dupRange(buf, (size_t)n);
 }
 

@@ -100,6 +100,9 @@ fn formatAny(a any, top bool) string {
         case reflect.KindInt, reflect.KindInt64, reflect.KindByte {
             return str(reflect.Int(a))
         }
+        case reflect.KindUint64 {
+            return str(reflect.Uint(a))
+        }
         case reflect.KindFloat {
             return str(reflect.Float(a))
         }
@@ -243,6 +246,9 @@ fn formatVerb(verb char, a any, prec int, hasPrec bool, plus bool) string {
             return formatAny(a, true)
         }
         case 'd' {
+            if k == reflect.KindUint64 {
+                return str(reflect.Uint(a))
+            }
             if isIntKind(k) {
                 var* v = reflect.Int(a)
                 if plus && v >= 0 {

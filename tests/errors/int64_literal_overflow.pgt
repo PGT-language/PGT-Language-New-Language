@@ -1,0 +1,8 @@
+// error: overflows int64
+package main
+
+fn main() {
+    var* a int64 = 9223372036854775808
+}
+
+return 0

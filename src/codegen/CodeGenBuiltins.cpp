@@ -124,6 +124,14 @@ namespace pgt
                 return Value{builder_.CreateCall(mapsFn("Len").fn, {v.value}), types_.intT};
             fail("'len' needs an array, a map or a string, found " + v.type->name(), call.line, call.col);
         }
+        if (name == "cap")
+        {
+            arity(1);
+            Value v = genExpr(*call.args[0]);
+            if (!v.type->is(Type::Kind::Array))
+                fail("'cap' needs an array, found " + v.type->name(), call.line, call.col);
+            return Value{builder_.CreateTrunc(builder_.CreateExtractValue(v.value, 2), i32), types_.intT};
+        }
         if (auto mv = genMapBuiltin(call, name))
             return mv;
         if (name == "append")
@@ -205,6 +213,7 @@ namespace pgt
             arr = builder_.CreateInsertValue(arr, p.value, 0);
             arr = builder_.CreateInsertValue(arr, n, 1);
             arr = builder_.CreateInsertValue(arr, n, 2);
+            arr = builder_.CreateInsertValue(arr, p.value, 3);
             return Value{arr, ty};
         }
         if (name == "free")
@@ -240,7 +249,7 @@ namespace pgt
             if (v.type->is(Type::Kind::Pointer))
                 rt("pgt_free", builder_.getVoidTy(), {v.value});
             else if (v.type->is(Type::Kind::Array))
-                rt("pgt_free", builder_.getVoidTy(), {builder_.CreateExtractValue(v.value, 0)});
+                rt("pgt_free", builder_.getVoidTy(), {builder_.CreateExtractValue(v.value, 3)});
             else
                 fail("'free' needs a pointer or an array, found " + v.type->name(), call.line, call.col);
             if (where && !where->isConst)

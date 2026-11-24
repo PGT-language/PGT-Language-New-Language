@@ -1,0 +1,69 @@
+// memstats
+package main
+
+#use "fmt"
+
+struct Item {
+    Name string
+    Tags []string
+}
+
+fn tail(a []int) []int {
+    return a[1:]
+}
+
+fn mid() []string {
+    var* local []string = ["a" + str(1), "b" + str(2), "c" + str(3), "d" + str(4)]
+    return local[1:3]
+}
+
+fn items() []Item {
+    var* all []Item = [Item{Name: "x", Tags: ["p", "q"]}, Item{Name: "y", Tags: ["r"]}, Item{Name: "z", Tags: []}]
+    return all[1:]
+}
+
+fn main() {
+    var* a []int = [10, 20, 30, 40, 50]
+    var* b = a[1:4]
+    fmt.Println(b, " ", len(b), " ", cap(b))
+    b[0] = 99
+    fmt.Println(a)
+    var* c = b[1:]
+    c[0] = 77
+    fmt.Println(a, " ", c, " ", len(c), " ", cap(c))
+    fmt.Println(a[:2], " ", a[3:], " ", a[:], " ", a[2:2], " ", len(a[5:]))
+
+    var* d = a[:2]
+    d = append(d, 1)
+    fmt.Println(a, " ", d)
+    var* e = a[3:]
+    e = append(e, 6)
+    e[0] = 0
+    fmt.Println(a, " ", e)
+    var* f = a[:0]
+    f = append(f, 5, 6, 7)
+    fmt.Println(a, " ", f)
+
+    var* t = tail(a)
+    var* m = mid()
+    fmt.Println(t, " ", m)
+    var* its = items()
+    fmt.Println(its[0].Name, " ", its[0].Tags, " ", len(its))
+
+    var* s = "héllo, мир"
+    fmt.Println(len(s))
+    fmt.Println(s[:1], "|", s[1:3], "|", s[3:], "|", s[:], "|", s[7:], "|", s[4:4], "|")
+    var* bytes = chars(s[1:3])
+    fmt.Println(len(bytes), " ", int(bytes[0]), " ", int(bytes[1]))
+    var* sub = s[7:]
+    s = "other"
+    fmt.Println(sub, " ", s)
+
+    var* bigger []int = make([]int, 2, 8)
+    var* g = bigger[:5]
+    fmt.Println(len(g), " ", cap(g), " ", g)
+    var* any1 any = a[1:3]
+    fmt.Println(any1)
+}
+
+return 0

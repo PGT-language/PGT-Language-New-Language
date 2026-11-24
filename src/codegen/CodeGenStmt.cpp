@@ -109,6 +109,7 @@ namespace pgt
                 size = 4;
                 break;
             case Type::Kind::Int64:
+            case Type::Kind::Uint64:
             case Type::Kind::Pointer:
                 size = 8;
                 break;
