@@ -609,7 +609,17 @@ sum(0, nums...)        // 9
 
 Вариативными могут быть функции и методы, но не `extern fn` и не методы интерфейсов. Как в Go, `[]string` нельзя передать как `...any`: нужен `[]any`.
 
-Над `any` работают встроенные функции рефлексии (описаны в `std/builtin/builtin.pgt`): `typeKind`, `typeName`, `anyInt`, `anyFloat`, `anyBool`, `anyString`, `anyLen`, `anyIndex`, `anyNumField`, `anyFieldName`, `anyField`, `anyElem`, `anyIsNil`, `anyAddr`, `anySlotIface`, `anySetInt`, `anySetFloat`, `anySetBool`, `anySetString`, `anySetChar`. Компилятор создаёт описатель типа для каждого типа, преобразуемого в `any`. Коды `typeKind`: 0 `nil`, 1 `int`, 2 `int64`, 3 `float`, 4 `char`, 5 `byte`, 6 `bool`, 7 `string`, 8 массив, 9 указатель, 10 структура. Значение, лежащее в интерфейсе, при преобразовании в `any` получает динамический тип.
+Над `any` работает пакет `reflect` (`#use "reflect"`), написанный на PGT поверх пакета `unsafe`. Компилятор создаёт описатель типа для каждого типа, преобразуемого в `any`; структура `reflect.Type` в точности повторяет его раскладку (`Kind`, `NumField`, `Name`, `Elem`, `Size`, `Drop`, `Retain`, `Fields`). Значение, лежащее в интерфейсе, при преобразовании в `any` получает динамический тип.
+
+API `reflect`: `TypeOf(a) *Type`, `Kind(a) int`, `TypeName(a) string`, `Int`, `Float`, `Bool`, `String`, `Len`, `Index(a, i) any`, `NumField`, `FieldName(a, i)`, `Field(a, i) any`, `Elem(a) any`, `IsNil`, `Addr`, `SlotIface(a, i)`, `SetInt`, `SetFloat`, `SetBool`, `SetChar`, `SetString` (запись через указатель в `any`). Коды видов: `KindNil` 0, `KindInt` 1, `KindInt64` 2, `KindFloat` 3, `KindChar` 4, `KindByte` 5, `KindBool` 6, `KindString` 7, `KindArray` 8, `KindPointer` 9, `KindStruct` 10, `KindIface` 11, `KindAny` 12. Неподходящий вид — паника `reflect.Int: unsupported value of type string`.
+
+### Пакет unsafe (низкоуровневые примитивы)
+
+`#use "unsafe"`. Сырая память через `*byte`: `Add(p, n)` смещение в байтах, `Alloc(size, drop)` управляемый блок, `Copy(dst, src, n)`, `Addr(p) int64`, `Sizeof(a any) int64`, `TypeOf(a any) *byte` и `DataOf(a any) *byte` (описатель типа и указатель на данные значения в `any`), `MakeAny(data, desc) any`, `CallPtr(f, arg)` вызов функции по указателю, `StringAt`/`StringData`, `BytesAt(p, n)`/`BytesData(b)`.
+
+Загрузка и запись по адресу: `LoadInt`, `LoadInt64`, `LoadFloat`, `LoadChar`, `LoadByte`, `LoadBool`, `LoadString`, `LoadPtr` и `StoreX` для тех же типов. Правило учёта ссылок: загрузка управляемого значения (`string`, указатель) возвращает обычный результат вызова (компилятор сам удерживает и освобождает его), поэтому ячейка памяти сохраняет собственную ссылку; запись удерживает новое значение и освобождает старое, хранившееся в ячейке. Ячейка должна быть инициализирована (нулями или корректным значением).
+
+Временный механизм (будет заменён при самохостинге): `extern fn` с именем `pgt_i_<операция>[_<суффикс>]` компилятор не вызывает как C-функцию, а раскладывает в инструкции (`add`, `load`, `store`, `copy`, `alloc`, `call1`, `desc`, `data`, `mkany`, `ptoi`, `cast`); типы параметров и результата берутся из объявления, для таких функций разрешены параметры типа `any`.
 
 Использование `print`, `println`, `input`, `inputln` без пакета `fmt` — ошибка компиляции: `undefined: println (use fmt.Println from #use "fmt")`.
 
@@ -734,7 +744,6 @@ fmt.Println(memory.Live())                           // 0
 | `sqrt`, `pow`, `floor`, `ceil`, `round`, `trunc`, `sin`, `cos`, `tan`, `log`, `exp` | математика, результат `float` |
 | `readFile(path)`, `writeFile(path, s)`, `appendFile(path, s)`, `fileExists(path)` | файлы |
 | `rand()`, `srand(n)`, `exit(code)`, `panic(msg)` | прочее |
-| `typeKind(a)`, `typeName(a)`, `anyInt(a)`, `anyElem(a)`, `anySetInt(p, v)`, ... | рефлексия над `any` (см. «Тип any и вариативные функции») |
 
 Собственная функция пакета с тем же именем заменяет встроенную (например, своя `min`).
 

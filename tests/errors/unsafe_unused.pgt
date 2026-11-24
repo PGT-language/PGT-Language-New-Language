@@ -1,0 +1,9 @@
+// error: "unsafe" imported and not used
+package main
+
+#use "unsafe"
+
+fn main() {
+}
+
+return 0

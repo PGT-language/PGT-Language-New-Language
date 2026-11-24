@@ -1,0 +1,10 @@
+// panic: reflect.SetInt: expected *int, got int
+package main
+
+#use "reflect"
+
+fn main() {
+    reflect.SetInt(5, 1)
+}
+
+return 0

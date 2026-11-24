@@ -1,0 +1,18 @@
+Box true 3
+Name string 7
+P Point 10
+Tags []string 8
+2 b
+Box 3 true
+5 122 4000000001 7
+1.5 true s
+true false 5
+99
+new
+int
+string
+float
+Point
+true 0 nil
+{box {1 2.5} [a b]}
+pgt: live blocks: 0

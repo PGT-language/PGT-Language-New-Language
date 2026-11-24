@@ -36,10 +36,7 @@ PgtHighlighter::PgtHighlighter(QTextDocument *doc) : QSyntaxHighlighter(doc)
         "min",         "max",          "sqrt",       "pow",         "floor",        "ceil",
         "round",       "trunc",        "sin",        "cos",         "tan",          "log",
         "exp",         "readFile",     "writeFile",  "appendFile",  "fileExists",   "rand",
-        "srand",       "exit",         "panic",      "typeKind",    "typeName",     "anyInt",
-        "anyFloat",    "anyBool",      "anyString",  "anyLen",      "anyIndex",     "anyNumField",
-        "anyFieldName", "anyField",    "anyElem",    "anyIsNil",    "anyAddr",      "anySlotIface",
-        "anySetInt",   "anySetFloat",  "anySetBool", "anySetString", "anySetChar"};
+        "srand",       "exit",         "panic"};
 
     rules_.push_back({QRegularExpression("\\b[A-Z]\\w*\\b"), makeFormat(Theme::synExported)});
     rules_.push_back({QRegularExpression("\\b\\w+(?=\\s*\\()"), makeFormat(Theme::synFunction)});

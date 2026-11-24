@@ -1,0 +1,11 @@
+// panic: reflect.Index: index out of range
+package main
+
+#use "reflect"
+
+fn main() {
+    var* a any = [1, 2]
+    var* v = reflect.Index(a, 5)
+}
+
+return 0

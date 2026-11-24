@@ -13,7 +13,7 @@
 
 ## fmt
 
-Вывод и ввод в консоль. Написан на PGT поверх типа `any` и встроенных функций рефлексии; встроенных `print`/`println`/`input` в языке нет.
+Вывод и ввод в консоль. Написан на PGT поверх типа `any` и пакета `reflect`; встроенных `print`/`println`/`input` в языке нет.
 
 ```pgt
 #use "fmt"
@@ -384,3 +384,31 @@ memory.Free(buf)                   // Live() == 0
 | `LiveBytes() int64` | Суммарный размер живых ручных блоков в байтах |
 | `KB(n int) int`, `MB(n int) int` | n килобайт и n мегабайт |
 | `GB(n int) int64` | n гигабайт |
+
+## unsafe
+
+Сырая память и доступ к значениям в `any`. Подключается как `#use "unsafe"`. Основа для `reflect`; подробности и правило учёта ссылок — в `syntax.md`.
+
+| Функция | Описание |
+|---|---|
+| `Add(p *byte, n int64) *byte` | Смещение указателя в байтах |
+| `Alloc(size int64, drop *byte) *byte` | Управляемый блок с функцией освобождения |
+| `Copy(dst, src *byte, n int64)` | Копирование байтов |
+| `LoadInt/LoadInt64/LoadFloat/LoadChar/LoadByte/LoadBool/LoadString/LoadPtr(p *byte)` | Чтение значения по адресу |
+| `StoreInt/StoreInt64/StoreFloat/StoreChar/StoreByte/StoreBool/StoreString/StorePtr(p *byte, v)` | Запись значения по адресу (строки и указатели удерживаются) |
+| `TypeOf(a any) *byte`, `DataOf(a any) *byte`, `MakeAny(data, desc *byte) any` | Описатель типа и данные значения `any` |
+| `Sizeof(a any) int64`, `Addr(p *byte) int64` | Размер типа, числовой адрес |
+| `StringAt`, `StringData`, `BytesAt`, `BytesData`, `CallPtr` | Приведения строк и массивов, вызов функции по указателю |
+
+## reflect
+
+Рефлексия над `any`, написана на PGT поверх `unsafe`. Подключается как `#use "reflect"`.
+
+| Функция | Описание |
+|---|---|
+| `TypeOf(a any) *Type`, `Kind(a any) int`, `TypeName(a any) string` | Описатель типа, вид (`KindInt`, `KindStruct`, ...), имя |
+| `Int`, `Float`, `Bool`, `String` | Значение базового типа (`Int` принимает int, int64, char, byte) |
+| `Len(a)`, `Index(a, i) any` | Длина и элемент массива |
+| `NumField(a)`, `FieldName(a, i)`, `Field(a, i) any` | Поля структуры |
+| `Elem(a) any`, `IsNil(a)`, `Addr(a) int64`, `SlotIface(a, i)` | Указатели и интерфейсные слоты |
+| `SetInt`, `SetFloat`, `SetBool`, `SetChar`, `SetString` | Запись через указатель, лежащий в `any` |

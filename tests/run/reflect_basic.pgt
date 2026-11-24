@@ -1,0 +1,53 @@
+// memstats
+package main
+
+#use (
+    "fmt"
+    "reflect"
+)
+
+struct Point {
+    X int
+    Y float
+}
+
+struct Box {
+    Name string
+    P Point
+    Tags []string
+}
+
+fn main() {
+    var* b = Box{Name: "box", P: Point{X: 1, Y: 2.5}, Tags: ["a", "b"]}
+    fmt.Println(reflect.TypeName(b), " ", reflect.Kind(b) == reflect.KindStruct, " ", reflect.NumField(b))
+    for i in 0..reflect.NumField(b) {
+        var* f = reflect.Field(b, i)
+        fmt.Println(reflect.FieldName(b, i), " ", reflect.TypeName(f), " ", reflect.Kind(f))
+    }
+    var* tags = reflect.Field(b, 2)
+    fmt.Println(reflect.Len(tags), " ", reflect.String(reflect.Index(tags, 1)))
+    var* t = reflect.TypeOf(b)
+    fmt.Println(t.Name, " ", t.NumField, " ", t.Size > 0)
+
+    var* n = 5
+    var* c = 'z'
+    var* big = int64(1) + 4000000000
+    fmt.Println(reflect.Int(n), " ", reflect.Int(c), " ", reflect.Int(big), " ", reflect.Int(byte(7)))
+    fmt.Println(reflect.Float(1.5), " ", reflect.Bool(true), " ", reflect.String("s"))
+
+    var* pn = &n
+    fmt.Println(reflect.Kind(pn) == reflect.KindPointer, " ", reflect.IsNil(pn), " ", reflect.Int(reflect.Elem(pn)))
+    reflect.SetInt(pn, 99)
+    fmt.Println(n)
+    var* name = "old"
+    reflect.SetString(&name, "new")
+    fmt.Println(name)
+    var* items []any = [1, "two", 3.5, Point{X: 3, Y: 4}]
+    for i in 0..len(items) {
+        fmt.Println(reflect.TypeName(reflect.Index(items, i)))
+    }
+    fmt.Println(reflect.IsNil(nil), " ", reflect.Kind(nil), " ", reflect.TypeName(nil))
+    fmt.Println(b)
+}
+
+return 0

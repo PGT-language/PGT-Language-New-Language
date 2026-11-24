@@ -103,7 +103,7 @@
     "calls": {
       "patterns": [
         {
-          "match": "\\b(panic|exit|len|append|make|new|free|str|chars|unsafeData|unsafeSlice|parseInt|parseInt64|parseFloat|substr|indexOf|upper|lower|abs|min|max|pow|rand|srand|readFile|writeFile|appendFile|fileExists|typeKind|typeName|anyInt|anyFloat|anyBool|anyString|anyLen|anyIndex|anyNumField|anyFieldName|anyField|anyElem|anyIsNil|anyAddr|anySlotIface|anySetInt|anySetFloat|anySetBool|anySetString|anySetChar)\\b(?=\\s*\\()",
+          "match": "\\b(panic|exit|len|append|make|new|free|str|chars|unsafeData|unsafeSlice|parseInt|parseInt64|parseFloat|substr|indexOf|upper|lower|abs|min|max|pow|rand|srand|readFile|writeFile|appendFile|fileExists)\\b(?=\\s*\\()",
           "name": "support.function.builtin.pgt"
         },
         {

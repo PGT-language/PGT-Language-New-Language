@@ -1,0 +1,48 @@
+// memstats
+package main
+
+#use (
+    "fmt"
+    "memory"
+    "unsafe"
+)
+
+fn main() {
+    var* x = 41
+    fmt.Println(unsafe.LoadInt(unsafe.DataOf(x)), " ", unsafe.Sizeof(x), " ", unsafe.Sizeof("a"), " ", unsafe.Sizeof(int64(1)))
+
+    var* block = unsafe.Alloc(64, nil)
+    unsafe.StoreInt(block, 7)
+    unsafe.StoreInt64(unsafe.Add(block, 8), int64(9000000000))
+    unsafe.StoreFloat(unsafe.Add(block, 16), 2.5)
+    unsafe.StoreChar(unsafe.Add(block, 24), 'q')
+    unsafe.StoreByte(unsafe.Add(block, 25), byte(200))
+    unsafe.StoreBool(unsafe.Add(block, 26), true)
+    fmt.Println(unsafe.LoadInt(block), " ", unsafe.LoadInt64(unsafe.Add(block, 8)), " ", unsafe.LoadFloat(unsafe.Add(block, 16)))
+    fmt.Println(unsafe.LoadChar(unsafe.Add(block, 24)), " ", unsafe.LoadByte(unsafe.Add(block, 25)), " ", unsafe.LoadBool(unsafe.Add(block, 26)))
+
+    var* slot = unsafe.Add(block, 32)
+    var* s = "first"
+    unsafe.StoreString(slot, s)
+    unsafe.StoreString(slot, "second" + "!")
+    var* got = unsafe.LoadString(slot)
+    fmt.Println(got, " ", s)
+    unsafe.StoreString(slot, "")
+
+    var* raw = unsafe.Add(block, 40)
+    unsafe.StorePtr(raw, block)
+    fmt.Println(unsafe.LoadPtr(raw) == block, " ", unsafe.Addr(block) != 0)
+    unsafe.StorePtr(raw, nil)
+
+    var& := buf = malloc(free[byte] 4)
+    buf[0] = 1
+    buf[1] = 2
+    var* view = unsafe.BytesAt(unsafe.BytesData(buf), 2)
+    fmt.Println(view)
+    unsafe.StoreByte(unsafe.Add(unsafe.BytesData(buf), 3), byte(9))
+    fmt.Println(buf)
+    free(buf)
+    fmt.Println(memory.Live())
+}
+
+return 0
