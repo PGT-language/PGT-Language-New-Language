@@ -1,0 +1,14 @@
+// error: "maps" imported and not used
+package main
+
+#use (
+    "maps"
+    "fmt"
+)
+
+fn main() {
+    var* a = [1, 2]
+    fmt.Println(a)
+}
+
+return 0

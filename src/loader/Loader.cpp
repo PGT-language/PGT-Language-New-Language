@@ -128,7 +128,8 @@ namespace pgt
                         continue;
                     const Package *target = it->second;
                     bool used = p.qualifiers.count(target->name) ||
-                                (target->importPath == "memory" && p.usesMalloc);
+                                (target->importPath == "memory" && p.usesMalloc) ||
+                                (target->importPath == "maps" && p.usesMaps);
                     if (!used)
                         failAt("\"" + imp.path + "\" imported and not used", p.file, imp.line, imp.col);
                 }

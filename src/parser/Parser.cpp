@@ -172,6 +172,10 @@ namespace pgt
         {
             if (toks_[i].kind == Tok::KwVarManual)
                 prog.usesMalloc = true;
+            if (toks_[i].kind == Tok::KwMap ||
+                (toks_[i].kind == Tok::Ident && (toks_[i].text == "has" || toks_[i].text == "delete") &&
+                 toks_[i + 1].kind == Tok::LParen && (i == 0 || toks_[i - 1].kind != Tok::Dot)))
+                prog.usesMaps = true;
             if (toks_[i].kind == Tok::Ident && toks_[i + 1].kind == Tok::Dot &&
                 (i == 0 || toks_[i - 1].kind != Tok::Dot))
                 prog.qualifiers.insert(toks_[i].text);

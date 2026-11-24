@@ -1,12 +1,25 @@
 package main
 
-#use "memory"
-#use "fmt"
+#use (
+    "maps"
+    "fmt"
+)
+
+fn count(words []string) map[string]int {
+    var* m = make(map[string]int)
+    for w in words {
+        m[w] += 1
+    }
+    return m
+}
 
 fn main() {
-    var* a = 10
-    var& := a = malloc(free[byte] 4)
-    fmt.Println(a)
+    var* m = count(["b", "a", "b", "c", "b"])   // m[w] += 1
+    var* alias = m
+    alias["z"] = 9 // alias и m — один и тот же словарь
+    delete(m, "c")
+    fmt.Println(m, " ", len(m), " ", has(m, "c"), " ", m["nope"])
+    // map[a:1 b:3 z:9] 3 false 0
 }
 
 return 0

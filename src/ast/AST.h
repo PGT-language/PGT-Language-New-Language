@@ -409,6 +409,7 @@ namespace pgt
         ExprPtr exitCode;
         std::set<std::string> qualifiers;
         bool usesMalloc = false;
+        bool usesMaps = false;
     };
 
 }
