@@ -22,6 +22,7 @@ static void printVersion() {
 static void printUsage(std::ostream& os) {
     os << "Usage:\n"
           "  pgt --version                         print the compiler version\n"
+          "  pgt help                              show this help\n"
           "  pgt new <name> [-t <template>]        create a project (default template: hello)\n"
           "  pgt new --list                        list project templates\n"
           "  pgt build [dir|file.pgt] [-o <out>]   compile a package (default: .)\n"
@@ -70,7 +71,12 @@ static int runBuild(int argc, char** argv, int first, bool run = false) {
         } else if (a == "-" && opts.input.empty()) {
             opts.input = "-";
         } else if (!a.empty() && a[0] == '-') {
-            std::cerr << "pgt: error: unknown option '" << a << "'\n";
+            std::cerr << "pgt: error: unknown option '" << a << "'";
+            if (a.size() == 3 && (a[1] == 'o' || a[1] == 'O') && a[2] >= '0' && a[2] <= '3')
+                std::cerr << " (did you mean -O" << a[2] << "? the optimization flag uses a capital O)";
+            else if (a.size() == 2 && a[1] >= '0' && a[1] <= '3')
+                std::cerr << " (did you mean -O" << a[1] << "?)";
+            std::cerr << "\n";
             return 1;
         } else if (opts.input.empty()) {
             opts.input = a;
@@ -154,7 +160,7 @@ int main(int argc, char** argv) {
         printVersion();
         return 0;
     }
-    if (cmd == "--help" || cmd == "-h") {
+    if (cmd == "--help" || cmd == "-h" || cmd == "help") {
         printUsage(std::cout);
         return 0;
     }
