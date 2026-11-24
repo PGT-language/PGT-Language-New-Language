@@ -1,0 +1,13 @@
+// panic: 'ret' is not allowed inside asm blocks
+package main
+
+#use "asm"
+
+fn main() {
+    asm {
+        mov eax, 1
+        ret
+    }
+}
+
+return 0

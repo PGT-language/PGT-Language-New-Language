@@ -1,0 +1,13 @@
+// error: variable 's' has type string; asm blocks accept only int, int64, byte, char, bool and pointers (*T)
+package main
+
+#use "asm"
+
+fn main() {
+    var* s = "hello"
+    asm {
+        mov rax, {s}
+    }
+}
+
+return 0

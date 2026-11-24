@@ -1,0 +1,11 @@
+// error: asm block needs #use "pgt/std/asm"
+package main
+
+fn main() {
+    var* x = 1
+    asm {
+        mov eax, {x}
+    }
+}
+
+return 0

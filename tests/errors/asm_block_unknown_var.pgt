@@ -1,0 +1,12 @@
+// error: undefined variable 'nope' in asm block
+package main
+
+#use "asm"
+
+fn main() {
+    asm {
+        mov eax, {nope}
+    }
+}
+
+return 0

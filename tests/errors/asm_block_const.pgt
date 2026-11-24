@@ -1,0 +1,14 @@
+// error: constant 'Limit' cannot be used in an asm block
+package main
+
+#use "asm"
+
+const Limit = 10
+
+fn main() {
+    asm {
+        mov eax, {Limit}
+    }
+}
+
+return 0

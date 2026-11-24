@@ -1,0 +1,8 @@
+// error: unterminated asm block
+package main
+
+#use "asm"
+
+fn main() {
+    asm {
+        mov eax, 1

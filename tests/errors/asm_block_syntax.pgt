@@ -1,0 +1,15 @@
+// panic: line 11: unknown mnemonic
+package main
+
+#use "asm"
+
+fn main() {
+    var* x = 1
+    asm {
+        mov eax, {x}
+        add eax, 1
+        frobnicate eax
+    }
+}
+
+return 0

@@ -1,4 +1,3 @@
-// memstats
 package main
 
 #use "fmt"
@@ -81,7 +80,10 @@ fn main() {
     }
     fmt.Println(x, " ", y, " ", b, " ", c, " ", t, " ", f, " ", big)
 
-    var* arr = []int64{1, 2, 3}
+    var* arr = make([]int64, 3)
+    arr[0] = 1
+    arr[1] = 2
+    arr[2] = 3
     var* p = &arr[1]
     asm {
         mov rax, {p}
