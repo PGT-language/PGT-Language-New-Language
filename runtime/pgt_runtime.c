@@ -1,12 +1,3 @@
-// PGT runtime: the support library every compiled PGT program is linked with.
-//
-// Conventions shared with the code generator:
-//   string -> const char* (NUL-terminated, immutable, NULL means "")
-//   []T    -> PgtArray passed by pointer
-//   bool   -> C bool (i1 zeroext in LLVM)
-// Memory is never reclaimed automatically: strings produced here are heap allocated
-// and live until the program exits.
-
 #define _POSIX_C_SOURCE 200809L
 #include <ctype.h>
 #include <errno.h>
@@ -35,7 +26,6 @@ void pgt_rt_init(int argc, char **argv)
     srand((unsigned)time(NULL));
 }
 
-// ---------------------------------------------------------------- errors
 
 _Noreturn void pgt_panic(const char *msg)
 {
@@ -62,7 +52,6 @@ _Noreturn void pgt_panic_div(void)
     pgt_panic("integer divide by zero");
 }
 
-// ---------------------------------------------------------------- memory
 
 void *pgt_alloc(int64_t size)
 {
@@ -101,7 +90,6 @@ void pgt_array_make(PgtArray *out, int64_t len, int64_t elemSize)
     out->cap = len;
 }
 
-// ---------------------------------------------------------------- strings
 
 static const char *S(const char *s)
 {
@@ -393,8 +381,6 @@ bool pgt_is_float(const char *s)
     return *end == '\0';
 }
 
-// ---------------------------------------------------------------- output
-
 void pgt_print_str(const char *s)
 {
     fputs(S(s), stdout);
@@ -426,9 +412,6 @@ void pgt_print_ptr(const void *p)
     else
         fputs("<nil>", stdout);
 }
-
-// ---------------------------------------------------------------- input
-// Each reader returns the current value unchanged when nothing could be read.
 
 static void flushOut(void)
 {
@@ -489,7 +472,6 @@ const char *pgt_read_line(const char *cur)
     return scanf(" %4095[^\n]", buf) == 1 ? dupRange(buf, strlen(buf)) : cur;
 }
 
-// Reads one raw line (without skipping blank lines); `ok` tells whether the input had one.
 const char *pgt_read_raw_line(bool *ok)
 {
     flushOut();
@@ -508,8 +490,6 @@ const char *pgt_read_raw_line(bool *ok)
     buf[len] = '\0';
     return buf;
 }
-
-// ---------------------------------------------------------------- files
 
 const char *pgt_read_file(const char *path)
 {
@@ -567,8 +547,6 @@ bool pgt_remove_file(const char *path)
 {
     return remove(S(path)) == 0;
 }
-
-// ---------------------------------------------------------------- system
 
 int32_t pgt_rand(void)
 {
