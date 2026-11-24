@@ -1,8 +1,8 @@
 #include "codegen/CodeGen.h"
 
-#include <algorithm>
-
 #include "common/Error.h"
+
+#include <algorithm>
 
 namespace pgt
 {
@@ -137,7 +137,10 @@ namespace pgt
         TyP elem = resolveType(m.elem);
         bool isArray = var.type->is(Type::Kind::Array);
         TyP want = isArray ? var.type->elem : var.type;
-        if (elem != want)
+        bool rawBytes = elem->is(Type::Kind::Byte) && want != elem;
+        if (rawBytes)
+            elem = want;
+        else if (elem != want)
             fail("cannot hand '" + decl.name + "' (" + var.type->name() + ") over to malloc(free[" +
                      elem->name() + "] ...): the element type must be " + want->name(),
                  decl.line, decl.col);
@@ -149,6 +152,16 @@ namespace pgt
         auto *i64 = builder_.getInt64Ty();
         llvm::Value *count = builder_.CreateIntCast(n.value, i64, !n.type->isUnsigned());
         llvm::Type *elemLl = llvmType(elem);
+        if (rawBytes)
+        {
+            llvm::Value *size = sizeOf(elem);
+            StringLit msg;
+            msg.value = "malloc: the block is too small for '" + decl.name + "' (" + elem->name() +
+                        " needs " + std::to_string(module_->getDataLayout().getTypeAllocSize(elemLl)) +
+                        " bytes)";
+            panicIf(builder_.CreateICmpSLT(count, size), "panicString", {genExpr(msg).value});
+            count = builder_.CreateSDiv(count, size);
+        }
 
         auto &owned = scopes_[scopeIndex].owned;
         owned.erase(std::remove_if(owned.begin(), owned.end(),
