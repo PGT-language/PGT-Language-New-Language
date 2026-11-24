@@ -1,6 +1,5 @@
-42 5000000000 2.5
-x yes hello world
-the whole line  here
+42 5000000000 2.5 x yes hello
+  the whole line  here
 7 text 9
 notanumber
 11 abc 3.5

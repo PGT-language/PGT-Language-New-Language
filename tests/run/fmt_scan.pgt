@@ -35,13 +35,13 @@ fn main() {
 
     var* bad = 5
     fmt.Input("bad? ", &bad)
-    fmt.Println(bad)
+    fmt.Println(bad, " ", fmt.ReadLine())
 
     var* a = 0
     var* b = ""
     var* z = 0.0
     var* got = fmt.Scan(&a, &b, &z)
-    fmt.Println(got, " ", a, " ", b, " ", z)
+    fmt.Println(got, " ", a, " ", b, " ", z, " [", fmt.ReadLine(), "]")
 
     var* x = 0
     var* y = 0
@@ -51,6 +51,8 @@ fn main() {
     fmt.Println(words, " ", w, " ", x)
     var* rest = fmt.ReadLine()
     fmt.Println("rest=", rest)
+    var* blank = fmt.ReadLine()
+    fmt.Println("blank=", blank, " ", len(blank))
     var* last = fmt.ReadLine()
     fmt.Println("last=", last, " ", len(last))
     var* r = fmt.Scan(&x)
