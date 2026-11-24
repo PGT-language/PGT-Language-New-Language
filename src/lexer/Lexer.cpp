@@ -444,6 +444,9 @@ namespace pgt
             case '\'':
                 c = '\'';
                 break;
+            case 'x':
+                c = static_cast<char>(hexEscape(line, col));
+                break;
             default:
                 throw CompileError(std::string("unknown escape sequence '\\") + e + "'", line, col);
             }
@@ -499,6 +502,9 @@ namespace pgt
                 break;
             case '"':
                 out += '"';
+                break;
+            case 'x':
+                out += static_cast<char>(hexEscape(escLine, escCol));
                 break;
             default:
                 throw CompileError(std::string("unknown escape sequence '\\") + e + "'",
@@ -574,6 +580,21 @@ namespace pgt
             ++i;
         }
         return names;
+    }
+
+    int Lexer::hexEscape(int line, int col)
+    {
+        int value = 0;
+        for (int i = 0; i < 2; ++i)
+        {
+            char h = atEnd() ? '\0' : peek();
+            int d = h >= '0' && h <= '9' ? h - '0' : h >= 'a' && h <= 'f' ? h - 'a' + 10 : h >= 'A' && h <= 'F' ? h - 'A' + 10 : -1;
+            if (d < 0)
+                throw CompileError("invalid escape sequence '\\x': expected two hex digits", line, col);
+            advance();
+            value = value * 16 + d;
+        }
+        return value;
     }
 
     Token Lexer::lexWord()

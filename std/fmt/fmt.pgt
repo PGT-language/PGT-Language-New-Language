@@ -8,6 +8,9 @@ package fmt
 )
 
 extern fn pgt_print_str(s string)
+extern fn fflush(stream *byte) int
+extern fn write(fd int, data string, n int64) int64
+extern fn strlen(s string) int64
 extern fn pgt_join(parts []string, sep string) string
 extern fn pgt_str_float_prec(x float, prec int) string
 extern fn pgt_is_int(s string) bool
@@ -166,6 +169,23 @@ fn Print(args ...any) {
 
 fn Println(args ...any) {
     pgt_print_str(Sprintln(args...))
+}
+
+fn writeStderr(s string) {
+    fflush(nil)
+    write(2, s, strlen(s))
+}
+
+fn Eprint(args ...any) {
+    writeStderr(Sprint(args...))
+}
+
+fn Eprintln(args ...any) {
+    writeStderr(Sprintln(args...))
+}
+
+fn Eprintf(format string, args ...any) {
+    writeStderr(Sprintf(format, args...))
 }
 
 fn badVerb(verb char, a any) string {

@@ -30,6 +30,7 @@ namespace pgt
         Token lexString();
         Token lexChar();
         Token lexWord();
+        int hexEscape(int line, int col);
         Token lexAsmBody(int line, int col);
 
         std::string src_;
