@@ -208,7 +208,7 @@ namespace pgt
 
     bool Parser::atTypeStart() const
     {
-        return check(Tok::Ident) || check(Tok::LBracket) || check(Tok::Star);
+        return check(Tok::Ident) || check(Tok::LBracket) || check(Tok::Star) || check(Tok::KwMap);
     }
 
     TypeExpr Parser::parseType(const char *context)

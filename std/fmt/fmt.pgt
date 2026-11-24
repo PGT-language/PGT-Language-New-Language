@@ -2,6 +2,7 @@ package fmt
 
 #use (
     "conv"
+    "maps"
     "reflect"
     "strings"
 )
@@ -20,6 +21,76 @@ extern fn pgt_read_word(cur string) string
 extern fn pgt_read_line(cur string) string
 extern fn pgt_read_raw_line(ok *bool) string
 
+
+fn lessKey(a any, b any) bool {
+    switch reflect.Kind(a) {
+        case reflect.KindString {
+            return reflect.String(a) < reflect.String(b)
+        }
+        case reflect.KindBool {
+            return !reflect.Bool(a) && reflect.Bool(b)
+        }
+    }
+    return reflect.Int(a) < reflect.Int(b)
+}
+
+fn sortedIndexes(keys []any) []int {
+    var* order []int = []
+    for i in 0..len(keys) {
+        order = append(order, i)
+    }
+    var* width = 1
+    while width < len(keys) {
+        var* merged []int = []
+        var* lo = 0
+        while lo < len(keys) {
+            var* mid = lo + width
+            if mid > len(keys) {
+                mid = len(keys)
+            }
+            var* hi = lo + 2 * width
+            if hi > len(keys) {
+                hi = len(keys)
+            }
+            var* l = lo
+            var* r = mid
+            while l < mid || r < hi {
+                if r >= hi || (l < mid && !lessKey(keys[order[r]], keys[order[l]])) {
+                    merged = append(merged, order[l])
+                    l += 1
+                } else {
+                    merged = append(merged, order[r])
+                    r += 1
+                }
+            }
+            lo = hi
+        }
+        order = merged
+        width *= 2
+    }
+    return order
+}
+
+fn formatMap(a any) string {
+    var* raw = reflect.Data(a)
+    var* kt = maps.KeyType(raw)
+    var* vt = maps.ValType(raw)
+    var* keys []any = []
+    var* slots []int64 = []
+    var* at = maps.Next(raw, 0)
+    while at >= 0 {
+        keys = append(keys, reflect.Wrap(kt, maps.KeyAt(raw, at)))
+        slots = append(slots, at)
+        at = maps.Next(raw, at + 1)
+    }
+    var* parts []string = []
+    var* order = sortedIndexes(keys)
+    for i in 0..len(order) {
+        var* j = order[i]
+        parts = append(parts, formatAny(keys[j], false) + ":" + formatAny(reflect.Wrap(vt, maps.ValAt(raw, slots[j])), false))
+    }
+    return "map[" + pgt_join(parts, " ") + "]"
+}
 
 fn formatAny(a any, top bool) string {
     switch reflect.Kind(a) {
@@ -54,6 +125,12 @@ fn formatAny(a any, top bool) string {
                 parts = append(parts, formatAny(reflect.Field(a, i), reflect.SlotIface(a, i)))
             }
             return "{" + pgt_join(parts, " ") + "}"
+        }
+        case reflect.KindMap {
+            if reflect.Data(a) == nil {
+                return "map[]"
+            }
+            return formatMap(a)
         }
         case reflect.KindPointer {
             if reflect.IsNil(a) {
