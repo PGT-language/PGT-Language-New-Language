@@ -36,6 +36,7 @@ namespace pgt
         KwDefault,
         KwNil,
         KwExtern,
+        KwAsm,
         LParen,
         RParen,
         LBrace,

@@ -299,6 +299,13 @@ namespace pgt
                     n.kids.push_back(expr(x->value.get()));
                 return n;
             }
+            if (auto *x = dynamic_cast<const AsmStmt *>(s))
+            {
+                Node n = node("AsmStmt", quote(x->text), *x);
+                for (const std::string &name : x->names)
+                    n.kids.push_back(group("Placeholder", name, x->line, x->col));
+                return n;
+            }
             if (auto *x = dynamic_cast<const Break *>(s))
                 return node("Break", "break", *x);
             if (auto *x = dynamic_cast<const Continue *>(s))

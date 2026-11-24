@@ -33,6 +33,8 @@ namespace pgt
             return "'var&'";
         case Tok::KwMap:
             return "'map'";
+        case Tok::KwAsm:
+            return "'asm'";
         case Tok::KwReturn:
             return "'return'";
         case Tok::KwUse:
@@ -183,6 +185,8 @@ namespace pgt
             return "KwVarManual";
         case Tok::KwMap:
             return "KwMap";
+        case Tok::KwAsm:
+            return "KwAsm";
         case Tok::KwReturn:
             return "KwReturn";
         case Tok::KwUse:
@@ -506,6 +510,74 @@ namespace pgt
         return make(Tok::String, std::move(out), line, col);
     }
 
+    Token Lexer::lexAsmBody(int line, int col)
+    {
+        std::string out;
+        while (true)
+        {
+            if (atEnd())
+                throw CompileError("unterminated asm block", line, col);
+            int cl = line_, cc = col_;
+            char c = advance();
+            if (c == '}')
+                break;
+            if (c == ';')
+            {
+                out += c;
+                while (!atEnd() && peek() != '\n')
+                    out += advance();
+                continue;
+            }
+            if (c == '{')
+            {
+                size_t p = pos_;
+                if (p < src_.size() && (std::isalpha(static_cast<unsigned char>(src_[p])) || src_[p] == '_'))
+                {
+                    while (p < src_.size() && (std::isalnum(static_cast<unsigned char>(src_[p])) || src_[p] == '_'))
+                        ++p;
+                    if (p < src_.size() && src_[p] == '}')
+                    {
+                        out += c;
+                        while (pos_ <= p)
+                            out += advance();
+                        continue;
+                    }
+                }
+                throw CompileError("invalid placeholder in asm block: expected {name}", cl, cc);
+            }
+            out += c;
+        }
+        return make(Tok::KwAsm, std::move(out), line, col);
+    }
+
+    std::vector<std::string> asmPlaceholders(const std::string &text)
+    {
+        std::vector<std::string> names;
+        size_t i = 0;
+        while (i < text.size())
+        {
+            if (text[i] == ';')
+            {
+                while (i < text.size() && text[i] != '\n')
+                    ++i;
+                continue;
+            }
+            if (text[i] == '{')
+            {
+                size_t e = text.find('}', i);
+                std::string name = text.substr(i + 1, e - i - 1);
+                bool seen = false;
+                for (const std::string &n : names)
+                    seen = seen || n == name;
+                if (!seen)
+                    names.push_back(name);
+                i = e;
+            }
+            ++i;
+        }
+        return names;
+    }
+
     Token Lexer::lexWord()
     {
         int line = line_, col = col_;
@@ -547,6 +619,18 @@ namespace pgt
             return make(Tok::KwTrue, word, line, col);
         if (word == "false")
             return make(Tok::KwFalse, word, line, col);
+        if (word == "asm")
+        {
+            size_t p = pos_;
+            while (p < src_.size() && (src_[p] == ' ' || src_[p] == '\t'))
+                ++p;
+            if (p < src_.size() && src_[p] == '{')
+            {
+                while (pos_ <= p)
+                    advance();
+                return lexAsmBody(line, col);
+            }
+        }
         static const std::pair<const char *, Tok> more[] = {
             {"struct", Tok::KwStruct}, {"interface", Tok::KwInterface}, {"const", Tok::KwConst},
             {"switch", Tok::KwSwitch}, {"case", Tok::KwCase},           {"default", Tok::KwDefault},

@@ -330,6 +330,12 @@ namespace pgt
     {
     };
 
+    struct AsmStmt : Stmt
+    {
+        std::string text;
+        std::vector<std::string> names;
+    };
+
     struct Return : Stmt
     {
         ExprPtr value;
@@ -410,6 +416,7 @@ namespace pgt
         std::set<std::string> qualifiers;
         bool usesMalloc = false;
         bool usesMaps = false;
+        bool usesAsm = false;
     };
 
 }

@@ -7,6 +7,8 @@
 namespace pgt
 {
 
+    std::vector<std::string> asmPlaceholders(const std::string &text);
+
     class Lexer
     {
     public:
@@ -28,6 +30,7 @@ namespace pgt
         Token lexString();
         Token lexChar();
         Token lexWord();
+        Token lexAsmBody(int line, int col);
 
         std::string src_;
         size_t pos_ = 0;

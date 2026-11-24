@@ -2,6 +2,7 @@
 
 #include "ast/Analysis.h"
 #include "common/Error.h"
+#include "lexer/Lexer.h"
 
 namespace pgt
 {
@@ -172,6 +173,8 @@ namespace pgt
         {
             if (toks_[i].kind == Tok::KwVarManual)
                 prog.usesMalloc = true;
+            if (toks_[i].kind == Tok::KwAsm)
+                prog.usesAsm = true;
             if (toks_[i].kind == Tok::KwMap ||
                 (toks_[i].kind == Tok::Ident && (toks_[i].text == "has" || toks_[i].text == "delete") &&
                  toks_[i + 1].kind == Tok::LParen && (i == 0 || toks_[i - 1].kind != Tok::Dot)))
@@ -613,6 +616,14 @@ namespace pgt
         case Tok::KwBreak:
         {
             auto stmt = make<Break>(cur());
+            advance();
+            return stmt;
+        }
+        case Tok::KwAsm:
+        {
+            auto stmt = make<AsmStmt>(cur());
+            stmt->text = cur().text;
+            stmt->names = asmPlaceholders(stmt->text);
             advance();
             return stmt;
         }

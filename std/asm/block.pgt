@@ -1,0 +1,180 @@
+package asm
+
+#use "unsafe"
+#use "strings"
+
+const prologueLines = 7
+
+const prologue = "push rbx\npush rbp\npush r12\npush r13\npush r14\npush r15\nmov r15, rdi\n"
+const epilogue = "pgt_asm_end:\npop r15\npop r14\npop r13\npop r12\npop rbp\npop rbx\nret\n"
+
+fn blockFail(msg string, line int) Result {
+    return Result{Code: make([]byte, 0), Err: msg, Line: line}
+}
+
+fn isReservedWord(w string) bool {
+    return w == "r15" || w == "r15d" || w == "r15w" || w == "r15b"
+}
+
+fn checkLine(text string, lineNo int) Result {
+    var* cs = chars(text)
+    var* n = len(cs)
+    var* i = 0
+    var* mnemonic = ""
+    var* sawMnemonic = false
+    for i < n {
+        var* c = cs[i]
+        if c == ';' {
+            break
+        }
+        if c == '{' {
+            for i < n && cs[i] != '}' {
+                i++
+            }
+            i++
+            continue
+        }
+        if isIdentChar(c) {
+            var* start = i
+            for i < n && isIdentChar(cs[i]) {
+                i++
+            }
+            var* w = lower(substr(text, start, i - start))
+            if isReservedWord(w) {
+                return blockFail("r15 is reserved inside asm blocks for variable access", lineNo)
+            }
+            if !sawMnemonic {
+                var* j = i
+                for j < n && (cs[j] == ' ' || cs[j] == '\t') {
+                    j++
+                }
+                if j < n && cs[j] == ':' {
+                    continue
+                }
+                sawMnemonic = true
+                mnemonic = w
+            }
+            continue
+        }
+        i++
+    }
+    if mnemonic == "ret" || mnemonic == "retn" || mnemonic == "retf" || mnemonic == "leave" {
+        return blockFail("'" + mnemonic + "' is not allowed inside asm blocks", lineNo)
+    }
+    return Result{Code: make([]byte, 0), Err: "", Line: 0}
+}
+
+fn operandSize(size int) string {
+    if size == 4 {
+        return "dword"
+    }
+    if size == 1 {
+        return "byte"
+    }
+    return "qword"
+}
+
+fn rewritePlaceholders(text string, names []string, sizes []int) string {
+    var* cs = chars(text)
+    var* n = len(cs)
+    var* res = ""
+    var* lineNo = 1
+    var* i = 0
+    var* seg = 0
+    for i < n {
+        var* c = cs[i]
+        if c == '\n' {
+            lineNo++
+        }
+        if c == ';' {
+            for i < n && cs[i] != '\n' {
+                i++
+            }
+            continue
+        }
+        if c != '{' {
+            i++
+            continue
+        }
+        res = res + substr(text, seg, i - seg)
+        var* start = i + 1
+        var* e = start
+        for e < n && cs[e] != '}' {
+            e++
+        }
+        if e >= n {
+            curLine = lineNo
+            fail("unterminated placeholder")
+            return ""
+        }
+        var* name = substr(text, start, e - start)
+        var* idx = -1
+        for k in 0..len(names) {
+            if names[k] == name {
+                idx = k
+            }
+        }
+        if idx < 0 {
+            curLine = lineNo
+            fail("unknown placeholder {" + name + "}")
+            return ""
+        }
+        res = res + operandSize(sizes[idx]) + " [r15 + " + (8 * idx) + "]"
+        i = e + 1
+        seg = i
+    }
+    res = res + substr(text, seg, n - seg)
+    return res
+}
+
+fn CheckBlock(text string, names []string, sizes []int) Result {
+    var* lines = chars(text)
+    var* total = 1
+    for i in 0..len(lines) {
+        if lines[i] == '\n' {
+            total++
+        }
+    }
+    var* parts = strings.Split(text, "\n")
+    for i in 0..len(parts) {
+        var* r = checkLine(parts[i], i + 1)
+        if !r.Ok() {
+            return r
+        }
+    }
+    resetErrors()
+    var* body = rewritePlaceholders(text, names, sizes)
+    if failed() {
+        return blockFail(errMsg, errLine)
+    }
+    var* r = Assemble(prologue + body + "\n" + epilogue)
+    if !r.Ok() {
+        var* l = r.Line - prologueLines
+        if l < 1 {
+            l = 1
+        }
+        if l > total {
+            l = total
+        }
+        return blockFail(r.Err, l)
+    }
+    return r
+}
+
+fn RunBlock(cache *byte, text string, names []string, sizes []int, table *byte, where string, line int) {
+    var* code = unsafe.LoadPtr(cache)
+    var* size = unsafe.LoadInt64(unsafe.Add(cache, 8))
+    if code == nil {
+        var* r = CheckBlock(text, names, sizes)
+        if !r.Ok() {
+            panic("asm block at " + where + ": line " + (line + r.Line - 1) + ": " + r.Err)
+        }
+        var* f = Load(r.Code)
+        unsafe.StorePtr(cache, f.Ptr)
+        unsafe.StoreInt64(unsafe.Add(cache, 8), f.Size)
+        code = f.Ptr
+        size = f.Size
+    }
+    var* target = Func{Ptr: code, Size: size}
+    target.Call(unsafe.Addr(table))
+}

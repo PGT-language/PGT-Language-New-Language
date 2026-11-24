@@ -143,6 +143,7 @@ namespace pgt
         void genLoop(const Loop &loop);
         void genForIn(const ForIn &loop);
         void genSwitch(const Switch &sw);
+        void genAsm(const AsmStmt &stmt);
 
         Value genExpr(const Expr &expr, TyP hint = nullptr);
         Value genCond(const Expr &expr);
