@@ -14,7 +14,7 @@ fn count(words []string) map[string]int {
 }
 
 fn main() {
-    var* m = count(["b", "a", "b", "c", "b"])   // m[w] += 1
+    var* m = count(["b", "a", "b", "c", "b"]) // m[w] += 1
     var* alias = m
     alias["z"] = 9 // alias и m — один и тот же словарь
     delete(m, "c")
