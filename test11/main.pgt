@@ -2,28 +2,12 @@ package main
 
 #use (
     "memory"
-    "asm"
     "fmt"
 )
 
 fn main() {
-    var* x = 5
-    var* y = 0
-    asm {
-        mov eax, {x}
-        add eax, 10
-        mov {y}, eax
-    }
-    fmt.Println(y)
     var* n int64 = 7
     var& := n = malloc(free[int64] 1)
-    asm {
-        mov rax, {n}
-        imul rax, rax
-        mov {n}, rax
-    }
     fmt.Println(n)
-    free(n)
 }
-
 return 0
