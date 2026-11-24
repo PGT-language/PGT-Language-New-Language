@@ -2,6 +2,10 @@
 // It is never compiled or loaded: importing it with #use "builtin" is an error.
 // The compiler recognizes these names itself; the signatures below are descriptive, not real code.
 //
+// Console output and input are not builtins: they live in the std/fmt package (#use "fmt"),
+// which is written in PGT on top of the any type and the reflection builtins below.
+// Calling print, println, input or inputln without fmt is a compile error.
+//
 // Runtime failures (panic, out-of-range index, nil, division by zero) are implemented
 // in PGT in the std/runtime package, which is linked into every program implicitly.
 
@@ -11,18 +15,6 @@
 
 // fn exit(code int)
 // exit flushes stdout and terminates the program immediately with the given code.
-
-// fn print(args ...)
-// print writes its arguments one after another, without a trailing newline.
-
-// fn println(args ...)
-// println writes its arguments separated by spaces, followed by a newline.
-
-// fn input(prompt string, target)
-// input prints a prompt and reads a value into target (int, int64, float, char, bool, or a single-word string).
-
-// fn inputln(prompt string, target string)
-// inputln prints a prompt and reads a whole line.
 
 // fn len(x) int
 // len returns the length of a string, array or slice.
@@ -81,3 +73,63 @@
 // fn appendFile(path string, data string) bool
 // fn fileExists(path string) bool
 // These functions provide basic file access.
+
+// type any
+// any is the empty interface. A value of any type (and nil) converts to any implicitly.
+// An any holds a data pointer and a type descriptor, and is reference counted like an interface value.
+// An interface value converts to any with its dynamic type. a == nil is true when the any holds nothing.
+
+// Variadic functions
+// A function or method may declare a variadic last parameter as name ...T. Inside the function it is a []T.
+// A call packs the trailing arguments into a new array; f(xs...) passes an existing []T as it is.
+// Variadic parameters are not allowed in extern functions or interface methods.
+
+// fn typeKind(a any) int
+// typeKind returns the kind of the dynamic type: 0 nil, 1 int, 2 int64, 3 float, 4 char, 5 byte, 6 bool,
+// 7 string, 8 array, 9 pointer, 10 struct.
+
+// fn typeName(a any) string
+// typeName returns the name of the dynamic type, such as "int", "[]string", "*Point" or "geom.Circle"; "nil" for nil.
+
+// fn anyInt(a any) int64
+// anyInt returns the value of an int, int64, char or byte. Any other kind panics.
+
+// fn anyFloat(a any) float
+// fn anyBool(a any) bool
+// fn anyString(a any) string
+// These functions return the value of a float, bool or string. Any other kind panics.
+
+// fn anyLen(a any) int
+// anyLen returns the length of an array.
+
+// fn anyIndex(a any, i int) any
+// anyIndex returns the element i of an array as an any. An element of interface or any type is returned with its dynamic type.
+
+// fn anyNumField(a any) int
+// anyNumField returns the number of fields of a struct.
+
+// fn anyFieldName(a any, i int) string
+// anyFieldName returns the name of the field i of a struct.
+
+// fn anyField(a any, i int) any
+// anyField returns the field i of a struct as an any.
+
+// fn anyElem(a any) any
+// anyElem returns the value a pointer points to. For a nil pointer it returns nil.
+
+// fn anyIsNil(a any) bool
+// anyIsNil reports whether the any is nil or holds a nil pointer.
+
+// fn anyAddr(a any) int64
+// anyAddr returns the address stored in a pointer, or 0 for any other kind.
+
+// fn anySlotIface(a any, i int) bool
+// anySlotIface reports whether the element (arrays) or field i (structs) is declared with an interface or any type.
+
+// fn anySetInt(p any, v int64)
+// fn anySetFloat(p any, v float)
+// fn anySetBool(p any, v bool)
+// fn anySetString(p any, v string)
+// fn anySetChar(p any, v char)
+// These functions store a value through a pointer held in p. They panic if p is not a pointer to the matching type;
+// anySetInt accepts a pointer to int, int64 or byte.

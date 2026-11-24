@@ -1,0 +1,60 @@
+package main
+
+#use "fmt"
+
+struct Pair {
+    A int
+    B string
+}
+
+fn main() {
+    var* n = 0
+    var* big int64 = 0
+    var* f = 0.0
+    var* c = 'a'
+    var* ok = false
+    var* w = ""
+    fmt.Input("n? ", &n)
+    fmt.Input("big? ", &big)
+    fmt.Input("f? ", &f)
+    fmt.Input("c? ", &c)
+    fmt.Input("ok? ", &ok)
+    fmt.Input("w? ", &w)
+    fmt.Println(n, " ", big, " ", f, " ", c, " ", ok, " ", w)
+
+    var* line = ""
+    fmt.InputLine("line? ", &line)
+    fmt.Println("[", line, "]")
+
+    var* p = Pair{A: 1, B: "keep"}
+    fmt.Input("", &p.A)
+    fmt.Input("", &p.B)
+    var* xs = [0, 0]
+    fmt.Input("", &xs[1])
+    fmt.Println(p, " ", xs)
+
+    var* bad = 5
+    fmt.Input("bad? ", &bad)
+    fmt.Println(bad)
+
+    var* a = 0
+    var* b = ""
+    var* z = 0.0
+    var* got = fmt.Scan(&a, &b, &z)
+    fmt.Println(got, " ", a, " ", b, " ", z)
+
+    var* x = 0
+    var* y = 0
+    var* more = fmt.Scanln(&x, &y)
+    fmt.Println(more, " ", x, " ", y)
+    var* words = fmt.Scanln(&w, &x)
+    fmt.Println(words, " ", w, " ", x)
+    var* rest = fmt.ReadLine()
+    fmt.Println("rest=", rest)
+    var* last = fmt.ReadLine()
+    fmt.Println("last=", last, " ", len(last))
+    var* r = fmt.Scan(&x)
+    fmt.Println(r)
+}
+
+return 0

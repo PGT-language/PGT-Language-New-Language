@@ -11,6 +11,30 @@
 
 `builtin` только описывает встроенные функции (`std/builtin/builtin.pgt`), как `builtin.go` в Go. Он никогда не компилируется, и `#use "builtin"` даёт ошибку.
 
+## fmt
+
+Вывод и ввод в консоль. Написан на PGT поверх типа `any` и встроенных функций рефлексии; встроенных `print`/`println`/`input` в языке нет.
+
+```pgt
+#use "fmt"
+
+fmt.Println("x=", 1, " y=", 2.5)                 // x=1 y=2.5
+fmt.Printf("%5.2f|%-4d|%q\n", 3.14159, 7, "hi")   //  3.14|7   |"hi"
+var* n = 0
+fmt.Input("n? ", &n)
+```
+
+| Функция | Описание |
+|---|---|
+| `Print(args ...any)` / `Println(args ...any)` | Печатает аргументы без пробелов между ними (`Println` добавляет перевод строки) |
+| `Sprint(args ...any) string` / `Sprintln(args ...any) string` | То же, но возвращает строку |
+| `Printf(format string, args ...any)` / `Sprintf(format string, args ...any) string` | Форматирование: `%v %d %s %f %g %c %t %q %x %X %%`, флаги `- 0 +`, ширина и точность |
+| `Input(prompt string, p any)` | Печатает подсказку и читает значение по указателю (`int`, `int64`, `float`, `char`, `bool`, слово в `string`); при неудаче значение не меняется |
+| `InputLine(prompt string, p any)` | Печатает подсказку и читает строку целиком в `*string` |
+| `Scan(args ...any) int` | Читает слова, разделённые пробелами, в указатели; возвращает число прочитанных |
+| `Scanln(args ...any) int` | Разбирает остаток текущей строки по словам |
+| `ReadLine() string` | Читает следующую строку без `\n` |
+
 ## strings
 
 Работа со строками. Строки неизменяемы: функции возвращают новую строку.

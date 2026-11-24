@@ -1,0 +1,186 @@
+// memstats
+package main
+
+#use "fmt"
+
+struct Point {
+    X int
+    Y float
+}
+
+struct Line {
+    From Point
+    To Point
+    Name string
+    Tags []string
+}
+
+interface Shape {
+    Area() float
+}
+
+struct Square {
+    Side float
+}
+
+fn (s Square) Area() float {
+    return s.Side * s.Side
+}
+
+struct Disc {
+    R float
+}
+
+fn (d *Disc) Area() float {
+    return d.R * 3
+}
+
+struct Holder {
+    Item Shape
+    Any any
+}
+
+fn sum(base int, xs ...int) int {
+    var* t = base
+    for x in xs {
+        t += x
+    }
+    return t
+}
+
+fn join(sep string, parts ...string) string {
+    var* out = ""
+    for i, p in parts {
+        if i > 0 {
+            out += sep
+        }
+        out += p
+    }
+    return out
+}
+
+fn count(items ...any) int {
+    return len(items)
+}
+
+fn describe(a any) string {
+    switch typeKind(a) {
+        case 0 {
+            return "nil"
+        }
+        case 1, 2, 4, 5 {
+            return typeName(a) + ":" + str(anyInt(a))
+        }
+        case 3 {
+            return "float:" + str(anyFloat(a))
+        }
+        case 6 {
+            return "bool:" + str(anyBool(a))
+        }
+        case 7 {
+            return "string:" + anyString(a)
+        }
+        case 8 {
+            var* s = "array" + str(anyLen(a)) + "["
+            for i in 0..anyLen(a) {
+                s += describe(anyIndex(a, i)) + ","
+            }
+            return s + "]"
+        }
+        case 9 {
+            if anyIsNil(a) {
+                return "nilptr"
+            }
+            return "ptr->" + describe(anyElem(a))
+        }
+        case 10 {
+            var* s = typeName(a) + "{"
+            for i in 0..anyNumField(a) {
+                s += anyFieldName(a, i) + "=" + describe(anyField(a, i)) + ";"
+            }
+            return s + "}"
+        }
+    }
+    return "?"
+}
+
+fn main() {
+    fmt.Println("ints: ", 1, " ", -2, " ", int64(3000000000), " ", byte(250))
+    fmt.Println("floats: ", 2.5, " ", 1.0, " ", 0.1 + 0.2, " ", 1.0 / 3.0, " ", 100000000.0)
+    fmt.Println("chars: ", 'a', 'b', " ", true, " ", false)
+    fmt.Println("strings: ", "x", "", "y")
+    fmt.Println("arrays: ", [1, 2, 3], " ", [[1, 2], [3]], " ", ["a", "b"], " ", [1.5, 2.5])
+    var* empty + {[]int} = []
+    fmt.Println("empty: ", empty, " ", [byte(1), byte(2)], " ", ['x', 'y'])
+    var* p = Point{X: 1, Y: 2.5}
+    var* ln = Line{From: p, To: Point{X: 3}, Name: "ab", Tags: ["t1", "t2"]}
+    fmt.Println("structs: ", p, " ", ln)
+    fmt.Println("pointers: ", &p, " ", &ln)
+    var* nilp *Point
+    fmt.Println("nil: ", nil, " ", nilp)
+    var* sh Shape = Square{Side: 2}
+    var* sd Shape = &Disc{R: 2}
+    var* none Shape
+    fmt.Println("ifaces: ", sh, " ", sd, " ", none, " ", [sh, sd])
+    fmt.Println(Holder{Item: sd, Any: sh}, " ", Holder{Any: 42}, " ", Holder{Any: &p})
+    fmt.Println()
+    fmt.Print("no newline", 1, 2, "\n")
+
+    fmt.Println(fmt.Sprint("a", 1, 2.5), "|", fmt.Sprintln("b", 2), "|")
+    fmt.Println(fmt.Sprint(), "|", fmt.Sprintf("plain"))
+
+    fmt.Printf("%d|%5d|%-5d|%05d|%+d\n", 42, 42, 42, -42, 42)
+    fmt.Printf("%f|%.2f|%8.3f|%-8.1f|%08.2f|%+.1f\n", 3.14159, 3.14159, 2.5, 2.5, -2.5, 2.5)
+    fmt.Printf("%s|%10s|%-10s|%q|%c|%t\n", "hi", "right", "left", "q\"uo\nte", 'z', true)
+    fmt.Printf("%x|%X|%x|%x|%q|%v|%v\n", 255, 255, -255, "hi", 'q', p, [1, 2])
+    fmt.Printf("%v %v %v %v\n", 1, "s", 2.5, nil)
+    fmt.Printf("100%% sure\n")
+    fmt.Printf("%d %s\n", "str", 5)
+    fmt.Printf("%d\n")
+    fmt.Printf("%d\n", 1, 2, "x")
+    fmt.Printf("%z|\n", 1)
+    fmt.Printf("%d %d\n", 'a', byte(7))
+    fmt.Printf("[%5t][%-7t]\n", true, false)
+
+    fmt.Println(sum(1), " ", sum(1, 2), " ", sum(1, 2, 3))
+    var* nums = [10, 20, 30]
+    fmt.Println(sum(0, nums...), " ", sum(5, nums...))
+    fmt.Println(join(",", "a", "b", "c"), "|", join(","), "|", join("-", "only"))
+    var* parts = ["x", "y"]
+    fmt.Println(join("+", parts...))
+    var* boxes + {[]any} = [1, "two", 3.0]
+    fmt.Println(count(), count(1), count(1, "a", nil, p), count(boxes...))
+    fmt.Println(boxes, " ", count(boxes...))
+    fmt.Println(fmt.Sprint(boxes...))
+
+    fmt.Println(describe(1), " ", describe(int64(2)), " ", describe('c'), " ", describe(byte(9)))
+    fmt.Println(describe(2.5), " ", describe(true), " ", describe("s"), " ", describe(nil))
+    fmt.Println(describe([1, 2]), " ", describe(p))
+    fmt.Println(describe(&p), " ", describe(nilp), " ", describe(ln))
+    fmt.Println(describe(sh), " ", describe(sd), " ", describe(none))
+
+    var* a any = 7
+    var* b any
+    fmt.Println(a == nil, " ", b == nil, " ", anyIsNil(a), " ", anyIsNil(b), " ", anyIsNil(nilp))
+    var* target = 1
+    var* pa any = &target
+    anySetInt(pa, 99)
+    fmt.Println(target, " ", typeName(pa), " ", typeKind(pa), " ", anyAddr(pa) != 0, " ", anyAddr(a))
+    var* fl = 1.5
+    var* name = "old"
+    var* flag = false
+    var* ch = 'a'
+    var* big int64 = 1
+    var* by byte = 1
+    anySetFloat(&fl, 2.5)
+    anySetString(&name, "new")
+    anySetBool(&flag, true)
+    anySetChar(&ch, 'z')
+    anySetInt(&big, 5000000000)
+    anySetInt(&by, 200)
+    fmt.Println(fl, " ", name, " ", flag, " ", ch, " ", big, " ", by)
+    fmt.Println(typeName(1), " ", typeName(p), " ", typeName([sh]), " ", typeName(&p), " ", typeName(sh), " ", typeName(sd))
+    fmt.Println(anyFieldName(p, 1), " ", anySlotIface(Holder{}, 0), " ", anySlotIface(Holder{}, 1), " ", anySlotIface(p, 0), " ", anySlotIface([sh], 0))
+}
+
+return 0
