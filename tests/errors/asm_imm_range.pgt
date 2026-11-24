@@ -1,0 +1,10 @@
+// panic: asm: line 2: immediate out of range
+package main
+
+#use "asm"
+
+fn main() {
+    asm.MustAssemble("nop\nadd al, 300")
+}
+
+return 0

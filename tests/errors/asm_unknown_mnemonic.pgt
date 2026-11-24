@@ -1,0 +1,10 @@
+// panic: asm: line 2: unknown mnemonic
+package main
+
+#use "asm"
+
+fn main() {
+    asm.MustAssemble("nop\nfrobnicate rax, rbx")
+}
+
+return 0

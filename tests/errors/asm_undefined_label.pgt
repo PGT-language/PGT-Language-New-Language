@@ -1,0 +1,10 @@
+// panic: asm: line 3: undefined label
+package main
+
+#use "asm"
+
+fn main() {
+    asm.MustAssemble("nop\nnop\njmp nowhere")
+}
+
+return 0

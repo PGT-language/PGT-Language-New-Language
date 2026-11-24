@@ -1,0 +1,10 @@
+// panic: asm: line 1: operand size not specified
+package main
+
+#use "asm"
+
+fn main() {
+    asm.MustAssemble("mov [rax], 5")
+}
+
+return 0

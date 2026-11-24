@@ -1,0 +1,10 @@
+// panic: asm: line 2: syntax error
+package main
+
+#use "asm"
+
+fn main() {
+    asm.MustAssemble("nop\nmov rax, [rbx +\nret")
+}
+
+return 0

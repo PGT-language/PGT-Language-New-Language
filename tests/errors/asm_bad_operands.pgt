@@ -1,0 +1,10 @@
+// panic: asm: line 1: invalid combination of operands
+package main
+
+#use "asm"
+
+fn main() {
+    asm.MustAssemble("mov [rax], [rbx]")
+}
+
+return 0

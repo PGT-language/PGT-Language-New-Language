@@ -1,0 +1,10 @@
+// panic: asm: line 1: ah, ch, dh and bh cannot be encoded
+package main
+
+#use "asm"
+
+fn main() {
+    asm.MustAssemble("mov ah, sil")
+}
+
+return 0

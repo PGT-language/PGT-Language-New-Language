@@ -1,0 +1,10 @@
+// panic: asm: line 3: duplicate label
+package main
+
+#use "asm"
+
+fn main() {
+    asm.MustAssemble("a:\nnop\na:\nret")
+}
+
+return 0

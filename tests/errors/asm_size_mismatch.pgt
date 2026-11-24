@@ -1,0 +1,10 @@
+// panic: asm: line 1: operand size mismatch
+package main
+
+#use "asm"
+
+fn main() {
+    asm.MustAssemble("mov eax, rbx")
+}
+
+return 0
