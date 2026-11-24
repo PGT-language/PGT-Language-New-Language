@@ -17,6 +17,7 @@ namespace pgt
                                               module_.get());
             llvm::IRBuilderBase::InsertPointGuard guard(builder_);
             builder_.SetInsertPoint(llvm::BasicBlock::Create(ctx_, "entry", mapDrop_));
+            rt("pgt_retain", builder_.getVoidTy(), {mapDrop_->getArg(0)});
             builder_.CreateCall(mapsFn("Drop").fn, {mapDrop_->getArg(0)});
             builder_.CreateRetVoid();
         }
