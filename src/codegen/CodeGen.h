@@ -188,6 +188,26 @@ namespace pgt
         std::optional<Value> genBuiltin(const Call &call, const std::string &name, TyP hint);
         Value genConversion(const Call &call, TyP target);
         Value genMath(const Call &call, const std::string &name);
+        struct MapTarget
+        {
+            bool active = false;
+            llvm::Value *map = nullptr;
+            llvm::Value *key = nullptr;
+            llvm::Value *val = nullptr;
+            TyP valType = nullptr;
+        };
+        MapTarget mapTarget_;
+        llvm::Function *mapDrop_ = nullptr;
+        const FuncInfo &mapsFn(const std::string &name);
+        llvm::Value *mapDropFn();
+        llvm::Value *mapKeySlot(TyP mapType, const Expr &key);
+        Value genMapNew(TyP mapType);
+        Value genMapLit(const MapLit &lit);
+        Value genMapGet(Value map, const Expr &key);
+        Addr genMapAddr(Value map, const Expr &key, bool forWrite);
+        void commitMapTarget(const MapTarget &mt);
+        void genMapForIn(const ForIn &loop, Value seq);
+        std::optional<Value> genMapBuiltin(const Call &call, const std::string &name);
 
         llvm::LLVMContext ctx_;
         std::unique_ptr<llvm::Module> module_;

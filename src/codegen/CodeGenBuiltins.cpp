@@ -120,8 +120,12 @@ namespace pgt
                              types_.intT};
             if (v.type->is(Type::Kind::String))
                 return Value{rt("pgt_strlen", i32, {v.value}), types_.intT};
-            fail("'len' needs an array or a string, found " + v.type->name(), call.line, call.col);
+            if (v.type->is(Type::Kind::Map))
+                return Value{builder_.CreateCall(mapsFn("Len").fn, {v.value}), types_.intT};
+            fail("'len' needs an array, a map or a string, found " + v.type->name(), call.line, call.col);
         }
+        if (auto mv = genMapBuiltin(call, name))
+            return mv;
         if (name == "append")
         {
             if (call.args.empty())
@@ -155,6 +159,12 @@ namespace pgt
             if (!call.typeArg)
                 fail("'make' needs a type: make([]int, n)", call.line, call.col);
             TyP t = resolveType(*call.typeArg);
+            if (t->is(Type::Kind::Map))
+            {
+                if (!call.args.empty())
+                    fail("'make' of a map takes only the type: make(map[K]V)", call.line, call.col);
+                return genMapNew(t);
+            }
             if (!t->is(Type::Kind::Array))
                 fail("'make' creates arrays; use new(T) for a pointer", call.line, call.col);
             if (call.args.empty() || call.args.size() > 2)

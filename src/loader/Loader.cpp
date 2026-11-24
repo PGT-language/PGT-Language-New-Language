@@ -87,23 +87,24 @@ namespace pgt
             mod_ = parseModFile(*modPath);
 
         stdDir_ = findStdDir();
-        loadRuntime();
+        loadImplicit("runtime");
+        loadImplicit("maps");
         ws_.root = loadPackage(dir, std::move(files), true, "");
         checkUnusedImports();
         return std::move(ws_);
     }
 
-    void Loader::loadRuntime()
+    void Loader::loadImplicit(const std::string &name)
     {
-        if (!stdDir_ || !fs::is_directory(*stdDir_ / "runtime"))
-            failAt("the runtime package was not found in the standard library" +
+        if (!stdDir_ || !fs::is_directory(*stdDir_ / name))
+            failAt("the " + name + " package was not found in the standard library" +
                        std::string(stdDir_ ? "" : " (the standard library directory was not found; set PGT_STD)"),
-                   "runtime", 0, 0);
-        fs::path dir = *stdDir_ / "runtime";
+                   name, 0, 0);
+        fs::path dir = *stdDir_ / name;
         std::vector<std::string> files = listSources(dir);
         for (std::string &f : files)
             f = displayPath(f);
-        loadPackage(dir, std::move(files), false, "runtime");
+        loadPackage(dir, std::move(files), false, name);
     }
 
     void Loader::checkUnusedImports() const

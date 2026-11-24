@@ -12,6 +12,7 @@ namespace pgt
         case Type::Kind::Pointer:
         case Type::Kind::Interface:
         case Type::Kind::Any:
+        case Type::Kind::Map:
             return true;
         case Type::Kind::Struct:
         {

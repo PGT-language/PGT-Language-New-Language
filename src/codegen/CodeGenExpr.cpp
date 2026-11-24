@@ -128,6 +128,8 @@ namespace pgt
             return genArrayLit(*lit, hint);
         if (auto *lit = dynamic_cast<const StructLit *>(&expr))
             return genStructLit(*lit);
+        if (auto *lit = dynamic_cast<const MapLit *>(&expr))
+            return genMapLit(*lit);
 
         fail("internal error: unknown expression", expr.line, expr.col);
     }
@@ -360,6 +362,7 @@ namespace pgt
             case Type::Kind::Nil:
                 return result(builder_.getInt1(true));
             case Type::Kind::Pointer:
+            case Type::Kind::Map:
                 return result(builder_.CreateIsNull(v.value));
             case Type::Kind::String:
                 return result(builder_.CreateICmpEQ(rt("pgt_strlen", builder_.getInt32Ty(), {v.value}),
@@ -709,6 +712,8 @@ namespace pgt
                 base = {builder_.CreateLoad(llvmType(a->type), a->addr), a->type};
             else
                 base = genExpr(*idx->base);
+            if (base.type->is(Type::Kind::Map))
+                return genMapAddr(base, *idx->index, forWrite);
             if (base.type->is(Type::Kind::String))
                 fail("strings are immutable; build a new string instead", idx->line, idx->col);
             if (!base.type->is(Type::Kind::Array))
@@ -774,6 +779,8 @@ namespace pgt
     CodeGen::Value CodeGen::genIndex(const Index &idx)
     {
         Value base = genExpr(*idx.base);
+        if (base.type->is(Type::Kind::Map))
+            return genMapGet(base, *idx.index);
         if (base.type->is(Type::Kind::Array))
         {
             llvm::Value *p = elementAddr(base, *idx.index, idx.line, idx.col);
@@ -1178,7 +1185,7 @@ namespace pgt
             desc = phi;
             data = builder_.CreateExtractValue(take(v), 0);
         }
-        else if (v.type->is(Type::Kind::Pointer))
+        else if (v.type->is(Type::Kind::Pointer) || v.type->is(Type::Kind::Map))
         {
             desc = typeDesc(v.type);
             data = take(v);
@@ -1245,12 +1252,15 @@ namespace pgt
         case Type::Kind::Any:
             kind = 12;
             break;
+        case Type::Kind::Map:
+            kind = 13;
+            break;
         default:
             break;
         }
 
         llvm::Constant *elem = null;
-        if (t->is(Type::Kind::Array) || t->is(Type::Kind::Pointer))
+        if (t->is(Type::Kind::Array) || t->is(Type::Kind::Pointer) || t->is(Type::Kind::Map))
             elem = typeDesc(t->elem);
 
         llvm::Constant *fields = null;

@@ -32,6 +32,7 @@ add_executable(pgt
     src/codegen/CodeGenExpr.cpp
     src/codegen/CodeGenBuiltins.cpp
     src/codegen/CodeGenMemory.cpp
+    src/codegen/CodeGenMaps.cpp
     src/codegen/ObjectEmitter.cpp
     src/driver/Driver.cpp
     src/debug/Dump.cpp

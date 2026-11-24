@@ -257,7 +257,12 @@ namespace pgt
                          "': a 'var&' variable is manually managed and cannot be reassigned "
                          "(release it with free(" + ref->name + "))",
                      assign.line, assign.col);
+        mapTarget_ = MapTarget{};
         Addr target = requireAddress(*assign.target, true);
+        MapTarget mt = mapTarget_;
+        mapTarget_ = MapTarget{};
+        if (mt.active && !dynamic_cast<const Index *>(assign.target.get()))
+            fail("cannot assign to a field of a map element", assign.line, assign.col);
         Value rhs = genExpr(*assign.value, target.type);
         bool manualElem = isManualElement(*assign.target);
 
@@ -265,6 +270,7 @@ namespace pgt
         {
             rhs = coerce(rhs, target.type, assign.line, assign.col, "assignment");
             storeValue(target.addr, target.type, rhs, manualElem);
+            commitMapTarget(mt);
             return;
         }
 
@@ -295,6 +301,7 @@ namespace pgt
             fail("cannot assign " + res.type->name() + " to a value of type " + target.type->name(),
                  assign.line, assign.col);
         storeValue(target.addr, target.type, res, manualElem);
+        commitMapTarget(mt);
     }
 
     void CodeGen::genReturn(const Return &ret)
@@ -432,6 +439,15 @@ namespace pgt
         Value seq = genExpr(*loop.iterable);
         holdValue(seq);
         flushTemps();
+        if (seq.type->is(Type::Kind::Map))
+        {
+            condBB->eraseFromParent();
+            bodyBB->eraseFromParent();
+            postBB->eraseFromParent();
+            endBB->eraseFromParent();
+            genMapForIn(loop, seq);
+            return;
+        }
         TyP elemTy;
         llvm::Value *len, *data;
         if (seq.type->is(Type::Kind::Array))
