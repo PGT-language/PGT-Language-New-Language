@@ -1,0 +1,8 @@
+// error: invalid escape sequence '\x': expected two hex digits
+package main
+
+fn main() {
+    var* s = "\x4"
+}
+
+return 0

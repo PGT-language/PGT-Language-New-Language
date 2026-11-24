@@ -1,0 +1,11 @@
+package main
+
+#use "fmt"
+
+fn main() {
+    var* s = "A\x41\x7a\xC3\xa9"
+    var* c = '\xff'
+    fmt.Println(s, " ", len(s), " ", int(c))
+}
+
+return 0

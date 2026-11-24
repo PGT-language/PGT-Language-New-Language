@@ -1,0 +1,12 @@
+package main
+
+#use "fmt"
+
+fn main() {
+    fmt.Println("out 1")
+    fmt.Eprintln("err ", 2)
+    fmt.Eprintf("%s %d\n", "err", 3)
+    fmt.Println("out 4")
+}
+
+return 0
