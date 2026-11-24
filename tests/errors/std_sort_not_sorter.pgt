@@ -1,0 +1,16 @@
+// error: Sorter
+package main
+
+#use "sort"
+
+struct Half {
+    A []int
+}
+
+fn (h Half) Len() int { return len(h.A) }
+
+fn main() {
+    sort.Sort(Half{A: [3, 1, 2]})
+}
+
+return 0

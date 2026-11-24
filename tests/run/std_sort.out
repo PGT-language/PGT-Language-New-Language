@@ -1,0 +1,10 @@
+big sorted: true n=100000 first=37 last=999999
+reverse: true 1 50000 equal: true
+stable: true
+[9 8 7 5 3 3 2 1] true false
+[apple banana cherry fig pear]
+2 5
+[-1.25 0 2 3.5]
+[-7 3 5000000000]
+1 3 5 0
+0 true

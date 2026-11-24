@@ -1,0 +1,348 @@
+package sort
+
+interface Sorter {
+    Len() int
+    Less(i int, j int) bool
+    Swap(i int, j int)
+}
+
+struct IntSlice {
+    A []int
+}
+
+fn (s IntSlice) Len() int { return len(s.A) }
+fn (s IntSlice) Less(i int, j int) bool { return s.A[i] < s.A[j] }
+fn (s IntSlice) Swap(i int, j int) {
+    var* t = s.A[i]
+    s.A[i] = s.A[j]
+    s.A[j] = t
+}
+
+struct Int64Slice {
+    A []int64
+}
+
+fn (s Int64Slice) Len() int { return len(s.A) }
+fn (s Int64Slice) Less(i int, j int) bool { return s.A[i] < s.A[j] }
+fn (s Int64Slice) Swap(i int, j int) {
+    var* t = s.A[i]
+    s.A[i] = s.A[j]
+    s.A[j] = t
+}
+
+struct Float64Slice {
+    A []float
+}
+
+fn (s Float64Slice) Len() int { return len(s.A) }
+fn (s Float64Slice) Less(i int, j int) bool { return s.A[i] < s.A[j] || (s.A[i] != s.A[i] && s.A[j] == s.A[j]) }
+fn (s Float64Slice) Swap(i int, j int) {
+    var* t = s.A[i]
+    s.A[i] = s.A[j]
+    s.A[j] = t
+}
+
+struct StringSlice {
+    A []string
+}
+
+fn (s StringSlice) Len() int { return len(s.A) }
+fn (s StringSlice) Less(i int, j int) bool { return s.A[i] < s.A[j] }
+fn (s StringSlice) Swap(i int, j int) {
+    var* t = s.A[i]
+    s.A[i] = s.A[j]
+    s.A[j] = t
+}
+
+fn insertionSort(data Sorter, a int, b int) {
+    for i in a + 1..b {
+        var* j = i
+        while j > a && data.Less(j, j - 1) {
+            data.Swap(j, j - 1)
+            j--
+        }
+    }
+}
+
+fn siftDown(data Sorter, lo int, hi int, first int) {
+    var* root = lo
+    while true {
+        var* child = 2 * root + 1
+        if child >= hi {
+            return
+        }
+        if child + 1 < hi && data.Less(first + child, first + child + 1) {
+            child++
+        }
+        if !data.Less(first + root, first + child) {
+            return
+        }
+        data.Swap(first + root, first + child)
+        root = child
+    }
+}
+
+fn heapSort(data Sorter, a int, b int) {
+    var* first = a
+    var* lo = 0
+    var* hi = b - a
+    var* i = (hi - 1) / 2
+    while i >= 0 {
+        siftDown(data, i, hi, first)
+        i--
+    }
+    var* k = hi - 1
+    while k >= 0 {
+        data.Swap(first, first + k)
+        siftDown(data, lo, k, first)
+        k--
+    }
+}
+
+fn medianOfThree(data Sorter, m1 int, m0 int, m2 int) {
+    if data.Less(m1, m0) {
+        data.Swap(m1, m0)
+    }
+    if data.Less(m2, m1) {
+        data.Swap(m2, m1)
+        if data.Less(m1, m0) {
+            data.Swap(m1, m0)
+        }
+    }
+}
+
+fn doPivot(data Sorter, lo int, hi int) int {
+    var* m = lo + (hi - lo) / 2
+    medianOfThree(data, lo, m, hi - 1)
+    data.Swap(lo, m)
+    var* i = lo + 1
+    var* j = hi - 1
+    while true {
+        while i <= j && data.Less(i, lo) {
+            i++
+        }
+        while i <= j && data.Less(lo, j) {
+            j--
+        }
+        if i >= j {
+            break
+        }
+        data.Swap(i, j)
+        i++
+        j--
+    }
+    data.Swap(lo, j)
+    return j
+}
+
+fn quickSort(data Sorter, a int, b int, depth int) {
+    var* lo = a
+    var* hi = b
+    var* d = depth
+    while hi - lo > 12 {
+        if d == 0 {
+            heapSort(data, lo, hi)
+            return
+        }
+        d--
+        var* p = doPivot(data, lo, hi)
+        if p - lo < hi - p - 1 {
+            quickSort(data, lo, p, d)
+            lo = p + 1
+        } else {
+            quickSort(data, p + 1, hi, d)
+            hi = p
+        }
+    }
+    insertionSort(data, lo, hi)
+}
+
+fn Sort(data Sorter) {
+    var* n = data.Len()
+    var* depth = 0
+    var* i = n
+    while i > 0 {
+        depth++
+        i = i >> 1
+    }
+    quickSort(data, 0, n, depth * 2)
+}
+
+fn swapRange(data Sorter, a int, b int, n int) {
+    for i in 0..n {
+        data.Swap(a + i, b + i)
+    }
+}
+
+fn rotate(data Sorter, a int, m int, b int) {
+    var* i = m - a
+    var* j = b - m
+    while i != j {
+        if i > j {
+            swapRange(data, m - i, m, j)
+            i -= j
+        } else {
+            swapRange(data, m - i, m + j - i, i)
+            j -= i
+        }
+    }
+    swapRange(data, m - i, m, i)
+}
+
+fn symMerge(data Sorter, a int, m int, b int) {
+    if m - a == 1 {
+        var* i = m
+        var* j = b
+        while i < j {
+            var* h = i + (j - i) / 2
+            if data.Less(h, a) {
+                i = h + 1
+            } else {
+                j = h
+            }
+        }
+        var* k = a
+        while k < i - 1 {
+            data.Swap(k, k + 1)
+            k++
+        }
+        return
+    }
+    if b - m == 1 {
+        var* i = a
+        var* j = m
+        while i < j {
+            var* h = i + (j - i) / 2
+            if !data.Less(m, h) {
+                i = h + 1
+            } else {
+                j = h
+            }
+        }
+        var* k = m
+        while k > i {
+            data.Swap(k, k - 1)
+            k--
+        }
+        return
+    }
+    var* mid = a + (b - a) / 2
+    var* n = mid + m
+    var* start = 0
+    var* r = 0
+    if m > mid {
+        start = n - b
+        r = mid
+    } else {
+        start = a
+        r = m
+    }
+    var* p = n - 1
+    while start < r {
+        var* c = start + (r - start) / 2
+        if !data.Less(p - c, c) {
+            start = c + 1
+        } else {
+            r = c
+        }
+    }
+    var* end = n - start
+    if start < m && m < end {
+        rotate(data, start, m, end)
+    }
+    if a < start && start < mid {
+        symMerge(data, a, start, mid)
+    }
+    if mid < end && end < b {
+        symMerge(data, mid, end, b)
+    }
+}
+
+fn Stable(data Sorter) {
+    var* n = data.Len()
+    var* block = 20
+    var* a = 0
+    var* b = block
+    while b <= n {
+        insertionSort(data, a, b)
+        a = b
+        b += block
+    }
+    insertionSort(data, a, n)
+    while block < n {
+        a = 0
+        b = 2 * block
+        while b <= n {
+            symMerge(data, a, a + block, b)
+            a = b
+            b += 2 * block
+        }
+        var* m = a + block
+        if m < n {
+            symMerge(data, a, m, n)
+        }
+        block *= 2
+    }
+}
+
+fn IsSorted(data Sorter) bool {
+    var* n = data.Len()
+    var* i = n - 1
+    while i > 0 {
+        if data.Less(i, i - 1) {
+            return false
+        }
+        i--
+    }
+    return true
+}
+
+fn Ints(a []int) { Sort(IntSlice{A: a}) }
+fn Int64s(a []int64) { Sort(Int64Slice{A: a}) }
+fn Float64s(a []float) { Sort(Float64Slice{A: a}) }
+fn Strings(a []string) { Sort(StringSlice{A: a}) }
+
+fn IntsAreSorted(a []int) bool { return IsSorted(IntSlice{A: a}) }
+fn StringsAreSorted(a []string) bool { return IsSorted(StringSlice{A: a}) }
+
+fn SearchInts(a []int, x int) int {
+    var* i = 0
+    var* j = len(a)
+    while i < j {
+        var* h = i + (j - i) / 2
+        if a[h] < x {
+            i = h + 1
+        } else {
+            j = h
+        }
+    }
+    return i
+}
+
+fn SearchInt64s(a []int64, x int64) int {
+    var* i = 0
+    var* j = len(a)
+    while i < j {
+        var* h = i + (j - i) / 2
+        if a[h] < x {
+            i = h + 1
+        } else {
+            j = h
+        }
+    }
+    return i
+}
+
+fn SearchStrings(a []string, x string) int {
+    var* i = 0
+    var* j = len(a)
+    while i < j {
+        var* h = i + (j - i) / 2
+        if a[h] < x {
+            i = h + 1
+        } else {
+            j = h
+        }
+    }
+    return i
+}

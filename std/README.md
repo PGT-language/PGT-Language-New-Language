@@ -150,6 +150,9 @@ fmt.Println(math.Gcd(84, 36), " ", math.IsPrime(97))
 | `Inf() float` | Бесконечность |
 | `NaN() float` | «не число» |
 | `IsNaN(x float) bool` | Является ли x NaN |
+| `Float64bits(f float) int64` | Битовое представление IEEE 754 |
+| `Float64frombits(b int64) float` | Число по битовому представлению |
+| `Signbit(x float) bool` | Установлен ли знаковый бит (в том числе у `-0.0`) |
 | `IsInf(x float) bool` | Является ли x бесконечностью |
 | `Sign(x float) int` | Возвращает -1, 0 или 1 |
 | `ClampInt(x int, lo int, hi int) int` | Ограничивает целое отрезком [lo, hi] |
@@ -285,6 +288,103 @@ os.WriteFile("out.txt", "hello\n")
 | `IsDir(path string) bool` | Является ли путь папкой |
 | `Remove(path string) bool` | Удаляет файл |
 | `ReadLines(path string) []string` | Читает файл и делит его на строки |
+| `struct DirEntry` | Запись папки: поля `Name string` и `IsDir bool` |
+| `ReadDir(dir string) []DirEntry` | Содержимое папки без `.` и `..`, отсортированное по имени (побайтово); для несуществующей папки пустой массив |
+| `Mkdir(path string) bool` | Создаёт одну папку (права 0777 с учётом umask) |
+| `MkdirAll(path string) bool` | Создаёт папку вместе с родителями; `true`, если она уже есть |
+| `Rmdir(path string) bool` | Удаляет пустую папку |
+| `Getwd() string` | Текущая рабочая папка |
+
+## path
+
+Работа с путями в стиле Go (`path`, разделитель `/`). Только строки: файловую систему не трогает, кроме `Getwd` и `Abs`.
+
+```pgt
+#use "path"
+#use "fmt"
+
+fmt.Println(path.Join("a", "b/../c"))     // a/c
+fmt.Println(path.Base("/x/y.txt"), path.Ext("y.txt"))
+var* s = path.Split("/usr/lib/libc.so")   // s.Dir = "/usr/lib/", s.File = "libc.so"
+```
+
+| Функция | Описание |
+|---|---|
+| `Join(parts ...string) string` | Склеивает части через `/` и очищает результат; пустые части пропускаются, результат пуст, если все части пусты |
+| `Clean(p string) string` | Убирает `.`, повторные `/` и `..` (как `path.Clean` в Go); пустой путь даёт `.` |
+| `Split(p string) SplitResult` | Делит по последнему `/`: `Dir` (с `/` на конце) и `File` |
+| `Dir(p string) string` | Всё, кроме последнего элемента, очищенное |
+| `Base(p string) string` | Последний элемент без завершающих `/`; для пустого пути `.`, для `/` — `/` |
+| `Ext(p string) string` | Расширение последнего элемента вместе с точкой или "" |
+| `IsAbs(p string) bool` | Начинается ли путь с `/` |
+| `Getwd() string` | Текущая рабочая папка |
+| `Abs(p string) string` | Абсолютный очищенный путь |
+| `Rel(base string, target string) string` | Относительный путь от base к target или "", если он не существует |
+
+## flag
+
+Разбор аргументов командной строки без функций-значений. `FlagSet` создаёт флаги и возвращает указатели, в которые `Parse` записывает значения.
+
+```pgt
+#use "flag"
+#use "fmt"
+
+var* name = flag.String("name", "world", "who to greet")
+var* n = flag.Int("n", 1, "repeat count")
+var* v = flag.Bool("v", false, "verbose")
+
+fn main() {
+    var* err = flag.Parse()
+    if err != "" {
+        fmt.Println(err)
+        return
+    }
+    fmt.Println(*name, *n, *v, flag.Args())
+}
+```
+
+Поддерживаются `-name value`, `-name=value`, `--name`, булевы `-v`, `-v=false`, разделитель `--`. Разбор останавливается на первом аргументе без `-` (одиночный `-` тоже позиционный). Ошибка возвращается строкой, пустая строка означает успех.
+
+| Функция | Описание |
+|---|---|
+| `NewFlagSet(name string) *FlagSet` | Новый набор флагов |
+| `(fs) String(name string, def string, usage string) *string` | Строковый флаг |
+| `(fs) Int(name string, def int, usage string) *int` | Целочисленный флаг (32 бита) |
+| `(fs) Bool(name string, def bool, usage string) *bool` | Булев флаг |
+| `(fs) Parse(args []string) string` | Разбирает args (без имени программы), возвращает текст ошибки или "" |
+| `(fs) Args() []string`, `NArg() int`, `Arg(i int) string` | Позиционные аргументы |
+| `(fs) IsSet(name string) bool`, `Parsed() bool` | Был ли флаг задан, был ли вызван `Parse` |
+| `(fs) Usage() string` | Справка: флаги по алфавиту, значения по умолчанию |
+| `String`, `Int`, `Bool`, `Parse()`, `Args`, `NArg`, `Arg`, `IsSet`, `Parsed`, `Usage` | То же для набора `CommandLine`; `Parse()` берёт `os.Args()` без имени программы |
+
+Повторное объявление флага — `panic: flag redefined: имя`.
+
+## sort
+
+Сортировка через интерфейс `Sorter`, как `sort.Interface` в Go.
+
+```pgt
+#use "sort"
+
+interface Sorter {
+    Len() int
+    Less(i int, j int) bool
+    Swap(i int, j int)
+}
+
+var* a = [5, 2, 9]
+sort.Ints(a)
+```
+
+| Функция | Описание |
+|---|---|
+| `Sort(data Sorter)` | Быстрая сортировка с переключением на пирамидальную: O(n log n) в худшем случае, не стабильная |
+| `Stable(data Sorter)` | Стабильная сортировка (вставки по блокам и слияние на месте через `Swap`), O(n log² n) |
+| `IsSorted(data Sorter) bool` | Упорядочены ли элементы |
+| `Ints([]int)`, `Int64s([]int64)`, `Float64s([]float)`, `Strings([]string)` | Сортировка по возрастанию (`NaN` идут первыми) |
+| `IntsAreSorted([]int) bool`, `StringsAreSorted([]string) bool` | Проверка порядка |
+| `SearchInts(a []int, x int) int`, `SearchInt64s`, `SearchStrings` | Бинарный поиск: наименьший индекс `i`, где `a[i] >= x` (или `len(a)`) |
+| `IntSlice`, `Int64Slice`, `Float64Slice`, `StringSlice` | Обёртки `{A: массив}`, реализующие `Sorter` |
 
 ## time
 

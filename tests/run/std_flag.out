@@ -1,0 +1,31 @@
+args=[]
+err=[] name=world n=1 v=false quiet=true rest=[] narg=0
+args=[-name pgt -n 3 -v]
+err=[] name=pgt n=3 v=true quiet=true rest=[] narg=0
+args=[--name=abc --n=-5 --v=false --quiet=0 file1 file2]
+err=[] name=abc n=-5 v=false quiet=false rest=[file1 file2] narg=2
+args=[-v -- -name x]
+err=[] name=world n=1 v=true quiet=true rest=[-name x] narg=2
+args=[a -v]
+err=[] name=world n=1 v=false quiet=true rest=[a -v] narg=2
+args=[-name]
+err=[flag needs an argument: -name] name=world n=1 v=false quiet=true rest=[] narg=0
+args=[-n abc]
+err=[invalid value "abc" for flag -n: parse error] name=world n=1 v=false quiet=true rest=[] narg=0
+args=[-n 99999999999]
+err=[invalid value "99999999999" for flag -n: parse error] name=world n=1 v=false quiet=true rest=[] narg=0
+args=[-zzz]
+err=[flag provided but not defined: -zzz] name=world n=1 v=false quiet=true rest=[] narg=0
+args=[-v=maybe]
+err=[invalid boolean value "maybe" for flag -v: parse error] name=world n=1 v=false quiet=true rest=[] narg=0
+args=[- -v]
+err=[] name=world n=1 v=false quiet=true rest=[- -v] narg=2
+true false true
+Usage of tool:
+  -debug
+    	enable debug
+  -jobs int
+    	parallel jobs (default 4)
+  -out string
+    	output file (default "a.out")
+default set: [] 0 true

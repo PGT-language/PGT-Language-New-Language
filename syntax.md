@@ -813,12 +813,15 @@ fn main() {
 | Пакет | Что внутри |
 |---|---|
 | `strings` | поиск, замена, обрезка, разбиение и склейка, выравнивание, проверки символов, `Builder` |
-| `math` | константы (`Pi`, `E`, `MaxInt`, ...), тригонометрия, логарифмы, `Gcd`, `Lcm`, `IsPrime`, `Factorial`, `Fib`, `PowInt` |
+| `math` | константы (`Pi`, `E`, `MaxInt`, ...), тригонометрия, логарифмы, `Gcd`, `Lcm`, `IsPrime`, `Factorial`, `Fib`, `PowInt`, `Float64bits`, `Float64frombits`, `IsNaN`, `IsInf` |
 | `arrays` | сумма, минимум, поиск, сортировка, бинарный поиск, `Range`, `Unique` для `[]int`, `[]float`, `[]string` |
 | `conv` | числа ⇄ строки: `Itoa`, `Atoi`, `IsInt`, `FormatFloat`, `FormatInt` в любой системе счисления |
 | `fmt` | вывод и ввод в консоль: `Print`, `Println`, `Printf`, `Sprintf`, `Input`, `InputLine`, `Scan`, `Scanln`, `ReadLine` |
 | `io` | построчное чтение stdin: `ReadLine`, `EOF`, `ReadLines`, `Prompt` |
-| `os` | аргументы командной строки, переменные окружения, файлы, запуск команд |
+| `os` | аргументы командной строки, переменные окружения, файлы, папки (`ReadDir`, `Mkdir`, `MkdirAll`, `Getwd`), запуск команд |
+| `path` | пути в стиле Go: `Join`, `Clean`, `Split`, `Dir`, `Base`, `Ext`, `IsAbs`, `Abs`, `Rel` |
+| `flag` | разбор аргументов командной строки: `FlagSet`, `String`, `Int`, `Bool`, `Parse`, `Args`, `Usage` |
+| `sort` | интерфейс `Sorter`, `Sort`, `Stable`, `IsSorted`, `Ints`, `Strings`, `SearchInts` |
 | `time` | текущее время, паузы, форматирование дат, `Stopwatch` |
 | `memory` | блоки памяти: `Copy`, `Set`, `Zero`, `KB`, `MB` (для `var&` и `malloc`) |
 | `rand` | случайные числа: `Int`, `IntN`, `Range`, `Float`, `Shuffle`, `Pick`, воспроизводимый `Seed` |

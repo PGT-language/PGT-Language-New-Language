@@ -1,0 +1,56 @@
+package main
+
+#use "os"
+#use "fmt"
+
+fn show(dir string) {
+    for e in os.ReadDir(dir) {
+        var* kind = "file"
+        if e.IsDir {
+            kind = "dir"
+        }
+        fmt.Println("  ", e.Name, " ", kind)
+    }
+}
+
+fn main() {
+    var* root = "/tmp/pgt_std_os_readdir_test"
+    os.Run("rm -rf " + root)
+    fmt.Println(os.Exists(root))
+    fmt.Println(os.MkdirAll(root + "/sub/deep"))
+    fmt.Println(os.MkdirAll(root + "/sub/deep"))
+    fmt.Println(os.Mkdir(root + "/zeta"))
+    fmt.Println(os.Mkdir(root + "/zeta"))
+    fmt.Println(os.Mkdir(root + "/nope/child"))
+    os.WriteFile(root + "/b.txt", "b")
+    os.WriteFile(root + "/a.txt", "a")
+    os.WriteFile(root + "/Z.txt", "z")
+    os.WriteFile(root + "/sub/inner.txt", "i")
+    fmt.Println("root:")
+    show(root)
+    fmt.Println("sub:")
+    show(root + "/sub")
+    fmt.Println("deep:")
+    show(root + "/sub/deep")
+    fmt.Println("missing: ", len(os.ReadDir(root + "/missing")))
+    fmt.Println(os.IsDir(root + "/sub"), " ", os.IsDir(root + "/a.txt"))
+    fmt.Println(os.Getwd() != "")
+    var* many = root + "/many"
+    os.Mkdir(many)
+    for i in 0..300 {
+        os.WriteFile(many + "/f" + (1000 + i), "")
+    }
+    var* entries = os.ReadDir(many)
+    var* sorted = true
+    for i in 1..len(entries) {
+        if entries[i - 1].Name >= entries[i].Name {
+            sorted = false
+        }
+    }
+    fmt.Println(len(entries), " ", sorted, " ", entries[0].Name, " ", entries[299].Name)
+    fmt.Println(os.Rmdir(root + "/zeta"), " ", os.Rmdir(root + "/sub"))
+    os.Run("rm -rf " + root)
+    fmt.Println(os.Exists(root))
+}
+
+return 0

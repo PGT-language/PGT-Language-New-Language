@@ -1,11 +1,25 @@
 package os
 
+#use "strings"
+#use "unsafe"
+
 extern fn pgt_argc() int
 extern fn pgt_argv(i int) string
 extern fn pgt_getenv(name string) string
 extern fn pgt_system(cmd string) int
 extern fn pgt_remove_file(path string) bool
 extern fn pgt_is_dir(path string) bool
+extern fn opendir(path string) *byte
+extern fn readdir(d *byte) *byte
+extern fn closedir(d *byte) int
+extern fn mkdir(path string, mode int) int
+extern fn rmdir(path string) int
+extern fn getcwd(buf *byte, size int64) *byte
+
+struct DirEntry {
+    Name string
+    IsDir bool
+}
 
 fn Args() []string {
     var* out + {[]string} = []
@@ -77,4 +91,121 @@ fn ReadLines(path string) []string {
         out = append(out, substr(text, start, len(text) - start))
     }
     return out
+}
+
+fn Getwd() string {
+    var* buf = make([]byte, 4096)
+    var* r = getcwd(unsafeData(buf), 4096)
+    if r == nil {
+        return ""
+    }
+    var* out = ""
+    var* n = 0
+    while buf[n] != 0 {
+        out = out + char(buf[n])
+        n++
+    }
+    return out
+}
+
+fn Mkdir(path string) bool {
+    return mkdir(path, 511) == 0
+}
+
+fn MkdirAll(path string) bool {
+    if path == "" {
+        return false
+    }
+    if IsDir(path) {
+        return true
+    }
+    var* trimmed = path
+    while len(trimmed) > 1 && trimmed[len(trimmed) - 1] == '/' {
+        trimmed = substr(trimmed, 0, len(trimmed) - 1)
+    }
+    var* i = strings.LastIndex(trimmed, "/")
+    if i > 0 {
+        if !MkdirAll(substr(trimmed, 0, i)) {
+            return false
+        }
+    }
+    if IsDir(trimmed) {
+        return true
+    }
+    return Mkdir(trimmed)
+}
+
+fn Rmdir(path string) bool {
+    return rmdir(path) == 0
+}
+
+fn mergeEntries(a []DirEntry) []DirEntry {
+    var* n = len(a)
+    if n < 2 {
+        return a
+    }
+    var* src = a
+    var* width = 1
+    while width < n {
+        var* dst + {[]DirEntry} = []
+        var* lo = 0
+        while lo < n {
+            var* mid = min(lo + width, n)
+            var* hi = min(lo + 2 * width, n)
+            var* i = lo
+            var* j = mid
+            while i < mid && j < hi {
+                if src[j].Name < src[i].Name {
+                    dst = append(dst, src[j])
+                    j++
+                } else {
+                    dst = append(dst, src[i])
+                    i++
+                }
+            }
+            while i < mid {
+                dst = append(dst, src[i])
+                i++
+            }
+            while j < hi {
+                dst = append(dst, src[j])
+                j++
+            }
+            lo = hi
+        }
+        src = dst
+        width = width * 2
+    }
+    return src
+}
+
+fn ReadDir(dir string) []DirEntry {
+    var* out + {[]DirEntry} = []
+    var* d = opendir(dir)
+    if d == nil {
+        return out
+    }
+    while true {
+        var* e = readdir(d)
+        if e == nil {
+            break
+        }
+        var* name = ""
+        var* np = unsafe.Add(e, 19)
+        var* k = 0
+        while unsafe.LoadByte(unsafe.Add(np, int64(k))) != 0 {
+            name = name + char(unsafe.LoadByte(unsafe.Add(np, int64(k))))
+            k++
+        }
+        var* kind = unsafe.LoadByte(unsafe.Add(e, 18))
+        if name == "." || name == ".." {
+            continue
+        }
+        var* item DirEntry
+        item.Name = name
+        item.IsDir = kind == 4
+        out = append(out, item)
+    }
+    closedir(d)
+    return mergeEntries(out)
 }

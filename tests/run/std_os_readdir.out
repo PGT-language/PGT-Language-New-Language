@@ -1,0 +1,22 @@
+false
+true
+true
+true
+false
+false
+root:
+  Z.txt file
+  a.txt file
+  b.txt file
+  sub dir
+  zeta dir
+sub:
+  deep dir
+  inner.txt file
+deep:
+missing: 0
+true false
+true
+300 true f1000 f1299
+true false
+false

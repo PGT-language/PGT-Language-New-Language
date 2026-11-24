@@ -1,0 +1,24 @@
+package main
+
+#use "math"
+#use "fmt"
+
+fn main() {
+    fmt.Println(math.Float64bits(1.0))
+    fmt.Println(math.Float64bits(-1.0))
+    fmt.Println(math.Float64bits(0.0))
+    fmt.Println(math.Float64bits(-0.0))
+    fmt.Println(math.Float64bits(math.Pi))
+    fmt.Println(math.Float64bits(2.5))
+    fmt.Println(math.Float64frombits(4607182418800017408))
+    fmt.Println(math.Float64frombits(4614256656552045848))
+    fmt.Println(math.Float64frombits(math.Float64bits(-123.456)))
+    fmt.Println(math.Float64bits(math.Inf()))
+    fmt.Println(math.Float64bits(-math.Inf()))
+    fmt.Println(math.IsInf(math.Float64frombits(9218868437227405312)))
+    fmt.Println(math.IsNaN(math.Float64frombits(9221120237041090560)))
+    fmt.Println(math.IsNaN(math.NaN()), " ", math.IsNaN(1.0), " ", math.IsInf(math.Inf()), " ", math.IsInf(1.0))
+    fmt.Println(math.Signbit(-0.0), " ", math.Signbit(0.0), " ", math.Signbit(-3.0))
+}
+
+return 0

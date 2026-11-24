@@ -1,0 +1,12 @@
+// panic: flag redefined: v
+package main
+
+#use "flag"
+
+fn main() {
+    var* fs = flag.NewFlagSet("x")
+    fs.Bool("v", false, "one")
+    fs.Bool("v", true, "two")
+}
+
+return 0

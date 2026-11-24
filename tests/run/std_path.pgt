@@ -1,0 +1,27 @@
+package main
+
+#use "path"
+#use "fmt"
+
+fn main() {
+    fmt.Println(path.Join("a", "b", "c"))
+    fmt.Println(path.Join("a/", "/b"))
+    fmt.Println(path.Join("/", "x", "..", "y"))
+    fmt.Println(path.Join("", ""), "|", path.Join("a", "", "b"))
+    fmt.Println(path.Join())
+    fmt.Println(path.Join("a", "../.."))
+    fmt.Println(path.Clean(""), " ", path.Clean("."), " ", path.Clean("a//b/./c/.."), " ", path.Clean("/../a"), " ", path.Clean("../../x"), " ", path.Clean("/a/b/../../.."), " ", path.Clean("a/b/"))
+    fmt.Println(path.Dir("/a/b/c.txt"), " ", path.Dir("c.txt"), " ", path.Dir("/"), " ", path.Dir("a/b/"), " ", path.Dir(""))
+    fmt.Println(path.Base("/a/b/c.txt"), " ", path.Base("c"), " ", path.Base("/"), " ", path.Base("a/b/"), " ", path.Base(""))
+    fmt.Println("[", path.Ext("a/b.tar.gz"), "] [", path.Ext("a.b/c"), "] [", path.Ext(".bashrc"), "] [", path.Ext("x."), "]")
+    fmt.Println(path.IsAbs("/a"), " ", path.IsAbs("a"), " ", path.IsAbs(""))
+    var* s = path.Split("/usr/lib/libc.so")
+    fmt.Println(s.Dir, " ", s.File)
+    var* t = path.Split("file")
+    fmt.Println("[", t.Dir, "] ", t.File)
+    fmt.Println(path.Abs("/a/./b/../c"))
+    fmt.Println(path.Abs("x") == path.Join(path.Getwd(), "x"), " ", path.IsAbs(path.Abs("y")))
+    fmt.Println(path.Rel("/a/b", "/a/b/c/d"), " ", path.Rel("/a/b", "/a/x"), " ", path.Rel("/a", "/a"), " ", path.Rel("a", "b/c"))
+}
+
+return 0

@@ -1,5 +1,7 @@
 package math
 
+#use "unsafe"
+
 const (
     Pi = 3.141592653589793
     E = 2.718281828459045
@@ -177,4 +179,22 @@ fn DigitSum(n int) int {
         x /= 10
     }
     return s
+}
+
+fn Float64bits(f float) int64 {
+    var* buf = make([]byte, 8)
+    var* p = unsafe.BytesData(buf)
+    unsafe.StoreFloat(p, f)
+    return unsafe.LoadInt64(p)
+}
+
+fn Float64frombits(b int64) float {
+    var* buf = make([]byte, 8)
+    var* p = unsafe.BytesData(buf)
+    unsafe.StoreInt64(p, b)
+    return unsafe.LoadFloat(p)
+}
+
+fn Signbit(x float) bool {
+    return Float64bits(x) < 0
 }

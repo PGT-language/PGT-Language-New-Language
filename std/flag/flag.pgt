@@ -1,0 +1,305 @@
+package flag
+
+#use "os"
+#use "strings"
+
+const (
+    kindString = 0
+    kindInt = 1
+    kindBool = 2
+)
+
+struct FlagSet {
+    Name string
+    names []string
+    kinds []int
+    slots []int
+    usages []string
+    defaults []string
+    strs []*string
+    ints []*int
+    bools []*bool
+    set []bool
+    rest []string
+    parsed bool
+}
+
+fn NewFlagSet(name string) *FlagSet {
+    var* fs = new(FlagSet)
+    fs.Name = name
+    return fs
+}
+
+fn (fs *FlagSet) find(name string) int {
+    for i in 0..len(fs.names) {
+        if fs.names[i] == name {
+            return i
+        }
+    }
+    return -1
+}
+
+fn (fs *FlagSet) add(name string, kind int, slot int, usage string, def string) {
+    if fs.find(name) >= 0 {
+        panic("flag redefined: " + name)
+    }
+    fs.names = append(fs.names, name)
+    fs.kinds = append(fs.kinds, kind)
+    fs.slots = append(fs.slots, slot)
+    fs.usages = append(fs.usages, usage)
+    fs.defaults = append(fs.defaults, def)
+    fs.set = append(fs.set, false)
+}
+
+fn (fs *FlagSet) String(name string, def string, usage string) *string {
+    var* p = new(string)
+    *p = def
+    fs.strs = append(fs.strs, p)
+    fs.add(name, kindString, len(fs.strs) - 1, usage, "\"" + def + "\"")
+    return p
+}
+
+fn (fs *FlagSet) Int(name string, def int, usage string) *int {
+    var* p = new(int)
+    *p = def
+    fs.ints = append(fs.ints, p)
+    fs.add(name, kindInt, len(fs.ints) - 1, usage, "" + def)
+    return p
+}
+
+fn (fs *FlagSet) Bool(name string, def bool, usage string) *bool {
+    var* p = new(bool)
+    *p = def
+    fs.bools = append(fs.bools, p)
+    var* d = "false"
+    if def {
+        d = "true"
+    }
+    fs.add(name, kindBool, len(fs.bools) - 1, usage, d)
+    return p
+}
+
+struct intResult {
+    Value int
+    Ok bool
+}
+
+fn parseInt(s string) intResult {
+    var* r intResult
+    var* i = 0
+    var* neg = false
+    if len(s) > 0 && (s[0] == '-' || s[0] == '+') {
+        neg = s[0] == '-'
+        i = 1
+    }
+    if i >= len(s) {
+        return r
+    }
+    var* v int64 = 0
+    while i < len(s) {
+        if s[i] < '0' || s[i] > '9' {
+            return r
+        }
+        v = v * 10 + int64(s[i] - '0')
+        if v > 2147483648 {
+            return r
+        }
+        i++
+    }
+    if neg {
+        v = -v
+    }
+    if v > 2147483647 || v < -2147483648 {
+        return r
+    }
+    r.Value = int(v)
+    r.Ok = true
+    return r
+}
+
+fn (fs *FlagSet) assign(idx int, value string) string {
+    var* name = fs.names[idx]
+    var* kind = fs.kinds[idx]
+    var* slot = fs.slots[idx]
+    if kind == kindString {
+        *fs.strs[slot] = value
+    } else if kind == kindInt {
+        var* r = parseInt(value)
+        if !r.Ok {
+            return "invalid value \"" + value + "\" for flag -" + name + ": parse error"
+        }
+        *fs.ints[slot] = r.Value
+    } else {
+        if value == "true" || value == "1" || value == "t" || value == "T" || value == "TRUE" || value == "True" {
+            *fs.bools[slot] = true
+        } else if value == "false" || value == "0" || value == "f" || value == "F" || value == "FALSE" || value == "False" {
+            *fs.bools[slot] = false
+        } else {
+            return "invalid boolean value \"" + value + "\" for flag -" + name + ": parse error"
+        }
+    }
+    fs.set[idx] = true
+    return ""
+}
+
+fn (fs *FlagSet) Parse(args []string) string {
+    fs.parsed = true
+    fs.rest = []
+    var* i = 0
+    while i < len(args) {
+        var* a = args[i]
+        if len(a) < 2 || a[0] != '-' {
+            break
+        }
+        var* body = substr(a, 1, len(a) - 1)
+        if body[0] == '-' {
+            if len(body) == 1 {
+                i++
+                break
+            }
+            body = substr(body, 1, len(body) - 1)
+        }
+        if body == "" || body[0] == '-' || body[0] == '=' {
+            return "bad flag syntax: " + a
+        }
+        i++
+        var* name = body
+        var* value = ""
+        var* hasValue = false
+        var* eq = strings.IndexChar(body, '=')
+        if eq >= 0 {
+            name = substr(body, 0, eq)
+            value = substr(body, eq + 1, len(body) - eq - 1)
+            hasValue = true
+        }
+        var* idx = fs.find(name)
+        if idx < 0 {
+            return "flag provided but not defined: -" + name
+        }
+        if fs.kinds[idx] == kindBool {
+            if !hasValue {
+                value = "true"
+            }
+        } else if !hasValue {
+            if i >= len(args) {
+                return "flag needs an argument: -" + name
+            }
+            value = args[i]
+            i++
+        }
+        var* err = fs.assign(idx, value)
+        if err != "" {
+            return err
+        }
+    }
+    while i < len(args) {
+        fs.rest = append(fs.rest, args[i])
+        i++
+    }
+    return ""
+}
+
+fn (fs *FlagSet) Args() []string {
+    return fs.rest
+}
+
+fn (fs *FlagSet) NArg() int {
+    return len(fs.rest)
+}
+
+fn (fs *FlagSet) Arg(i int) string {
+    if i < 0 || i >= len(fs.rest) {
+        return ""
+    }
+    return fs.rest[i]
+}
+
+fn (fs *FlagSet) Parsed() bool {
+    return fs.parsed
+}
+
+fn (fs *FlagSet) IsSet(name string) bool {
+    var* idx = fs.find(name)
+    return idx >= 0 && fs.set[idx]
+}
+
+fn (fs *FlagSet) Usage() string {
+    var* out = "Usage of " + fs.Name + ":\n"
+    var* order + {[]int} = []
+    for i in 0..len(fs.names) {
+        order = append(order, i)
+    }
+    for i in 1..len(order) {
+        var* j = i
+        while j > 0 && fs.names[order[j]] < fs.names[order[j - 1]] {
+            var* t = order[j]
+            order[j] = order[j - 1]
+            order[j - 1] = t
+            j--
+        }
+    }
+    for k in order {
+        var* typ = "string"
+        if fs.kinds[k] == kindInt {
+            typ = "int"
+        }
+        out = out + "  -" + fs.names[k]
+        if fs.kinds[k] != kindBool {
+            out = out + " " + typ
+        }
+        out = out + "\n    \t" + fs.usages[k]
+        var* d = fs.defaults[k]
+        if d != "\"\"" && d != "0" && d != "false" {
+            out = out + " (default " + d + ")"
+        }
+        out = out + "\n"
+    }
+    return out
+}
+
+var* CommandLine = NewFlagSet(os.Arg(0))
+
+fn String(name string, def string, usage string) *string {
+    return CommandLine.String(name, def, usage)
+}
+
+fn Int(name string, def int, usage string) *int {
+    return CommandLine.Int(name, def, usage)
+}
+
+fn Bool(name string, def bool, usage string) *bool {
+    return CommandLine.Bool(name, def, usage)
+}
+
+fn Parse() string {
+    var* all = os.Args()
+    var* rest + {[]string} = []
+    for i in 1..len(all) {
+        rest = append(rest, all[i])
+    }
+    return CommandLine.Parse(rest)
+}
+
+fn Args() []string {
+    return CommandLine.Args()
+}
+
+fn NArg() int {
+    return CommandLine.NArg()
+}
+
+fn Arg(i int) string {
+    return CommandLine.Arg(i)
+}
+
+fn Parsed() bool {
+    return CommandLine.Parsed()
+}
+
+fn IsSet(name string) bool {
+    return CommandLine.IsSet(name)
+}
+
+fn Usage() string {
+    return CommandLine.Usage()
+}

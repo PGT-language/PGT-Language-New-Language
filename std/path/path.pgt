@@ -1,0 +1,169 @@
+package path
+
+#use "strings"
+
+extern fn getcwd(buf *byte, size int64) *byte
+
+struct SplitResult {
+    Dir string
+    File string
+}
+
+fn dropLast(a []string) []string {
+    var* r + {[]string} = []
+    for i in 0..len(a) - 1 {
+        r = append(r, a[i])
+    }
+    return r
+}
+
+fn IsAbs(p string) bool {
+    return len(p) > 0 && p[0] == '/'
+}
+
+fn Clean(p string) string {
+    if p == "" {
+        return "."
+    }
+    var* rooted = IsAbs(p)
+    var* out + {[]string} = []
+    for part in strings.Split(p, "/") {
+        if part == "" || part == "." {
+            continue
+        }
+        if part == ".." {
+            if len(out) > 0 && out[len(out) - 1] != ".." {
+                out = dropLast(out)
+            } else if !rooted {
+                out = append(out, "..")
+            }
+            continue
+        }
+        out = append(out, part)
+    }
+    var* body = strings.Join(out, "/")
+    if rooted {
+        return "/" + body
+    }
+    if body == "" {
+        return "."
+    }
+    return body
+}
+
+fn Join(parts ...string) string {
+    var* acc = ""
+    for part in parts {
+        if part == "" {
+            continue
+        }
+        if acc == "" {
+            acc = part
+        } else {
+            acc = acc + "/" + part
+        }
+    }
+    if acc == "" {
+        return ""
+    }
+    return Clean(acc)
+}
+
+fn Split(p string) SplitResult {
+    var* i = strings.LastIndex(p, "/")
+    var* r SplitResult
+    r.Dir = substr(p, 0, i + 1)
+    r.File = substr(p, i + 1, len(p) - i - 1)
+    return r
+}
+
+fn Dir(p string) string {
+    var* s = Split(p)
+    return Clean(s.Dir)
+}
+
+fn Base(p string) string {
+    if p == "" {
+        return "."
+    }
+    var* q = p
+    while len(q) > 0 && q[len(q) - 1] == '/' {
+        q = substr(q, 0, len(q) - 1)
+    }
+    if q == "" {
+        return "/"
+    }
+    var* i = strings.LastIndex(q, "/")
+    return substr(q, i + 1, len(q) - i - 1)
+}
+
+fn Ext(p string) string {
+    var* i = len(p) - 1
+    while i >= 0 && p[i] != '/' {
+        if p[i] == '.' {
+            return substr(p, i, len(p) - i)
+        }
+        i--
+    }
+    return ""
+}
+
+fn Getwd() string {
+    var* buf = make([]byte, 4096)
+    var* r = getcwd(unsafeData(buf), 4096)
+    if r == nil {
+        return ""
+    }
+    var* out = ""
+    var* n = 0
+    while buf[n] != 0 {
+        out = out + char(buf[n])
+        n++
+    }
+    return out
+}
+
+fn Abs(p string) string {
+    if IsAbs(p) {
+        return Clean(p)
+    }
+    return Join(Getwd(), p)
+}
+
+fn Rel(base string, target string) string {
+    var* b = Clean(base)
+    var* t = Clean(target)
+    if b == t {
+        return "."
+    }
+    if IsAbs(b) != IsAbs(t) {
+        return ""
+    }
+    var* bp + {[]string} = []
+    var* tp + {[]string} = []
+    for x in strings.Split(b, "/") {
+        if x != "" && x != "." {
+            bp = append(bp, x)
+        }
+    }
+    for x in strings.Split(t, "/") {
+        if x != "" && x != "." {
+            tp = append(tp, x)
+        }
+    }
+    var* i = 0
+    while i < len(bp) && i < len(tp) && bp[i] == tp[i] {
+        i++
+    }
+    var* out + {[]string} = []
+    for j in i..len(bp) {
+        if bp[j] == ".." {
+            return ""
+        }
+        out = append(out, "..")
+    }
+    for j in i..len(tp) {
+        out = append(out, tp[j])
+    }
+    return strings.Join(out, "/")
+}

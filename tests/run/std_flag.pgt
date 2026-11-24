@@ -1,0 +1,42 @@
+package main
+
+#use "flag"
+#use "fmt"
+
+fn run(args []string) {
+    var* fs = flag.NewFlagSet("prog")
+    var* name = fs.String("name", "world", "who to greet")
+    var* count = fs.Int("n", 1, "repeat count")
+    var* verbose = fs.Bool("v", false, "verbose output")
+    var* quiet = fs.Bool("quiet", true, "quiet mode")
+    var* err = fs.Parse(args)
+    fmt.Println("args=", args)
+    fmt.Println("err=[", err, "] name=", *name, " n=", *count, " v=", *verbose, " quiet=", *quiet, " rest=", fs.Args(), " narg=", fs.NArg())
+}
+
+fn main() {
+    run([])
+    run(["-name", "pgt", "-n", "3", "-v"])
+    run(["--name=abc", "--n=-5", "--v=false", "--quiet=0", "file1", "file2"])
+    run(["-v", "--", "-name", "x"])
+    run(["a", "-v"])
+    run(["-name"])
+    run(["-n", "abc"])
+    run(["-n", "99999999999"])
+    run(["-zzz"])
+    run(["-v=maybe"])
+    run(["-", "-v"])
+
+    var* fs = flag.NewFlagSet("tool")
+    fs.String("out", "a.out", "output file")
+    fs.Int("jobs", 4, "parallel jobs")
+    fs.Bool("debug", false, "enable debug")
+    fs.Parse(["-jobs", "8"])
+    fmt.Println(fs.IsSet("jobs"), " ", fs.IsSet("out"), " ", fs.Parsed())
+    fmt.Print(fs.Usage())
+
+    var* e = flag.Parse()
+    fmt.Println("default set: [", e, "] ", flag.NArg(), " ", flag.Parsed())
+}
+
+return 0
