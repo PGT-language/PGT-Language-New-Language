@@ -928,6 +928,29 @@ namespace pgt
         return owned({agg, t});
     }
 
+    CodeGen::SpreadArgs CodeGen::genSpreadArgs(const Call &call, TyP hint)
+    {
+        SpreadArgs sa;
+        if (call.args.size() != 1 || call.spread)
+            return sa;
+        auto *inner = dynamic_cast<const Call *>(call.args[0].get());
+        if (!inner)
+            return sa;
+        Value v = genCall(*inner, hint);
+        if (v.type->is(Type::Kind::Void))
+            fail("this call does not return a value", inner->line, inner->col);
+        if (v.type->is(Type::Kind::Tuple))
+        {
+            sa.spread = true;
+            sa.values = expandTuple(v);
+        }
+        else
+        {
+            sa.values.push_back(v);
+        }
+        return sa;
+    }
+
     CodeGen::Value CodeGen::callFunction(const FuncInfo &info, const std::string &name, const Call &call,
                                          std::vector<llvm::Value *> args, size_t firstParam)
     {
@@ -937,26 +960,38 @@ namespace pgt
         if (call.spread && !info.variadic)
             fail("cannot use '...' when calling '" + name + "': it has no variadic parameter", call.line,
                  call.col);
+        TyP firstHint = fixed > 0 ? info.params[firstParam] : info.variadic ? info.params.back()->elem : nullptr;
+        SpreadArgs sa = genSpreadArgs(call, firstHint);
+        size_t count = sa.spread ? sa.values.size() : call.args.size();
         if (info.variadic)
         {
-            if (call.args.size() < fixed)
+            if (count < fixed)
                 fail("'" + name + "' takes at least " + std::to_string(fixed) + " argument(s), got " +
-                         std::to_string(call.args.size()),
+                         std::to_string(count),
                      call.line, call.col);
             if (call.spread && call.args.size() != fixed + 1)
                 fail("'...' must be applied to the argument for the variadic parameter of '" + name + "'",
                      call.line, call.col);
         }
-        else if (call.args.size() != fixed)
+        else if (count != fixed)
             fail("'" + name + "' takes " + std::to_string(fixed) + " argument(s), got " +
-                     std::to_string(call.args.size()),
+                     std::to_string(count),
                  call.line, call.col);
+
+        auto argValue = [&](size_t i, TyP want) -> Value
+        {
+            if (!sa.values.empty())
+                return sa.values[i];
+            return genExpr(*call.args[i], want);
+        };
+        auto argLine = [&](size_t i) -> const Expr &
+        { return *call.args[sa.spread ? 0 : i]; };
 
         for (size_t i = 0; i < fixed; ++i)
         {
             TyP pt = info.params[firstParam + i];
-            const Expr &a = *call.args[i];
-            Value v = coerce(genExpr(a, pt), pt, a.line, a.col,
+            const Expr &a = argLine(i);
+            Value v = coerce(argValue(i, pt), pt, a.line, a.col,
                              "argument " + ordinal(i + 1) + " of '" + name + "'");
             args.push_back(info.isExtern && info.intrinsic.empty() && pt->is(Type::Kind::Array) ? arrayToPtr(v.value) : v.value);
         }
@@ -966,17 +1001,17 @@ namespace pgt
             if (call.spread)
             {
                 const Expr &a = *call.args[fixed];
-                Value v = coerce(genExpr(a, arrTy), arrTy, a.line, a.col,
+                Value v = coerce(argValue(fixed, arrTy), arrTy, a.line, a.col,
                                  "argument " + ordinal(fixed + 1) + " of '" + name + "'");
                 args.push_back(v.value);
             }
             else
             {
                 std::vector<Value> extra;
-                for (size_t i = fixed; i < call.args.size(); ++i)
+                for (size_t i = fixed; i < count; ++i)
                 {
-                    const Expr &a = *call.args[i];
-                    extra.push_back(coerce(genExpr(a, arrTy->elem), arrTy->elem, a.line, a.col,
+                    const Expr &a = argLine(i);
+                    extra.push_back(coerce(argValue(i, arrTy->elem), arrTy->elem, a.line, a.col,
                                            "argument " + ordinal(i + 1) + " of '" + name + "'"));
                 }
                 args.push_back(packArray(arrTy->elem, extra).value);
@@ -1136,9 +1171,11 @@ namespace pgt
                  call.col);
         const IfaceMethod &m = ii->methods[idx];
         std::string name = iface.type->name() + "." + method;
-        if (call.args.size() != m.params.size())
+        SpreadArgs sa = genSpreadArgs(call, m.params.empty() ? nullptr : m.params[0]);
+        size_t count = sa.spread ? sa.values.size() : call.args.size();
+        if (count != m.params.size())
             fail("'" + name + "' takes " + std::to_string(m.params.size()) + " argument(s), got " +
-                     std::to_string(call.args.size()),
+                     std::to_string(count),
                  call.line, call.col);
 
         llvm::Value *data = builder_.CreateExtractValue(iface.value, 0, "iface.data");
@@ -1148,10 +1185,10 @@ namespace pgt
 
         std::vector<llvm::Type *> paramTys{builder_.getPtrTy()};
         std::vector<llvm::Value *> args{data};
-        for (size_t i = 0; i < call.args.size(); ++i)
+        for (size_t i = 0; i < count; ++i)
         {
-            const Expr &a = *call.args[i];
-            Value v = coerce(genExpr(a, m.params[i]), m.params[i], a.line, a.col,
+            const Expr &a = *call.args[sa.spread ? 0 : i];
+            Value v = coerce(sa.values.empty() ? genExpr(a, m.params[i]) : sa.values[i], m.params[i], a.line, a.col,
                              "argument " + ordinal(i + 1) + " of '" + name + "'");
             paramTys.push_back(llvmType(m.params[i]));
             args.push_back(v.value);

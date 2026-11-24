@@ -181,6 +181,12 @@ namespace pgt
         Value genSlice(const SliceExpr &sl);
         Value genArrayLit(const ArrayLit &lit, TyP hint);
         Value genStructLit(const StructLit &lit);
+        struct SpreadArgs
+        {
+            bool spread = false;
+            std::vector<Value> values;
+        };
+        SpreadArgs genSpreadArgs(const Call &call, TyP hint);
         Value genCall(const Call &call, TyP hint);
         Value callFunction(const FuncInfo &info, const std::string &name, const Call &call,
                            std::vector<llvm::Value *> args, size_t firstParam);
