@@ -1,0 +1,336 @@
+package ast
+
+const (
+    BinAdd = iota
+    BinSub
+    BinMul
+    BinDiv
+    BinMod
+    BinEq
+    BinNe
+    BinLt
+    BinGt
+    BinLe
+    BinGe
+    BinAnd
+    BinOr
+    BinBitAnd
+    BinBitOr
+    BinBitXor
+    BinShl
+    BinShr
+)
+
+const (
+    UnNeg = iota
+    UnNot
+    UnBitNot
+    UnDeref
+    UnAddrOf
+)
+
+const (
+    AssignSet = iota
+    AssignAdd
+    AssignSub
+    AssignMul
+    AssignDiv
+    AssignMod
+)
+
+const (
+    TypeNamed = iota
+    TypeArray
+    TypePointer
+    TypeMap
+    TypeTuple
+)
+
+const (
+    ExprIntLit = iota
+    ExprFloatLit
+    ExprCharLit
+    ExprBoolLit
+    ExprStringLit
+    ExprNilLit
+    ExprVarRef
+    ExprUnary
+    ExprBinary
+    ExprCall
+    ExprSelector
+    ExprIndex
+    ExprSlice
+    ExprArrayLit
+    ExprStructLit
+    ExprMapLit
+    ExprMalloc
+    ExprTypeAssert
+)
+
+const (
+    StmtVarDecl = iota
+    StmtMultiVarDecl
+    StmtMultiAssign
+    StmtAssign
+    StmtExpr
+    StmtIf
+    StmtLoop
+    StmtForIn
+    StmtSwitch
+    StmtBreak
+    StmtContinue
+    StmtAsm
+    StmtReturn
+)
+
+fn BinOpText(op int) string {
+    switch op {
+        case BinAdd { return "+" }
+        case BinSub { return "-" }
+        case BinMul { return "*" }
+        case BinDiv { return "/" }
+        case BinMod { return "%" }
+        case BinEq { return "==" }
+        case BinNe { return "!=" }
+        case BinLt { return "<" }
+        case BinGt { return ">" }
+        case BinLe { return "<=" }
+        case BinGe { return ">=" }
+        case BinAnd { return "&&" }
+        case BinOr { return "||" }
+        case BinBitAnd { return "&" }
+        case BinBitOr { return "|" }
+        case BinBitXor { return "^" }
+        case BinShl { return "<<" }
+        case BinShr { return ">>" }
+    }
+    return "?"
+}
+
+fn UnOpText(op int) string {
+    switch op {
+        case UnNeg { return "-" }
+        case UnNot { return "!" }
+        case UnBitNot { return "~" }
+        case UnDeref { return "*" }
+        case UnAddrOf { return "&" }
+    }
+    return "?"
+}
+
+fn AssignOpText(op int) string {
+    switch op {
+        case AssignSet { return "=" }
+        case AssignAdd { return "+=" }
+        case AssignSub { return "-=" }
+        case AssignMul { return "*=" }
+        case AssignDiv { return "/=" }
+        case AssignMod { return "%=" }
+    }
+    return "?"
+}
+
+struct TypeExpr {
+    Kind int
+    Qualifier string
+    Name string
+    Elem *TypeExpr
+    Key *TypeExpr
+    Elems []*TypeExpr
+    Line int
+    Col int
+}
+
+fn NamedType(name string, line int, col int) *TypeExpr {
+    return &TypeExpr{Kind: TypeNamed, Name: name, Line: line, Col: col}
+}
+
+fn (t *TypeExpr) Text() string {
+    switch t.Kind {
+        case TypeArray { return "[]" + t.Elem.Text() }
+        case TypePointer { return "*" + t.Elem.Text() }
+        case TypeMap { return "map[" + t.Key.Text() + "]" + t.Elem.Text() }
+        case TypeTuple {
+            var* out = "("
+            for i, e in t.Elems {
+                if i > 0 {
+                    out = out + ", "
+                }
+                out = out + e.Text()
+            }
+            return out + ")"
+        }
+    }
+    if len(t.Qualifier) == 0 {
+        return t.Name
+    }
+    return t.Qualifier + "." + t.Name
+}
+
+struct FieldInit {
+    Name string
+    Value *Expr
+    Line int
+    Col int
+}
+
+struct Expr {
+    Kind int
+    Line int
+    Col int
+    IntVal uint64
+    FloatVal float
+    CharVal char
+    BoolVal bool
+    Str string
+    Name string
+    Op int
+    Operand *Expr
+    Lhs *Expr
+    Rhs *Expr
+    Callee *Expr
+    TypeArg *TypeExpr
+    Args []*Expr
+    Spread bool
+    Base *Expr
+    Index *Expr
+    Lo *Expr
+    Hi *Expr
+    Elems []*Expr
+    Type *TypeExpr
+    Fields []*FieldInit
+    Keys []*Expr
+    Values []*Expr
+    Count *Expr
+    IsTypeKeyword bool
+}
+
+fn NewExpr(kind int, line int, col int) *Expr {
+    return &Expr{Kind: kind, Line: line, Col: col}
+}
+
+struct Case {
+    Values []*Expr
+    Types []*TypeExpr
+    Body []*Stmt
+    Line int
+    Col int
+}
+
+struct Stmt {
+    Kind int
+    Line int
+    Col int
+    Name string
+    Type *TypeExpr
+    Init *Expr
+    IsConst bool
+    IsManual bool
+    Names []string
+    Cols []int
+    Values []*Expr
+    Targets []*Expr
+    Target *Expr
+    Op int
+    Value *Expr
+    Rest []*Expr
+    Cond *Expr
+    Then []*Stmt
+    Else []*Stmt
+    HasElse bool
+    InitStmt *Stmt
+    Post *Stmt
+    Body []*Stmt
+    Key string
+    Val string
+    Iterable *Expr
+    RangeEnd *Expr
+    Tag *Expr
+    Cases []*Case
+    Default []*Stmt
+    HasDefault bool
+    TypeSwitch bool
+    Bind string
+    Text string
+}
+
+fn NewStmt(kind int, line int, col int) *Stmt {
+    return &Stmt{Kind: kind, Line: line, Col: col}
+}
+
+struct Param {
+    Name string
+    Type *TypeExpr
+    Variadic bool
+    Line int
+    Col int
+}
+
+struct Receiver {
+    Name string
+    TypeName string
+    Pointer bool
+    Line int
+    Col int
+}
+
+struct Function {
+    Name string
+    Receiver *Receiver
+    Params []*Param
+    Ret *TypeExpr
+    Body []*Stmt
+    IsExtern bool
+    Line int
+    Col int
+}
+
+struct Field {
+    Name string
+    Type *TypeExpr
+    Line int
+    Col int
+}
+
+struct StructDecl {
+    Name string
+    Fields []*Field
+    Line int
+    Col int
+}
+
+struct MethodSig {
+    Name string
+    Params []*Param
+    Ret *TypeExpr
+    Line int
+    Col int
+}
+
+struct InterfaceDecl {
+    Name string
+    Methods []*MethodSig
+    Line int
+    Col int
+}
+
+struct Import {
+    Path string
+    Line int
+    Col int
+}
+
+struct Program {
+    File string
+    Package string
+    Imports []*Import
+    Functions []*Function
+    Structs []*StructDecl
+    Interfaces []*InterfaceDecl
+    Globals []*Stmt
+    ExitCode *Expr
+    Qualifiers map[string]bool
+    UsesMalloc bool
+    UsesMaps bool
+    UsesAsm bool
+}

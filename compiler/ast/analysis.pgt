@@ -1,0 +1,88 @@
+package ast
+
+fn HasValueReturn(block []*Stmt) bool {
+    for s in block {
+        switch s.Kind {
+            case StmtReturn {
+                if s.Value != nil {
+                    return true
+                }
+            }
+            case StmtIf {
+                if HasValueReturn(s.Then) || HasValueReturn(s.Else) {
+                    return true
+                }
+            }
+            case StmtLoop, StmtForIn {
+                if HasValueReturn(s.Body) {
+                    return true
+                }
+            }
+            case StmtSwitch {
+                if HasValueReturn(s.Default) {
+                    return true
+                }
+                for c in s.Cases {
+                    if HasValueReturn(c.Body) {
+                        return true
+                    }
+                }
+            }
+        }
+    }
+    return false
+}
+
+fn HasBreak(block []*Stmt) bool {
+    for s in block {
+        if s.Kind == StmtBreak {
+            return true
+        }
+        if s.Kind == StmtIf {
+            if HasBreak(s.Then) || HasBreak(s.Else) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+fn CallsExit(s *Stmt) bool {
+    if s.Kind != StmtExpr {
+        return false
+    }
+    var* call = s.Value
+    if call.Kind != ExprCall {
+        return false
+    }
+    var* ref = call.Callee
+    return ref.Kind == ExprVarRef && (ref.Name == "exit" || ref.Name == "panic")
+}
+
+fn Terminates(block []*Stmt) bool {
+    if len(block) == 0 {
+        return false
+    }
+    var* last = block[len(block) - 1]
+    if last.Kind == StmtReturn || CallsExit(last) {
+        return true
+    }
+    if last.Kind == StmtIf {
+        return last.HasElse && Terminates(last.Then) && Terminates(last.Else)
+    }
+    if last.Kind == StmtLoop {
+        return last.Cond == nil && !HasBreak(last.Body)
+    }
+    if last.Kind == StmtSwitch {
+        if !last.HasDefault || !Terminates(last.Default) {
+            return false
+        }
+        for c in last.Cases {
+            if !Terminates(c.Body) || HasBreak(c.Body) {
+                return false
+            }
+        }
+        return !HasBreak(last.Default)
+    }
+    return false
+}
