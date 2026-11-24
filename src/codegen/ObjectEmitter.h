@@ -6,6 +6,7 @@
 namespace pgt
 {
 
-    void emitObjectFile(llvm::Module &module, const std::string &path);
+    void optimizeModule(llvm::Module &module, int level);
+    void emitObjectFile(llvm::Module &module, const std::string &path, int level);
 
 }

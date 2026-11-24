@@ -1,0 +1,17 @@
+package main
+
+#use "fmt"
+#use "sort"
+
+fn main() {
+    var* a []int = []
+    var* x = 12345
+    for i in 0..1000000 {
+        x = (x * 1664525 + 1013904223) & 2147483647
+        a = append(a, x)
+    }
+    sort.Ints(a)
+    fmt.Println(a[0], " ", a[500000], " ", sort.IntsAreSorted(a))
+}
+
+return 0

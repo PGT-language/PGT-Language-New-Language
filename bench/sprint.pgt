@@ -1,0 +1,14 @@
+package main
+
+#use "fmt"
+
+fn main() {
+    var* total = 0
+    for i in 0..300000 {
+        var* s = fmt.Sprint("n=", i, " f=", 2.5, " ok")
+        total += len(s)
+    }
+    fmt.Println(total)
+}
+
+return 0

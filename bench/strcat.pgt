@@ -1,0 +1,18 @@
+package main
+
+#use "fmt"
+
+fn main() {
+    var* s = ""
+    for i in 0..20000 {
+        s = s + "x"
+    }
+    var* total = 0
+    for i in 0..300000 {
+        var* t = "k" + str(i) + "v"
+        total += len(t)
+    }
+    fmt.Println(len(s), " ", total)
+}
+
+return 0

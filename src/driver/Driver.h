@@ -19,6 +19,7 @@ namespace pgt
         std::string input;
         std::string output;
         bool emitIr = false;
+        int optLevel = 2;
         bool run = false;
         std::vector<std::string> runArgs;
     };

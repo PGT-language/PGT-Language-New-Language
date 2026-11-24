@@ -1,0 +1,24 @@
+package main
+
+#use "fmt"
+
+fn main() {
+    var* m = make(map[int]int)
+    for i in 0..1000000 {
+        m[i] = i * 2
+    }
+    var* s = 0
+    for i in 0..1000000 {
+        s += m[i]
+    }
+    var* ms = make(map[string]int)
+    for i in 0..200000 {
+        ms["key" + str(i)] = i
+    }
+    for i in 0..200000 {
+        s += ms["key" + str(i)]
+    }
+    fmt.Println(s, " ", len(m), " ", len(ms))
+}
+
+return 0
