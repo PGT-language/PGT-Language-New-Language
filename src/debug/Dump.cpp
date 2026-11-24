@@ -87,7 +87,8 @@ namespace pgt
         {
             std::string s;
             for (size_t i = 0; i < ps.size(); ++i)
-                s += (i ? ", " : "") + ps[i].name + " " + ps[i].type.text();
+                s += (i ? ", " : "") + ps[i].name + " " +
+                     (ps[i].variadic ? "..." + ps[i].type.elem->text() : ps[i].type.text());
             return s;
         }
 
@@ -524,6 +525,7 @@ namespace pgt
             case Tok::Colon:
             case Tok::Dot:
             case Tok::DotDot:
+            case Tok::Ellipsis:
                 return "SYMBOL";
             default:
                 break;

@@ -204,6 +204,7 @@ namespace pgt
         ExprPtr callee;
         std::optional<TypeExpr> typeArg;
         std::vector<ExprPtr> args;
+        bool spread = false;
     };
 
     struct Selector : Expr
@@ -327,6 +328,7 @@ namespace pgt
     {
         std::string name;
         TypeExpr type;
+        bool variadic = false;
         int line = 0, col = 0;
     };
 

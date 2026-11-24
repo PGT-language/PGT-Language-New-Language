@@ -105,6 +105,8 @@ namespace pgt
             return "'.'";
         case Tok::DotDot:
             return "'..'";
+        case Tok::Ellipsis:
+            return "'...'";
         case Tok::Assign:
             return "'='";
         case Tok::PlusAssign:
@@ -239,6 +241,8 @@ namespace pgt
             return "Dot";
         case Tok::DotDot:
             return "DotDot";
+        case Tok::Ellipsis:
+            return "Ellipsis";
         case Tok::Assign:
             return "Assign";
         case Tok::PlusAssign:
@@ -636,7 +640,10 @@ namespace pgt
                     kind = Tok::Semi;
                     break;
                 case '.':
-                    kind = match('.') ? Tok::DotDot : Tok::Dot;
+                    if (match('.'))
+                        kind = match('.') ? Tok::Ellipsis : Tok::DotDot;
+                    else
+                        kind = Tok::Dot;
                     break;
                 case '=':
                     kind = match('=') ? Tok::Eq : Tok::Assign;

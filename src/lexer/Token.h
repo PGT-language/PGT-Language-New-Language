@@ -47,6 +47,7 @@ namespace pgt
         Semi,
         Dot,
         DotDot,
+        Ellipsis,
         Assign,
         PlusAssign,
         MinusAssign,

@@ -33,6 +33,8 @@ namespace pgt
             return st->pkgName == "main" ? st->name : st->pkgName + "." + st->name;
         case Kind::Interface:
             return iface->pkgName == "main" ? iface->name : iface->pkgName + "." + iface->name;
+        case Kind::Any:
+            return "any";
         }
         return "?";
     }
@@ -54,6 +56,7 @@ namespace pgt
         boolT = basic(Type::Kind::Bool);
         stringT = basic(Type::Kind::String);
         nilT = basic(Type::Kind::Nil);
+        anyT = basic(Type::Kind::Any);
     }
 
     TyP TypeTable::add(Type t)

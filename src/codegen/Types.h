@@ -31,7 +31,8 @@ namespace pgt
             Array,
             Pointer,
             Struct,
-            Interface
+            Interface,
+            Any
         };
         Kind kind = Kind::Void;
         const Type *elem = nullptr;
@@ -61,7 +62,7 @@ namespace pgt
         bool isNillable() const
         {
             return kind == Kind::Pointer || kind == Kind::Array || kind == Kind::String ||
-                   kind == Kind::Interface;
+                   kind == Kind::Interface || kind == Kind::Any;
         }
         bool isPtrToStruct() const
         {
@@ -79,6 +80,7 @@ namespace pgt
         TyP ret = nullptr;
         bool isExtern = false;
         bool ptrRecv = false;
+        bool variadic = false;
         int line = 0, col = 0;
     };
 
@@ -137,7 +139,7 @@ namespace pgt
     {
     public:
         TypeTable();
-        TyP voidT, intT, int64T, floatT, charT, byteT, boolT, stringT, nilT;
+        TyP voidT, intT, int64T, floatT, charT, byteT, boolT, stringT, nilT, anyT;
 
         TyP arrayOf(TyP elem);
         TyP pointerTo(TyP elem);

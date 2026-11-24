@@ -246,7 +246,7 @@ namespace pgt
         return out;
     }
 
-    std::vector<Param> Parser::parseParams()
+    std::vector<Param> Parser::parseParams(bool allowVariadic)
     {
         std::vector<Param> params;
         expect(Tok::LParen, "before the parameters");
@@ -260,6 +260,23 @@ namespace pgt
                 param.line = cur().line;
                 param.col = cur().col;
                 param.name = expect(Tok::Ident, "as a parameter name").text;
+                if (check(Tok::Ellipsis))
+                {
+                    if (!allowVariadic)
+                        errorHere("variadic parameters are not allowed here");
+                    advance();
+                    TypeExpr arr;
+                    arr.kind = TypeExpr::Kind::Array;
+                    arr.line = cur().line;
+                    arr.col = cur().col;
+                    arr.elem = std::make_shared<TypeExpr>(parseType("as the variadic parameter type"));
+                    param.type = std::move(arr);
+                    param.variadic = true;
+                    params.push_back(std::move(param));
+                    if (check(Tok::Comma))
+                        errorHere("a variadic parameter must be the last parameter");
+                    break;
+                }
                 if (atTypeStart())
                     param.type = parseType("as a parameter type");
                 else
@@ -290,7 +307,7 @@ namespace pgt
             fn.receiver = recv;
         }
         fn.name = expect(Tok::Ident, "as the function name").text;
-        fn.params = parseParams();
+        fn.params = parseParams(true);
         if (atTypeStart())
             fn.ret = parseType("as the result type");
         fn.body = parseBlock("before the function body");
@@ -308,7 +325,7 @@ namespace pgt
         advance();
         expect(Tok::KwFn, "after 'extern'");
         fn.name = expect(Tok::Ident, "as the name of the external function").text;
-        fn.params = parseParams();
+        fn.params = parseParams(false);
         if (atTypeStart())
             fn.ret = parseType("as the result type");
         return fn;
@@ -363,7 +380,7 @@ namespace pgt
             m.line = cur().line;
             m.col = cur().col;
             m.name = expect(Tok::Ident, "as a method name").text;
-            m.params = parseParams();
+            m.params = parseParams(false);
             if (atTypeStart() && !(check(Tok::Ident) && peekTok().kind == Tok::LParen))
                 m.ret = parseType("as the result type");
             decl.methods.push_back(std::move(m));
@@ -843,6 +860,14 @@ namespace pgt
                 while (!check(Tok::RParen))
                 {
                     call->args.push_back(parseExpr());
+                    if (check(Tok::Ellipsis))
+                    {
+                        advance();
+                        call->spread = true;
+                        if (check(Tok::Comma))
+                            errorHere("'...' must be applied to the last argument");
+                        break;
+                    }
                     if (!accept(Tok::Comma))
                         break;
                 }

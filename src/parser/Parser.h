@@ -43,7 +43,7 @@ namespace pgt
         void parseImports(Program &prog);
         bool atTypeStart() const;
         TypeExpr parseType(const char *context);
-        std::vector<Param> parseParams();
+        std::vector<Param> parseParams(bool allowVariadic);
         Function parseFunction();
         Function parseExtern();
         StructDecl parseStruct();
