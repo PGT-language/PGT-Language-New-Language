@@ -1,0 +1,149 @@
+package asm
+
+const (
+    TEnd = 0
+    TIdent = 1
+    TNum = 2
+    TComma = 3
+    TLBr = 4
+    TRBr = 5
+    TPlus = 6
+    TMinus = 7
+    TStar = 8
+    TColon = 9
+)
+
+struct Token {
+    Kind int
+    Text string
+    Num int64
+}
+
+fn isDigitChar(c char) bool {
+    return c >= '0' && c <= '9'
+}
+
+fn isIdentStart(c char) bool {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == '.' || c == '$' || c == '?' || c == '@'
+}
+
+fn isIdentChar(c char) bool {
+    return isIdentStart(c) || isDigitChar(c)
+}
+
+fn digitValue(c char) int {
+    if c >= '0' && c <= '9' {
+        return int(c) - int('0')
+    }
+    if c >= 'a' && c <= 'f' {
+        return int(c) - int('a') + 10
+    }
+    if c >= 'A' && c <= 'F' {
+        return int(c) - int('A') + 10
+    }
+    return 99
+}
+
+fn parseNumber(word string) int64 {
+    var* cs = chars(word)
+    var* base = 10
+    var* start = 0
+    if len(cs) > 2 && cs[0] == '0' && (cs[1] == 'x' || cs[1] == 'X') {
+        base = 16
+        start = 2
+    } else if len(cs) > 2 && cs[0] == '0' && (cs[1] == 'b' || cs[1] == 'B') {
+        base = 2
+        start = 2
+    }
+    var* v int64 = 0
+    var* digits = 0
+    for i in start..len(cs) {
+        var* d = digitValue(cs[i])
+        if d >= base {
+            fail("invalid number '" + word + "'")
+            return 0
+        }
+        v = v * int64(base) + int64(d)
+        digits++
+    }
+    if base == 16 && digits > 16 {
+        fail("number too large '" + word + "'")
+    }
+    if base == 2 && digits > 64 {
+        fail("number too large '" + word + "'")
+    }
+    if base == 10 && digits > 20 {
+        fail("number too large '" + word + "'")
+    }
+    return v
+}
+
+fn tokenize(line string) []Token {
+    var* out = make([]Token, 0)
+    var* cs = chars(line)
+    var* n = len(cs)
+    var* i = 0
+    for i < n {
+        var* c = cs[i]
+        if c == ' ' || c == '\t' || c == '\r' {
+            i++
+            continue
+        }
+        if c == ';' {
+            break
+        }
+        if c == ',' {
+            out = append(out, Token{Kind: TComma, Text: ",", Num: 0})
+            i++
+        } else if c == '[' {
+            out = append(out, Token{Kind: TLBr, Text: "[", Num: 0})
+            i++
+        } else if c == ']' {
+            out = append(out, Token{Kind: TRBr, Text: "]", Num: 0})
+            i++
+        } else if c == '+' {
+            out = append(out, Token{Kind: TPlus, Text: "+", Num: 0})
+            i++
+        } else if c == '-' {
+            out = append(out, Token{Kind: TMinus, Text: "-", Num: 0})
+            i++
+        } else if c == '*' {
+            out = append(out, Token{Kind: TStar, Text: "*", Num: 0})
+            i++
+        } else if c == ':' {
+            out = append(out, Token{Kind: TColon, Text: ":", Num: 0})
+            i++
+        } else if isDigitChar(c) {
+            var* j = i
+            for j < n && isIdentChar(cs[j]) {
+                j++
+            }
+            var* word = ""
+            for k in i..j {
+                word = word + string(cs[k])
+            }
+            var* v = parseNumber(word)
+            if failed() {
+                return out
+            }
+            out = append(out, Token{Kind: TNum, Text: word, Num: v})
+            i = j
+        } else if isIdentStart(c) {
+            var* j = i
+            for j < n && isIdentChar(cs[j]) {
+                j++
+            }
+            var* word = ""
+            for k in i..j {
+                word = word + string(cs[k])
+            }
+            out = append(out, Token{Kind: TIdent, Text: word, Num: 0})
+            i = j
+        } else {
+            fail("syntax error: unexpected character '" + string(c) + "'")
+            return out
+        }
+    }
+    out = append(out, Token{Kind: TEnd, Text: "", Num: 0})
+    return out
+}

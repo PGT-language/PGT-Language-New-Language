@@ -1,0 +1,279 @@
+package asm
+
+const (
+    OpNone = 0
+    OpReg = 1
+    OpImm = 2
+    OpMem = 3
+    OpLabel = 4
+)
+
+struct Operand {
+    Kind int
+    Reg int
+    Size int
+    High bool
+    Imm int64
+    Base int
+    Index int
+    Scale int
+    Disp int64
+    Rip bool
+    Sym string
+}
+
+fn newOperand(kind int) Operand {
+    return Operand{Kind: kind, Reg: -1, Size: 0, High: false, Imm: 0, Base: -1, Index: -1, Scale: 1, Disp: 0, Rip: false, Sym: ""}
+}
+
+fn isReg(o Operand) bool {
+    return o.Kind == OpReg
+}
+
+fn isMem(o Operand) bool {
+    return o.Kind == OpMem
+}
+
+fn isImm(o Operand) bool {
+    return o.Kind == OpImm
+}
+
+fn isRM(o Operand) bool {
+    return o.Kind == OpReg || o.Kind == OpMem
+}
+
+fn needsRex8(o Operand) bool {
+    return o.Kind == OpReg && o.Size == 8 && !o.High && o.Reg >= 4 && o.Reg < 8
+}
+
+fn isHigh8(o Operand) bool {
+    return o.Kind == OpReg && o.High
+}
+
+fn sizeKeyword(s string) int {
+    var* l = lower(s)
+    switch l {
+        case "byte" { return 8 }
+        case "word" { return 16 }
+        case "dword" { return 32 }
+        case "qword" { return 64 }
+    }
+    return 0
+}
+
+struct Parser {
+    T []Token
+    P int
+}
+
+fn (p *Parser) Peek() Token {
+    return p.PeekAt(0)
+}
+
+fn (p *Parser) PeekAt(n int) Token {
+    var* i = p.P + n
+    if i >= len(p.T) {
+        i = len(p.T) - 1
+    }
+    return p.T[i]
+}
+
+fn parseMemory(p *Parser, size int) Operand {
+    var* o = newOperand(OpMem)
+    o.Size = size
+    p.P++
+    var* haveBase = false
+    var* expectTerm = true
+    var* sign int64 = 1
+    for {
+        var* t = p.Peek()
+        if t.Kind == TRBr {
+            if expectTerm {
+                fail("syntax error: missing operand in memory reference")
+                return o
+            }
+            p.P++
+            return o
+        }
+        if t.Kind == TEnd {
+            fail("syntax error: missing ']'")
+            return o
+        }
+        if !expectTerm {
+            if t.Kind == TPlus {
+                sign = 1
+            } else if t.Kind == TMinus {
+                sign = -1
+            } else {
+                fail("syntax error: unexpected '" + t.Text + "' in memory reference")
+                return o
+            }
+            p.P++
+            expectTerm = true
+            continue
+        }
+        if t.Kind == TIdent {
+            var* low = lower(t.Text)
+            var* ri = regLookup(low)
+            if low == "rip" {
+                if sign < 0 {
+                    fail("syntax error: cannot subtract rip")
+                    return o
+                }
+                o.Rip = true
+                p.P++
+            } else if ri.Ok {
+                if ri.Size != 64 || ri.High {
+                    fail("invalid address register '" + t.Text + "'")
+                    return o
+                }
+                p.P++
+                if p.Peek().Kind == TStar {
+                    p.P++
+                    var* sc = p.Peek()
+                    if sc.Kind != TNum {
+                        fail("syntax error: expected scale after '*'")
+                        return o
+                    }
+                    p.P++
+                    if sign < 0 {
+                        fail("syntax error: cannot subtract an index register")
+                        return o
+                    }
+                    if o.Index >= 0 {
+                        fail("invalid memory operand: two index registers")
+                        return o
+                    }
+                    if sc.Num != 1 && sc.Num != 2 && sc.Num != 4 && sc.Num != 8 {
+                        fail("invalid scale " + sc.Num)
+                        return o
+                    }
+                    o.Index = ri.Num
+                    o.Scale = int(sc.Num)
+                } else {
+                    if sign < 0 {
+                        fail("syntax error: cannot subtract a register")
+                        return o
+                    }
+                    if !haveBase {
+                        o.Base = ri.Num
+                        haveBase = true
+                    } else if o.Index < 0 {
+                        o.Index = ri.Num
+                        o.Scale = 1
+                    } else {
+                        fail("invalid memory operand: too many registers")
+                        return o
+                    }
+                }
+            } else {
+                if o.Sym != "" {
+                    fail("invalid memory operand: two labels")
+                    return o
+                }
+                if sign < 0 {
+                    fail("syntax error: cannot subtract a label")
+                    return o
+                }
+                o.Sym = t.Text
+                p.P++
+            }
+        } else if t.Kind == TNum {
+            p.P++
+            if p.Peek().Kind == TStar {
+                p.P++
+                var* rt = p.Peek()
+                var* rr = regLookup(rt.Text)
+                if rt.Kind != TIdent || !rr.Ok || rr.Size != 64 || rr.High {
+                    fail("syntax error: expected a 64-bit register after '*'")
+                    return o
+                }
+                p.P++
+                if sign < 0 || o.Index >= 0 {
+                    fail("invalid memory operand")
+                    return o
+                }
+                if t.Num != 1 && t.Num != 2 && t.Num != 4 && t.Num != 8 {
+                    fail("invalid scale " + t.Num)
+                    return o
+                }
+                o.Index = rr.Num
+                o.Scale = int(t.Num)
+            } else {
+                o.Disp += sign * t.Num
+            }
+        } else if t.Kind == TMinus {
+            sign = -sign
+            p.P++
+            continue
+        } else if t.Kind == TPlus {
+            p.P++
+            continue
+        } else {
+            fail("syntax error: unexpected '" + t.Text + "' in memory reference")
+            return o
+        }
+        expectTerm = false
+        sign = 1
+    }
+    return o
+}
+
+fn parseOperand(p *Parser) Operand {
+    var* t = p.Peek()
+    if t.Kind == TIdent {
+        var* sz = sizeKeyword(t.Text)
+        if sz != 0 {
+            p.P++
+            var* nx = p.Peek()
+            if nx.Kind == TIdent && lower(nx.Text) == "ptr" {
+                p.P++
+            }
+            if p.Peek().Kind != TLBr {
+                fail("syntax error: expected '[' after size specifier")
+                return newOperand(OpNone)
+            }
+            return parseMemory(p, sz)
+        }
+        var* ri = regLookup(t.Text)
+        if ri.Ok {
+            p.P++
+            var* o = newOperand(OpReg)
+            o.Reg = ri.Num
+            o.Size = ri.Size
+            o.High = ri.High
+            return o
+        }
+        if lower(t.Text) == "rip" {
+            fail("invalid use of rip")
+            return newOperand(OpNone)
+        }
+        p.P++
+        var* lo = newOperand(OpLabel)
+        lo.Sym = t.Text
+        return lo
+    }
+    if t.Kind == TLBr {
+        return parseMemory(p, 0)
+    }
+    if t.Kind == TNum || t.Kind == TMinus || t.Kind == TPlus {
+        var* sign int64 = 1
+        for p.Peek().Kind == TMinus || p.Peek().Kind == TPlus {
+            if p.Peek().Kind == TMinus {
+                sign = -sign
+            }
+            p.P++
+        }
+        var* nt = p.Peek()
+        if nt.Kind != TNum {
+            fail("syntax error: expected a number")
+            return newOperand(OpNone)
+        }
+        p.P++
+        var* io = newOperand(OpImm)
+        io.Imm = sign * nt.Num
+        return io
+    }
+    fail("syntax error: unexpected '" + t.Text + "'")
+    return newOperand(OpNone)
+}

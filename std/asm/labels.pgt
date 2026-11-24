@@ -1,0 +1,19 @@
+package asm
+
+var* labelAddr = make(map[string]int)
+
+fn resetLabels() {
+    labelAddr = make(map[string]int)
+}
+
+fn labelDefined(name string) bool {
+    return has(labelAddr, name)
+}
+
+fn labelValue(name string) int {
+    if !has(labelAddr, name) {
+        fail("undefined label '" + name + "'")
+        return 0
+    }
+    return labelAddr[name]
+}

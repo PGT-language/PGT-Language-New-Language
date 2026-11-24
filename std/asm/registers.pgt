@@ -1,0 +1,89 @@
+package asm
+
+struct RegInfo {
+    Num int
+    Size int
+    High bool
+    Ok bool
+}
+
+fn buildRegTable() map[string]int {
+    var* t = make(map[string]int)
+    var* n64 = ["rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi"]
+    var* n32 = ["eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi"]
+    var* n16 = ["ax", "cx", "dx", "bx", "sp", "bp", "si", "di"]
+    var* n8 = ["al", "cl", "dl", "bl", "spl", "bpl", "sil", "dil"]
+    var* nh = ["ah", "ch", "dh", "bh"]
+    for i in 0..8 {
+        t[n64[i]] = i | (64 << 8)
+        t[n32[i]] = i | (32 << 8)
+        t[n16[i]] = i | (16 << 8)
+        t[n8[i]] = i | (8 << 8)
+    }
+    for i in 0..4 {
+        t[nh[i]] = (i + 4) | (8 << 8) | (1 << 16)
+    }
+    for i in 8..16 {
+        var* s = "r" + i
+        t[s] = i | (64 << 8)
+        t[s + "d"] = i | (32 << 8)
+        t[s + "w"] = i | (16 << 8)
+        t[s + "b"] = i | (8 << 8)
+    }
+    return t
+}
+
+var* regTable = buildRegTable()
+
+fn regLookup(name string) RegInfo {
+    var* l = lower(name)
+    if !has(regTable, l) {
+        return RegInfo{Num: -1, Size: 0, High: false, Ok: false}
+    }
+    var* v = regTable[l]
+    return RegInfo{Num: v & 255, Size: (v >> 8) & 255, High: ((v >> 16) & 1) == 1, Ok: true}
+}
+
+fn buildCcTable() map[string]int {
+    var* t = make(map[string]int)
+    t["o"] = 0
+    t["no"] = 1
+    t["b"] = 2
+    t["c"] = 2
+    t["nae"] = 2
+    t["ae"] = 3
+    t["nb"] = 3
+    t["nc"] = 3
+    t["e"] = 4
+    t["z"] = 4
+    t["ne"] = 5
+    t["nz"] = 5
+    t["be"] = 6
+    t["na"] = 6
+    t["a"] = 7
+    t["nbe"] = 7
+    t["s"] = 8
+    t["ns"] = 9
+    t["p"] = 10
+    t["pe"] = 10
+    t["np"] = 11
+    t["po"] = 11
+    t["l"] = 12
+    t["nge"] = 12
+    t["ge"] = 13
+    t["nl"] = 13
+    t["le"] = 14
+    t["ng"] = 14
+    t["g"] = 15
+    t["nle"] = 15
+    return t
+}
+
+var* ccTable = buildCcTable()
+
+fn ccCode(s string) int {
+    if !has(ccTable, s) {
+        return -1
+    }
+    return ccTable[s]
+}

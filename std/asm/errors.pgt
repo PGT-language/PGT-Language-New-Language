@@ -1,0 +1,22 @@
+package asm
+
+var* errMsg = ""
+var* errLine = 0
+var* curLine = 0
+
+fn fail(msg string) {
+    if errMsg == "" {
+        errMsg = msg
+        errLine = curLine
+    }
+}
+
+fn failed() bool {
+    return errMsg != ""
+}
+
+fn resetErrors() {
+    errMsg = ""
+    errLine = 0
+    curLine = 0
+}

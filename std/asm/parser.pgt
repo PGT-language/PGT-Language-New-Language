@@ -1,0 +1,71 @@
+package asm
+
+struct Item {
+    Kind int
+    Mnem string
+    Ops []Operand
+    Line int
+    Code []byte
+    Addr int
+    Size int
+    Near bool
+    Name string
+}
+
+struct Prog {
+    Items []Item
+}
+
+fn (g *Prog) AddLabel(name string, line int) {
+    if has(labelAddr, name) {
+        fail("duplicate label '" + name + "'")
+        return
+    }
+    labelAddr[name] = 0
+    g.Items = append(g.Items, Item{Kind: 1, Mnem: "", Ops: make([]Operand, 0), Line: line, Code: make([]byte, 0), Addr: 0, Size: 0, Near: false, Name: name})
+}
+
+fn parseLine(g *Prog, text string, lineNo int) {
+    curLine = lineNo
+    var* toks = tokenize(text)
+    if failed() {
+        return
+    }
+    var* p = Parser{T: toks, P: 0}
+    for p.Peek().Kind == TIdent && p.PeekAt(1).Kind == TColon {
+        g.AddLabel(p.Peek().Text, lineNo)
+        if failed() {
+            return
+        }
+        p.P += 2
+    }
+    var* t = p.Peek()
+    if t.Kind == TEnd {
+        return
+    }
+    if t.Kind != TIdent {
+        fail("syntax error: expected a mnemonic, found '" + t.Text + "'")
+        return
+    }
+    p.P++
+    var* ops = make([]Operand, 0)
+    if p.Peek().Kind != TEnd {
+        for {
+            var* o = parseOperand(&p)
+            if failed() {
+                return
+            }
+            ops = append(ops, o)
+            if p.Peek().Kind == TComma {
+                p.P++
+                continue
+            }
+            break
+        }
+        if p.Peek().Kind != TEnd {
+            fail("syntax error: unexpected '" + p.Peek().Text + "'")
+            return
+        }
+    }
+    g.Items = append(g.Items, Item{Kind: 0, Mnem: lower(t.Text), Ops: ops, Line: lineNo, Code: make([]byte, 0), Addr: 0, Size: 0, Near: false, Name: ""})
+}
