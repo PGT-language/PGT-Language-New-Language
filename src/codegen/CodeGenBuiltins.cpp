@@ -175,6 +175,28 @@ namespace pgt
             TyP t = resolveType(*call.typeArg);
             return owned(Value{rt("pgt_alloc", ptr, {sizeOf(t), dropFn(t)}), types_.pointerTo(t)});
         }
+        if (name == "unsafeData")
+        {
+            arity(1);
+            Value v = genExpr(*call.args[0]);
+            if (!v.type->is(Type::Kind::Array))
+                fail("'unsafeData' needs an array, found " + v.type->name(), call.line, call.col);
+            return Value{builder_.CreateExtractValue(v.value, 0), types_.pointerTo(v.type->elem)};
+        }
+        if (name == "unsafeSlice")
+        {
+            arity(2);
+            Value p = genExpr(*call.args[0]);
+            if (!p.type->is(Type::Kind::Pointer))
+                fail("'unsafeSlice' needs a pointer, found " + p.type->name(), call.line, call.col);
+            llvm::Value *n = argOf(1, types_.int64T);
+            TyP ty = types_.arrayOf(p.type->elem);
+            llvm::Value *arr = zeroValue(ty);
+            arr = builder_.CreateInsertValue(arr, p.value, 0);
+            arr = builder_.CreateInsertValue(arr, n, 1);
+            arr = builder_.CreateInsertValue(arr, n, 2);
+            return Value{arr, ty};
+        }
         if (name == "free")
         {
             arity(1);
@@ -183,7 +205,9 @@ namespace pgt
                 if (Var *var = lookupLocal(ref->name); var && var->isManual)
                 {
                     llvm::Value *cur = builder_.CreateLoad(arrayTy_, var->addr);
-                    rt("pgt_manual_free", builder_.getVoidTy(), {builder_.CreateExtractValue(cur, 0)});
+                    llvm::Value *bytes = builder_.CreateMul(builder_.CreateExtractValue(cur, 1),
+                                                            sizeOf(var->type->elem));
+                    builder_.CreateCall(memoryFn("release").fn, {builder_.CreateExtractValue(cur, 0), bytes});
                     builder_.CreateStore(zeroValue(var->type), var->addr);
                     return voidV;
                 }

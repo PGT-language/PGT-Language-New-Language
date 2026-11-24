@@ -1,0 +1,10 @@
+// panic: grow: negative size
+package main
+
+#use "pgt/std/memory"
+
+fn main() {
+    var* b = memory.Malloc(2)
+    b = memory.Grow(b, -1)
+}
+return 0

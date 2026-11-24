@@ -316,10 +316,30 @@ println(memory.Copy(buf, head), " ", buf[0], " ", buf[2])   // 2 1 7
 free(buf)
 ```
 
+Сама выделение и освобождение для `var&` написаны на PGT в этом пакете (поверх `calloc`/`free` из libc); компилятор только разбирает синтаксис и вызывает внутренние функции пакета. Те же блоки можно получать напрямую как `[]byte`.
+
+```pgt
+var* buf = memory.Malloc(4)
+buf = memory.Grow(buf, 4)          // 8 байт, старые данные сохранены, новые нули
+println(memory.Live(), " ", memory.LiveBytes())   // 1 8
+memory.Free(buf)                   // Live() == 0
+```
+
+`Malloc`/`Realloc`/`Grow` возвращают блок, который компилятор не отслеживает: освобождайте его через `memory.Free`. После `Realloc` и `Grow` старый массив недействителен, используйте возвращённый.
+
 | Функция | Описание |
 |---|---|
-| `Copy(dst []byte, src []byte) int` | Копирует min(len(dst), len(src)) байт из src в dst, возвращает их число |
+| `Malloc(n int) []byte` | Новый блок из n нулевых байт. `n < 0` — `panic: malloc: negative size` |
+| `Free(buf []byte)` | Освобождает блок из `Malloc`/`Realloc`/`Grow`; пустой буфер игнорируется |
+| `Realloc(buf []byte, n int) []byte` | Меняет размер блока до n байт, сохраняя содержимое; новые байты нулевые. `n < 0` — `panic: realloc: negative size` |
+| `Grow(buf []byte, extra int) []byte` | `Realloc(buf, len(buf) + extra)`. `extra < 0` — `panic: grow: negative size` |
+| `Copy(dst []byte, src []byte) int` | Копирует min(len(dst), len(src)) байт из src в dst (области могут пересекаться), возвращает их число |
 | `Set(buf []byte, v byte)` | Записывает v во все байты buf |
 | `Zero(buf []byte)` | Обнуляет buf |
-| `KB(n int) int` | n килобайт в байтах |
-| `MB(n int) int` | n мегабайт в байтах |
+| `Fill(buf []byte, pattern []byte)` | Заполняет buf, циклически повторяя pattern |
+| `Compare(a []byte, b []byte) int` | Лексикографическое сравнение: -1, 0 или 1 |
+| `Equal(a []byte, b []byte) bool` | Равны ли содержимое и длина |
+| `Live() int` | Число живых ручных блоков (`var&`, `Malloc`, `Realloc`) |
+| `LiveBytes() int64` | Суммарный размер живых ручных блоков в байтах |
+| `KB(n int) int`, `MB(n int) int` | n килобайт и n мегабайт |
+| `GB(n int) int64` | n гигабайт |

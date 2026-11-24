@@ -602,7 +602,33 @@ fn main() {
 
 Тип `byte` — беззнаковое 8-битное целое (`0..255`): арифметика и сравнения беззнаковые, переполнение переходит по кругу (`byte(250) + 10 == 4`). `println` печатает его числом, а `[]byte` — как `[1 2 3]`. Преобразования: `byte(x)`, `int(b)`, `float(b)`.
 
-Пути `"pgt/std/memory"`, `"std/memory"` и `"memory"` указывают на один и тот же пакет; в коде он называется `memory`. Пакет содержит `Copy(dst, src []byte) int`, `Set(buf []byte, v byte)`, `Zero(buf []byte)`, `KB(n int) int` и `MB(n int) int`.
+Пути `"pgt/std/memory"`, `"std/memory"` и `"memory"` указывают на один и тот же пакет; в коде он называется `memory`.
+
+Выделение и освобождение для `var&` реализованы не в компиляторе, а в стандартной библиотеке: `var& := x = malloc(free[T] N)` превращается в вызов внутренней функции `memory.alloc(N, sizeof(T))`, а `free(x)` — в `memory.release(...)`. Они проверяют размер (`panic: malloc: negative size`, `panic: malloc: size overflow`), выделяют обнулённую память через `calloc` (при нехватке — `panic: out of memory`) и ведут статистику. Компилятору остаются только разбор синтаксиса, проверка импорта, размер `T` и превращение блока в `[]T`.
+
+Для такой работы в язык добавлены два низкоуровневых примитива: `unsafeData(a []T) *T` возвращает указатель на данные массива, `unsafeSlice(p *T, n int64) []T` оборачивает блок памяти в массив длиной и ёмкостью n без учёта ссылок.
+
+API пакета `memory`:
+
+| Функция | Описание |
+|---|---|
+| `Malloc(n int) []byte` | Новый обнулённый блок из n байт |
+| `Free(buf []byte)` | Освобождает блок из `Malloc`/`Realloc`/`Grow` |
+| `Realloc(buf []byte, n int) []byte` | Меняет размер блока, сохраняя данные |
+| `Grow(buf []byte, extra int) []byte` | Увеличивает блок на extra байт |
+| `Copy(dst, src []byte) int` | Копирует min(len) байт, возвращает их число |
+| `Set(buf []byte, v byte)` / `Zero(buf []byte)` | Заполняет буфер значением / нулями |
+| `Fill(buf, pattern []byte)` | Заполняет буфер повторяющимся шаблоном |
+| `Compare(a, b []byte) int` / `Equal(a, b []byte) bool` | Сравнение: -1, 0, 1 / равенство |
+| `Live() int` / `LiveBytes() int64` | Число и суммарный размер живых ручных блоков |
+| `KB(n int) int`, `MB(n int) int`, `GB(n int) int64` | Размеры в байтах |
+
+```pgt
+var& := x = malloc(free[int] 4)
+println(memory.Live(), " ", memory.LiveBytes())   // 1 16
+free(x)
+println(memory.Live())                           // 0
+```
 
 ## Встроенные функции
 

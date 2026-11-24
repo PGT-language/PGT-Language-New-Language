@@ -1,18 +1,147 @@
 package memory
 
-extern fn pgt_mem_copy(dst []byte, src []byte) int
-extern fn pgt_mem_set(buf []byte, v byte)
+extern fn calloc(count int64, size int64) *byte
+extern fn realloc(p *byte, size int64) *byte
+extern fn free(p *byte)
+extern fn memmove(dst *byte, src *byte, n int64) *byte
+extern fn memset(dst *byte, v int, n int64) *byte
+extern fn memcmp(a *byte, b *byte, n int64) int
+
+var* liveBlocks = 0
+var* liveBytes int64 = 0
+
+fn alloc(count int64, size int64) *byte {
+    if count < 0 {
+        panic("malloc: negative size")
+    }
+    if size > 0 && count > 9223372036854775807 / size {
+        panic("malloc: size overflow")
+    }
+    var* bytes = count * size
+    var* total = bytes
+    if total < 1 {
+        total = 1
+    }
+    var* p = calloc(1, total)
+    if p == nil {
+        panic("out of memory")
+    }
+    liveBlocks += 1
+    liveBytes += bytes
+    return p
+}
+
+fn release(p *byte, bytes int64) {
+    if p == nil {
+        return
+    }
+    free(p)
+    liveBlocks -= 1
+    liveBytes -= bytes
+}
+
+fn Malloc(n int) []byte {
+    return unsafeSlice(alloc(int64(n), 1), int64(n))
+}
+
+fn Free(buf []byte) {
+    release(unsafeData(buf), int64(len(buf)))
+}
+
+fn Realloc(buf []byte, n int) []byte {
+    if n < 0 {
+        panic("realloc: negative size")
+    }
+    var* old = unsafeData(buf)
+    if old == nil {
+        return Malloc(n)
+    }
+    var* total = int64(n)
+    if total < 1 {
+        total = 1
+    }
+    var* p = realloc(old, total)
+    if p == nil {
+        panic("out of memory")
+    }
+    var* out = unsafeSlice(p, int64(n))
+    for i in len(buf)..n {
+        out[i] = byte(0)
+    }
+    liveBytes += int64(n) - int64(len(buf))
+    return out
+}
+
+fn Grow(buf []byte, extra int) []byte {
+    if extra < 0 {
+        panic("grow: negative size")
+    }
+    return Realloc(buf, len(buf) + extra)
+}
 
 fn Copy(dst []byte, src []byte) int {
-    return pgt_mem_copy(dst, src)
+    var* n = len(dst)
+    if len(src) < n {
+        n = len(src)
+    }
+    if n > 0 {
+        memmove(unsafeData(dst), unsafeData(src), int64(n))
+    }
+    return n
 }
 
 fn Set(buf []byte, v byte) {
-    pgt_mem_set(buf, v)
+    if len(buf) > 0 {
+        memset(unsafeData(buf), int(v), int64(len(buf)))
+    }
 }
 
 fn Zero(buf []byte) {
-    pgt_mem_set(buf, byte(0))
+    Set(buf, byte(0))
+}
+
+fn Fill(buf []byte, pattern []byte) {
+    if len(pattern) == 0 {
+        return
+    }
+    for i in 0..len(buf) {
+        buf[i] = pattern[i % len(pattern)]
+    }
+}
+
+fn Compare(a []byte, b []byte) int {
+    var* n = len(a)
+    if len(b) < n {
+        n = len(b)
+    }
+    if n > 0 {
+        var* c = memcmp(unsafeData(a), unsafeData(b), int64(n))
+        if c < 0 {
+            return -1
+        }
+        if c > 0 {
+            return 1
+        }
+    }
+    if len(a) < len(b) {
+        return -1
+    }
+    if len(a) > len(b) {
+        return 1
+    }
+    return 0
+}
+
+fn Equal(a []byte, b []byte) bool {
+    return Compare(a, b) == 0
+}
+
+fn Live() int {
+    return liveBlocks
+}
+
+fn LiveBytes() int64 {
+    return liveBytes
 }
 
 fn KB(n int) int {
@@ -21,4 +150,8 @@ fn KB(n int) int {
 
 fn MB(n int) int {
     return n * 1024 * 1024
+}
+
+fn GB(n int) int64 {
+    return int64(n) * 1024 * 1024 * 1024
 }

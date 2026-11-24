@@ -1,0 +1,54 @@
+package main
+
+#use "pgt/std/memory"
+
+fn main() {
+    println(memory.Live(), " ", memory.LiveBytes())
+    var& := a = malloc(free[int] 10)
+    var& := b = malloc(free[byte] 6)
+    println(memory.Live(), " ", memory.LiveBytes())
+    free(a)
+    free(a)
+    println(memory.Live(), " ", memory.LiveBytes())
+    free(b)
+    println(memory.Live(), " ", memory.LiveBytes())
+
+    var* buf = memory.Malloc(4)
+    buf[0] = 10
+    buf[1] = 20
+    buf[2] = 30
+    buf[3] = 40
+    println(memory.Live(), " ", memory.LiveBytes())
+    buf = memory.Realloc(buf, 8)
+    println(buf, " ", len(buf), " ", memory.LiveBytes())
+    buf = memory.Grow(buf, 2)
+    println(buf, " ", len(buf), " ", memory.LiveBytes())
+    buf = memory.Realloc(buf, 2)
+    println(buf, " ", memory.LiveBytes())
+
+    var* other = [byte(10), byte(20)]
+    println(memory.Equal(buf, other), " ", memory.Compare(buf, other))
+    other[1] = 25
+    println(memory.Equal(buf, other), " ", memory.Compare(buf, other), " ", memory.Compare(other, buf))
+    println(memory.Compare(buf, [byte(10)]), " ", memory.Compare([byte(10)], buf))
+
+    memory.Fill(buf, [byte(1), byte(2), byte(3)])
+    println(buf)
+    memory.Set(buf, 9)
+    println(buf)
+    memory.Zero(buf)
+    println(buf)
+    println(memory.Copy(buf, [byte(5), byte(6), byte(7)]), " ", buf)
+
+    memory.Free(buf)
+    println(memory.Live(), " ", memory.LiveBytes())
+
+    var* none + {[]byte} = []
+    var* empty = memory.Realloc(none, 3)
+    println(empty, " ", memory.Live())
+    memory.Free(empty)
+
+    println(memory.KB(2), " ", memory.MB(2), " ", memory.GB(3))
+    println(memory.Live(), " ", memory.LiveBytes())
+}
+return 0

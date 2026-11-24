@@ -71,6 +71,11 @@ namespace pgt
         fail("internal error: unknown statement", stmt.line, stmt.col);
     }
 
+    const FuncInfo &CodeGen::memoryFn(const std::string &name)
+    {
+        return syms_.at("memory").functions.at(name);
+    }
+
     void CodeGen::genManualVarDecl(const VarDecl &decl)
     {
         const auto &m = static_cast<const MallocExpr &>(*decl.init);
@@ -87,8 +92,7 @@ namespace pgt
                  m.count->col);
         auto *i64 = builder_.getInt64Ty();
         llvm::Value *count = builder_.CreateIntCast(n.value, i64, !n.type->isUnsigned());
-        llvm::Value *bytes = builder_.CreateMul(count, sizeOf(elem));
-        llvm::Value *data = rt("pgt_manual_alloc", builder_.getPtrTy(), {bytes});
+        llvm::Value *data = builder_.CreateCall(memoryFn("alloc").fn, {count, sizeOf(elem)});
 
         TyP ty = types_.arrayOf(elem);
         llvm::Value *arr = zeroValue(ty);
