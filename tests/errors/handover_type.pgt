@@ -1,0 +1,11 @@
+// error: cannot hand 'a' (int) over to malloc(free[string] ...): the element type must be int
+package main
+
+#use "pgt/std/memory"
+
+fn main() {
+    var* a = 1
+    var& := a = malloc(free[string] 1)
+}
+
+return 0

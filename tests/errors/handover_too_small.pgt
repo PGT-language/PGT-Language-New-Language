@@ -1,0 +1,12 @@
+// panic: malloc: the block is too small for 'a' (int needs 4 bytes)
+package main
+
+#use "pgt/std/memory"
+
+fn main() {
+    var* a = 1
+    var& := a = malloc(free[byte] 2)
+    println(a)
+}
+
+return 0

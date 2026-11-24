@@ -1,0 +1,12 @@
+// error: 'a' is already manually managed
+package main
+
+#use "pgt/std/memory"
+
+fn main() {
+    var* a = 1
+    var& := a = malloc(free[int] 1)
+    var& := a = malloc(free[int] 1)
+}
+
+return 0

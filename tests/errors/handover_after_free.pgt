@@ -1,0 +1,13 @@
+// panic: nil pointer dereference
+package main
+
+#use "pgt/std/memory"
+
+fn main() {
+    var* a = 1
+    var& := a = malloc(free[int] 1)
+    free(a)
+    println(a)
+}
+
+return 0

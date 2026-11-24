@@ -1,0 +1,13 @@
+// error: 'var& := a' must be in the same block where 'a' is declared
+package main
+
+#use "pgt/std/memory"
+
+fn main() {
+    var* a = 1
+    if a > 0 {
+        var& := a = malloc(free[int] 1)
+    }
+}
+
+return 0

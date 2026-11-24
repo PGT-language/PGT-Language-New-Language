@@ -1,0 +1,49 @@
+package main
+
+#use "pgt/std/memory"
+
+struct Point {
+    X int
+    Name string
+}
+
+fn main() {
+    var* a = 10
+    var& := a = malloc(free[int] 1)
+    println(a)
+    a = a + 5
+    println(a, " ", memory.Live())
+    free(a)
+    println(memory.Live())
+
+    var* b = 7
+    var& := b = malloc(free[byte] 4)
+    b *= 3
+    println(b, " ", memory.LiveBytes())
+    free(b)
+
+    var* s = "hello"
+    var& := s = malloc(free[string] 1)
+    s = s + " world"
+    println(s)
+    free(s)
+
+    var* p = Point{X: 1, Name: "p"}
+    var& := p = malloc(free[Point] 1)
+    p.X = 42
+    println(p)
+    free(p)
+
+    var* nums = [1, 2, 3]
+    var& := nums = malloc(free[int] 5)
+    nums[4] = 9
+    println(nums, " ", len(nums))
+    free(nums)
+
+    var& := fresh = malloc(free[byte] 3)
+    println(fresh)
+    free(fresh)
+    println(memory.Live())
+}
+
+return 0
