@@ -823,6 +823,7 @@ fn main() {
 | `memory` | блоки памяти: `Copy`, `Set`, `Zero`, `KB`, `MB` (для `var&` и `malloc`) |
 | `rand` | случайные числа: `Int`, `IntN`, `Range`, `Float`, `Shuffle`, `Pick`, воспроизводимый `Seed` |
 | `syscall/linux` | пакет `syscall_linux`: номера системных вызовов Linux x86-64 `SYS_READ`, `SYS_WRITE`, `SYS_MMAP`, `SYS_EXIT`, ... (как в Go) |
+| `syscall/purec-os` | пакет `syscall_purec_os`: номера системных вызовов PureC OS (`SYS_WRITE`, `SYS_FORK`, `SYS_DRAW_RECT`, `SYS_FILE_OPEN`, ...) |
 
 Полный список функций — в [std/README.md](std/README.md); исходники лежат в `std/` и написаны на самом PGT.
 

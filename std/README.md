@@ -464,7 +464,9 @@ asm.Free(f)
 
 ## syscall
 
-Системные вызовы, по каталогу на каждую ОС: `std/syscall/linux` (пакет `syscall_linux`) и `std/syscall/purec-os`.
+Системные вызовы, по каталогу на каждую ОС: `std/syscall/linux` (пакет `syscall_linux`) и `std/syscall/purec-os` (пакет `syscall_purec_os`). Имя пакета — `syscall_` плюс имя каталога, где `-` заменён на `_`.
+
+`syscall_purec_os` — номера системных вызовов PureC OS из `src/kernel/syscall/syscall.h` ядра: 224 вызова и псевдонимы `SYS_OPEN`, `SYS_READ`, `SYS_CLOSE`, `SYS_UNLINK`, `SYS_RENAME`, `SYS_MKDIR`.
 
 `syscall_linux` — номера системных вызовов Linux x86-64, как в Go. Все 386 констант взяты из `asm/unistd_64.h`: имя вызова в верхнем регистре с префиксом `SYS_`.
 

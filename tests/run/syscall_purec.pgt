@@ -1,0 +1,13 @@
+package main
+
+#use (
+    "fmt"
+    "pgt/std/syscall/purec-os"
+)
+
+fn main() {
+    fmt.Println(syscall_purec_os.SYS_WRITE, " ", syscall_purec_os.SYS_FORK, " ", syscall_purec_os.SYS_EXIT, " ", syscall_purec_os.SYS_DRAW_RECT)
+    fmt.Println(syscall_purec_os.SYS_FILE_OPEN, " ", syscall_purec_os.SYS_OPEN, " ", syscall_purec_os.SYS_FILE_SEEK, " ", syscall_purec_os.SYS_MKDIR == syscall_purec_os.SYS_DIR_CREATE)
+}
+
+return 0
