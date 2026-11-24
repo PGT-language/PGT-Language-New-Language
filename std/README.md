@@ -412,3 +412,16 @@ memory.Free(buf)                   // Live() == 0
 | `NumField(a)`, `FieldName(a, i)`, `Field(a, i) any` | Поля структуры |
 | `Elem(a) any`, `IsNil(a)`, `Addr(a) int64`, `SlotIface(a, i)` | Указатели и интерфейсные слоты |
 | `SetInt`, `SetFloat`, `SetBool`, `SetChar`, `SetString` | Запись через указатель, лежащий в `any` |
+
+## maps
+
+Хеш-таблица для типа `map[K]V` (временный синтаксис, см. `syntax.md`). Написана на PGT поверх `unsafe` и `reflect`, загружается неявно, `#use "maps"` не нужен. Функции принимают адреса ключа и значения и предназначены для компилятора и `fmt`; `Keys`/`Values` без обобщённых типов не реализуемы.
+
+| Функция | Описание |
+|---|---|
+| `New(keyDesc, valDesc, dropFn *byte) *byte` | Создаёт таблицу |
+| `Get(m, k, out *byte)`, `Set(m, k, v *byte)` | Чтение (при отсутствии ключа `out` не меняется) и запись; запись в `nil` — паника |
+| `Has(m, k *byte) bool`, `Delete(m, k *byte)`, `Len(m *byte) int` | Наличие, удаление, размер |
+| `Next(m *byte, i int64) int64`, `KeyAt`, `ValAt` | Обход в порядке вставки |
+| `KeyType(m)`, `ValType(m)`, `Drop(m)` | Дескрипторы типов и освобождение |
+

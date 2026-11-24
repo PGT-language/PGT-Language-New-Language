@@ -26,7 +26,7 @@ PgtHighlighter::PgtHighlighter(QTextDocument *doc) : QSyntaxHighlighter(doc)
 {
     const QStringList keywords = {"package", "fn",     "return", "if",      "else",   "while",
                                   "for",     "in",     "break",  "continue", "struct", "interface",
-                                  "const",   "switch", "case",   "default", "extern"};
+                                  "const",   "switch", "case",   "default", "extern", "map"};
     const QStringList types = {"int", "int64", "float", "char", "byte", "string", "bool", "void", "any"};
     const QStringList constants = {"true", "false", "nil"};
     const QStringList builtins = {
@@ -36,7 +36,7 @@ PgtHighlighter::PgtHighlighter(QTextDocument *doc) : QSyntaxHighlighter(doc)
         "min",         "max",          "sqrt",       "pow",         "floor",        "ceil",
         "round",       "trunc",        "sin",        "cos",         "tan",          "log",
         "exp",         "readFile",     "writeFile",  "appendFile",  "fileExists",   "rand",
-        "srand",       "exit",         "panic"};
+        "srand",       "exit",         "panic",      "has",         "delete"};
 
     rules_.push_back({QRegularExpression("\\b[A-Z]\\w*\\b"), makeFormat(Theme::synExported)});
     rules_.push_back({QRegularExpression("\\b\\w+(?=\\s*\\()"), makeFormat(Theme::synFunction)});

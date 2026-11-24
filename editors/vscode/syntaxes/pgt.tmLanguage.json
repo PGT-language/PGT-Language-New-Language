@@ -75,7 +75,7 @@
     "keywords": {
       "patterns": [
         { "match": "var\\*|var&", "name": "storage.type.var.pgt" },
-        { "match": "\\b(fn|struct|interface|const|extern)\\b", "name": "storage.type.pgt" },
+        { "match": "\\b(fn|struct|interface|const|extern|map)\\b", "name": "storage.type.pgt" },
         {
           "match": "\\b(return|if|else|while|for|in|break|continue|switch|case|default)\\b",
           "name": "keyword.control.pgt"
@@ -103,7 +103,7 @@
     "calls": {
       "patterns": [
         {
-          "match": "\\b(panic|exit|len|append|make|new|free|str|chars|unsafeData|unsafeSlice|parseInt|parseInt64|parseFloat|substr|indexOf|upper|lower|abs|min|max|pow|rand|srand|readFile|writeFile|appendFile|fileExists)\\b(?=\\s*\\()",
+          "match": "\\b(panic|exit|has|delete|len|append|make|new|free|str|chars|unsafeData|unsafeSlice|parseInt|parseInt64|parseFloat|substr|indexOf|upper|lower|abs|min|max|pow|rand|srand|readFile|writeFile|appendFile|fileExists)\\b(?=\\s*\\()",
           "name": "support.function.builtin.pgt"
         },
         {
