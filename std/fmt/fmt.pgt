@@ -1,10 +1,10 @@
 package fmt
 
 #use (
+    "strings"
+    "reflect"
     "conv"
     "maps"
-    "reflect"
-    "strings"
 )
 
 extern fn pgt_print_str(s string)
