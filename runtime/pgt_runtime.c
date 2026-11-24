@@ -1,3 +1,4 @@
+#define _DEFAULT_SOURCE
 #define _POSIX_C_SOURCE 200809L
 #include <ctype.h>
 #include <errno.h>
@@ -6,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <time.h>
 
@@ -51,83 +53,68 @@ typedef struct
     int64_t count;
     int64_t stride;
 } Hdr;
+#if defined(__SANITIZE_ADDRESS__)
+#include <sanitizer/asan_interface.h>
+#define POISON(p, n) __asan_poison_memory_region((p), (n))
+#define UNPOISON(p, n) __asan_unpoison_memory_region((p), (n))
+#else
+#define POISON(p, n) ((void)0)
+#define UNPOISON(p, n) ((void)0)
+#endif
 
-static uintptr_t *g_tab;
-static size_t g_tabCap, g_tabCnt;
+#define SMALL_LIMIT 1024
+#define SMALL_CLASSES (SMALL_LIMIT / 16)
+#define LARGE_CLASSES 48
+#define DECOMMIT_FROM 20
+
+static uintptr_t g_base;
+static size_t g_size;
+static uintptr_t g_top;
+static uint8_t *g_bits;
+static void *g_free[SMALL_CLASSES + LARGE_CLASSES];
 static int64_t g_allocs, g_frees;
 
-static size_t hashPtr(uintptr_t p)
+static inline bool isManaged(const void *p)
 {
-    return (size_t)(((p >> 4) * 0x9E3779B97F4A7C15ull) >> 24);
+    uintptr_t off = (uintptr_t)p - g_base;
+    return off < g_size && !(off & 15) && ((g_bits[off >> 7] >> ((off >> 4) & 7)) & 1);
 }
 
-static void tabInsert(uintptr_t p)
+static void heapInit(void)
 {
-    if ((g_tabCnt + 1) * 2 > g_tabCap)
+    for (size_t size = (size_t)1 << 36; size >= ((size_t)1 << 28); size >>= 1)
     {
-        size_t ncap = g_tabCap ? g_tabCap * 2 : 1024;
-        uintptr_t *old = g_tab;
-        size_t ocap = g_tabCap;
-        g_tab = calloc(ncap, sizeof *g_tab);
-        if (!g_tab)
-            pgt_panic("out of memory");
-        g_tabCap = ncap;
-        g_tabCnt = 0;
-        for (size_t i = 0; i < ocap; ++i)
-            if (old[i])
-                tabInsert(old[i]);
-        free(old);
-    }
-    size_t mask = g_tabCap - 1, i = hashPtr(p) & mask;
-    while (g_tab[i])
-        i = (i + 1) & mask;
-    g_tab[i] = p;
-    ++g_tabCnt;
-}
-
-static bool tabHas(uintptr_t p)
-{
-    if (!g_tabCap)
-        return false;
-    size_t mask = g_tabCap - 1, i = hashPtr(p) & mask;
-    while (g_tab[i])
-    {
-        if (g_tab[i] == p)
-            return true;
-        i = (i + 1) & mask;
-    }
-    return false;
-}
-
-static void tabRemove(uintptr_t p)
-{
-    size_t mask = g_tabCap - 1, i = hashPtr(p) & mask;
-    while (g_tab[i] != p)
-    {
-        if (!g_tab[i])
-            return;
-        i = (i + 1) & mask;
-    }
-    size_t j = i;
-    for (;;)
-    {
-        g_tab[i] = 0;
-        for (;;)
+        void *r = mmap(NULL, size, PROT_READ | PROT_WRITE,
+                       MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+        if (r == MAP_FAILED)
+            continue;
+        void *b = mmap(NULL, size >> 7, PROT_READ | PROT_WRITE,
+                       MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+        if (b == MAP_FAILED)
         {
-            j = (j + 1) & mask;
-            if (!g_tab[j])
-            {
-                --g_tabCnt;
-                return;
-            }
-            size_t k = hashPtr(g_tab[j]) & mask;
-            bool stay = i <= j ? (i < k && k <= j) : (i < k || k <= j);
-            if (!stay)
-                break;
+            munmap(r, size);
+            continue;
         }
-        g_tab[i] = g_tab[j];
-        i = j;
+        g_bits = b;
+        g_base = (uintptr_t)r;
+        g_top = g_base;
+        g_size = size;
+        return;
     }
+    pgt_panic("out of memory");
+}
+
+static size_t classSize(size_t total, int *cls)
+{
+    if (total <= SMALL_LIMIT)
+    {
+        size_t c = (total + 15) / 16;
+        *cls = (int)c - 1;
+        return c * 16;
+    }
+    int k = 64 - __builtin_clzll((unsigned long long)total - 1);
+    *cls = SMALL_CLASSES + k;
+    return (size_t)1 << k;
 }
 
 static void memstatsReport(void)
@@ -137,20 +124,59 @@ static void memstatsReport(void)
 
 void *pgt_alloc_n(int64_t count, int64_t stride, void (*drop)(void *))
 {
-    if (count < 0 || stride < 0)
+    size_t bytes;
+    if (count < 0 || stride < 0 || __builtin_mul_overflow((size_t)count, (size_t)stride, &bytes) ||
+        bytes > ((size_t)1 << 40))
         pgt_panic("out of memory");
-    size_t bytes = (size_t)count * (size_t)stride;
-    Hdr *h = calloc(1, sizeof(Hdr) + (bytes ? bytes : 1));
-    if (!h)
-        pgt_panic("out of memory");
+    size_t total = sizeof(Hdr) + (bytes ? bytes : 1);
+    int cls;
+    size_t sz = classSize(total, &cls);
+    Hdr *h = g_free[cls];
+    if (h)
+    {
+        UNPOISON(h, sz);
+        g_free[cls] = *(void **)h;
+        memset(h, 0, total);
+    }
+    else
+    {
+        if (!g_size)
+            heapInit();
+        if (sz > g_size - (g_top - g_base))
+            pgt_panic("out of memory");
+        h = (Hdr *)g_top;
+        g_top += sz;
+    }
     h->rc = 1;
     h->drop = drop;
     h->count = count;
     h->stride = stride;
     void *p = h + 1;
-    tabInsert((uintptr_t)p);
+    uintptr_t off = (uintptr_t)p - g_base;
+    g_bits[off >> 7] |= (uint8_t)(1u << ((off >> 4) & 7));
     ++g_allocs;
     return p;
+}
+
+static void heapFree(Hdr *h)
+{
+    void *p = h + 1;
+    uintptr_t off = (uintptr_t)p - g_base;
+    g_bits[off >> 7] &= (uint8_t)~(1u << ((off >> 4) & 7));
+    size_t bytes = (size_t)(h->count * h->stride);
+    size_t total = sizeof(Hdr) + (bytes ? bytes : 1);
+    int cls;
+    size_t sz = classSize(total, &cls);
+    if (cls >= SMALL_CLASSES + DECOMMIT_FROM)
+    {
+        uintptr_t lo = ((uintptr_t)h + 4095) & ~(uintptr_t)4095;
+        uintptr_t hi = ((uintptr_t)h + sz) & ~(uintptr_t)4095;
+        if (hi > lo)
+            madvise((void *)lo, hi - lo, MADV_DONTNEED);
+    }
+    *(void **)h = g_free[cls];
+    g_free[cls] = h;
+    POISON(h, sz);
 }
 
 void *pgt_alloc(int64_t size, void (*drop)(void *))
@@ -160,7 +186,7 @@ void *pgt_alloc(int64_t size, void (*drop)(void *))
 
 void pgt_retain(void *p)
 {
-    if (p && tabHas((uintptr_t)p))
+    if (p && isManaged(p))
         ++((Hdr *)p - 1)->rc;
 }
 
@@ -174,8 +200,7 @@ static void destroyOne(Hdr *h)
     if (h->drop)
         for (int64_t i = 0; i < h->count; ++i)
             h->drop((char *)p + i * h->stride);
-    tabRemove((uintptr_t)p);
-    free(h);
+    heapFree(h);
     ++g_frees;
 }
 
@@ -202,7 +227,7 @@ static void destroy(Hdr *h)
 
 void pgt_release(void *p)
 {
-    if (!p || !tabHas((uintptr_t)p))
+    if (!p || !isManaged(p))
         return;
     Hdr *h = (Hdr *)p - 1;
     if (--h->rc == 0)
@@ -211,7 +236,7 @@ void pgt_release(void *p)
 
 void pgt_free(void *p)
 {
-    if (p && tabHas((uintptr_t)p))
+    if (p && isManaged(p))
         destroy((Hdr *)p - 1);
 }
 
