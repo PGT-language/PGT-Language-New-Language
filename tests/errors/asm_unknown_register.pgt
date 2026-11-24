@@ -1,10 +1,10 @@
-// panic: asm: line 1: syntax error
+// panic: asm: line 1: unknown register 'rzz'
 package main
 
 #use "asm"
 
 fn main() {
-    asm.MustAssemble("mov rax, [rbx + 1 +* 3]")
+    asm.MustAssemble("mov rax, rzz")
 }
 
 return 0

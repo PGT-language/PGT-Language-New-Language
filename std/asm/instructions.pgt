@@ -700,6 +700,15 @@ fn encodeItem(it *Item, e *Enc) {
     e.Addr = it.Addr
     var* m = it.Mnem
     var* ops = it.Ops
+    var* isBranch = m == "jmp" || m == "call" || (len(m) > 1 && substr(m, 0, 1) == "j" && ccCode(substr(m, 1, len(m) - 1)) >= 0)
+    if !isBranch {
+        for i in 0..len(ops) {
+            if ops[i].Kind == OpLabel {
+                fail("unknown register '" + ops[i].Sym + "'")
+                return
+            }
+        }
+    }
     var* idx = aluIndex(m)
     if idx >= 0 {
         encALU(e, idx, ops)
