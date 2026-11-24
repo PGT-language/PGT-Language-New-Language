@@ -425,3 +425,36 @@ memory.Free(buf)                   // Live() == 0
 | `Next(m *byte, i int64) int64`, `KeyAt`, `ValAt` | Обход в порядке вставки |
 | `KeyType(m)`, `ValType(m)`, `Drop(m)` | Дескрипторы типов и освобождение |
 
+## asm
+
+Ассемблер x86-64 в синтаксисе Intel/NASM, целиком на PGT (`std/asm`, пакет из нескольких файлов: лексер, разбор операндов, кодирование, метки, загрузка в исполняемую память). Переводит текст в машинный код.
+
+```pgt
+#use "asm"
+#use "fmt"
+
+var* code = asm.MustAssemble("mov rax, rdi\nadd rax, rsi\nret")
+fmt.Println(asm.Hex(code))
+var* f = asm.Load(code)
+fmt.Println(f.Call(40, 2))
+asm.Free(f)
+```
+
+Синтаксис: одна инструкция на строку, `;` начинает комментарий, метки `name:`, числа десятичные, `0x..`, `0b..` и отрицательные, регистры и мнемоники без учёта регистра. Память: `[base]`, `[base + index*scale + disp]`, `[rip + label]`, `[0x1000]`, размер `byte`/`word`/`dword`/`qword` (с необязательным `ptr`) перед `[`.
+
+Регистры: `rax..r15`, `eax..r15d`, `ax..r15w`, `al..dil`, `r8b..r15b`, `ah ch dh bh` (с REX недопустимы, будет ошибка).
+
+Инструкции: `mov movzx movsx movsxd lea add sub adc sbb and or xor cmp test not neg inc dec imul mul idiv div cqo cdq shl shr sar rol ror push pop xchg jmp call jcc setcc cmovcc ret nop int3 int syscall rdtsc cpuid pause hlt leave`. Условия: `e ne z nz l le g ge b be a ae s ns o no p np c nc` и синонимы (`nge`, `nle`, `na`, ...). Выбираются кратчайшие формы (imm8 или imm32, короткие формы для аккумулятора, `mov r64, imm32` через `C7`, `movabs` для 64-битных констант). Переходы по меткам используют `rel8`, если помещаются, иначе `rel32` (релаксация до неподвижной точки); `call label` всегда `rel32`.
+
+| Функция | Описание |
+|---|---|
+| `Assemble(src string) Result` | Ассемблирует текст; `Result{Code []byte, Err string, Line int}`, методы `Ok()` и `Error()` |
+| `MustAssemble(src string) []byte` | То же, при ошибке паника `asm: line N: сообщение` |
+| `Hex(code []byte) string` | Байты в виде `48 c7 c0 0a 00 00 00` |
+| `Load(code []byte) Func` | Копирует код в страницу `mmap` и ставит `PROT_READ\|PROT_EXEC` (записываемой и исполняемой одновременно она не бывает) |
+| `f.Call(args ...int64) int64` | Вызывает код как функцию System V (до 6 целочисленных аргументов, результат в `rax`) |
+| `f.Addr() int64` | Адрес кода (для косвенных вызовов из другого кода) |
+| `Free(f Func)` | `munmap` |
+
+Ошибки (неверный синтаксис, неизвестные мнемоника или регистр, неверная комбинация операндов, несовпадение размеров, число вне диапазона, неопределённая или повторная метка) возвращаются в `Result.Err` с номером строки. Вызов реализован через `unsafe.CallPtr` с маленькой ассемблерной прослойкой (`Call` собирает её этим же ассемблером), поэтому новые примитивы в компиляторе не нужны.
+

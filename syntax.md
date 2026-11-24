@@ -834,6 +834,21 @@ fn main() {
 )
 ```
 
+## Ассемблер std/asm
+
+Пакет `std/asm` (`#use "asm"`) — ассемблер x86-64 в синтаксисе Intel, написанный на PGT. Он превращает текст в машинный код: `asm.Assemble(src)` возвращает `Result{Code, Err, Line}`, `asm.MustAssemble(src)` паникует с сообщением `asm: line N: ...`, `asm.Hex(code)` печатает байты, `asm.Load(code)` кладёт код в исполняемую память (`mmap` + `mprotect`), `f.Call(a, b, ...)` вызывает его с целыми аргументами, `asm.Free(f)` освобождает память.
+
+```pgt
+#use "asm"
+#use "fmt"
+
+var* f = asm.Load(asm.MustAssemble("lea rax, [rdi + rsi*2]\nret"))
+fmt.Println(f.Call(1, 10))
+asm.Free(f)
+```
+
+Подробности синтаксиса и список инструкций — в [std/README.md](std/README.md). Блок `asm { }` внутри самого языка пока не реализован.
+
 # Компилятор
 
 ```
