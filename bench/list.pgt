@@ -1,0 +1,32 @@
+package main
+
+#use "fmt"
+
+struct Node {
+    Val int
+    Next *Node
+}
+
+fn sum(head *Node) int {
+    var* t = 0
+    var* p = head
+    for p != nil {
+        t += p.Val
+        p = p.Next
+    }
+    return t
+}
+
+fn main() {
+    var* total = 0
+    for r in 0..5 {
+        var* head *Node = nil
+        for i in 0..300000 {
+            head = &Node{Val: i, Next: head}
+        }
+        total += sum(head)
+    }
+    fmt.Println(total)
+}
+
+return 0

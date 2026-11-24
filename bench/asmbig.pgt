@@ -1,0 +1,15 @@
+package main
+
+#use "fmt"
+#use "asm"
+
+fn main() {
+    var* src = ""
+    for i in 0..3000 {
+        src = src + "mov rax, 1\nadd rax, rbx\npush rax\npop rcx\nxor rdx, rdx\n"
+    }
+    var* r = asm.Assemble(src)
+    fmt.Println(r.Ok(), " ", len(r.Code))
+}
+
+return 0

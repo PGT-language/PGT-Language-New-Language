@@ -1,0 +1,19 @@
+package main
+
+#use "fmt"
+
+fn main() {
+    var* a []int = []
+    for i in 0..3000000 {
+        a = append(a, i)
+    }
+    var* sum = 0
+    for r in 0..5 {
+        for i in 0..len(a) {
+            sum += a[i]
+        }
+    }
+    fmt.Println(sum)
+}
+
+return 0

@@ -127,6 +127,8 @@ namespace pgt
             CodeGen codegen(workspace.root->importPath);
             codegen.generate(workspace);
 
+            optimizeModule(codegen.module(), opts.optLevel);
+
             if (opts.emitIr)
             {
                 std::error_code ec;
@@ -143,7 +145,7 @@ namespace pgt
 
             if (!isMain)
             {
-                emitObjectFile(codegen.module(), output);
+                emitObjectFile(codegen.module(), output, opts.optLevel);
                 return 0;
             }
 
@@ -155,7 +157,7 @@ namespace pgt
             }
 
             std::string objPath = output + ".o";
-            emitObjectFile(codegen.module(), objPath);
+            emitObjectFile(codegen.module(), objPath, opts.optLevel);
 
             std::string cmd = "cc " + shellQuote(objPath) + " " + shellQuote(runtime->string()) +
                               " -lm -o " + shellQuote(output);
