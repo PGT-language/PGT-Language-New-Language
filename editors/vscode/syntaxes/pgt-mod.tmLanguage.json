@@ -1,0 +1,9 @@
+{
+  "scopeName": "source.pgt-mod",
+  "patterns": [
+    { "match": "//.*$", "name": "comment.line.double-slash.pgt" },
+    { "match": "\\b(module|version|dependencies)\\b", "name": "keyword.control.pgt" },
+    { "match": "\"(?:[^\"\\\\]|\\\\.)*\"", "name": "string.quoted.double.pgt" },
+    { "match": "\\b\\d+(\\.\\d+)*\\b", "name": "constant.numeric.pgt" }
+  ]
+}

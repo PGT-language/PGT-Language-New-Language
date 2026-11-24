@@ -1,0 +1,89 @@
+{
+  "name": "pgt-language",
+  "displayName": "PGT Language",
+  "description": "PGT syntax highlighting, diagnostics, completion and go to definition",
+  "version": "0.1.0",
+  "publisher": "pgt",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:pgt"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "pgt",
+        "aliases": [
+          "PGT",
+          "pgt"
+        ],
+        "extensions": [
+          ".pgt"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "pgt-mod",
+        "aliases": [
+          "PGT Module"
+        ],
+        "filenames": [
+          "pgt.mod"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "pgt",
+        "scopeName": "source.pgt",
+        "path": "./syntaxes/pgt.tmLanguage.json"
+      },
+      {
+        "language": "pgt-mod",
+        "scopeName": "source.pgt-mod",
+        "path": "./syntaxes/pgt-mod.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "PGT",
+      "properties": {
+        "pgt.compilerPath": {
+          "type": "string",
+          "default": "pgt",
+          "description": "Path to the pgt compiler executable. The language server is started as `<compilerPath> lsp`."
+        },
+        "pgt.stdPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to the PGT standard library directory (passed to the server as PGT_STD)."
+        },
+        "pgt.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace the communication between VS Code and the PGT language server."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "pgt.restartServer",
+        "title": "PGT: Restart Language Server"
+      }
+    ]
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}
