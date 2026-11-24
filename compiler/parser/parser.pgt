@@ -1,0 +1,1240 @@
+package parser
+
+#use "compiler/token"
+#use "compiler/lexer"
+#use "compiler/ast"
+#use "conv"
+
+struct Error {
+    Msg string
+    Line int
+    Col int
+}
+
+struct constTemplate {
+    valid bool
+    hasType bool
+    typePos int
+    exprPos int
+}
+
+struct Parser {
+    toks []token.Token
+    pos int
+    noStructLit bool
+    allowMalloc bool
+    iota int64
+    err Error
+    failed bool
+}
+
+fn Parse(toks []token.Token) (*ast.Program, Error) {
+    var* p = Parser{toks: toks, pos: 0, noStructLit: false, allowMalloc: false, iota: -1}
+    var* prog = p.parseProgram()
+    if p.failed {
+        return prog, p.err
+    }
+    return prog, Error{Msg: "", Line: 0, Col: 0}
+}
+
+fn (p *Parser) fail(msg string, line int, col int) {
+    if !p.failed {
+        p.failed = true
+        p.err = Error{Msg: msg, Line: line, Col: col}
+    }
+}
+
+fn (p *Parser) cur() token.Token {
+    if p.failed {
+        return p.toks[len(p.toks) - 1]
+    }
+    return p.toks[p.pos]
+}
+
+fn (p *Parser) kind() int {
+    if p.failed {
+        return token.Eof
+    }
+    return p.toks[p.pos].Kind
+}
+
+fn (p *Parser) peekTok(ahead int) token.Token {
+    var* i = p.pos + ahead
+    if i < len(p.toks) {
+        return p.toks[i]
+    }
+    return p.toks[len(p.toks) - 1]
+}
+
+fn (p *Parser) peekKind(ahead int) int {
+    return p.peekTok(ahead).Kind
+}
+
+fn (p *Parser) check(k int) bool {
+    return p.kind() == k
+}
+
+fn (p *Parser) accept(k int) bool {
+    if !p.check(k) {
+        return false
+    }
+    p.advance()
+    return true
+}
+
+fn (p *Parser) advance() token.Token {
+    var* t = p.cur()
+    if !p.failed && p.pos + 1 < len(p.toks) {
+        p.pos++
+    }
+    return t
+}
+
+fn (p *Parser) atLineStart() bool {
+    return p.pos > 0 && p.toks[p.pos - 1].Line < p.cur().Line
+}
+
+fn (p *Parser) errorHere(msg string) {
+    var* t = p.cur()
+    p.fail(msg, t.Line, t.Col)
+}
+
+fn (p *Parser) expect(k int, context string) token.Token {
+    if !p.check(k) {
+        var* sep = ""
+        if len(context) > 0 {
+            sep = " "
+        }
+        p.errorHere("expected " + token.Name(k) + sep + context + ", found " + token.Name(p.kind()))
+    }
+    return p.advance()
+}
+
+fn normalizeImportPath(path string) string {
+    var* prefixes = ["pgt/std/", "std/"]
+    for prefix in prefixes {
+        var* n = len(prefix)
+        if len(path) > n && path[0:n] == prefix {
+            return path[n:len(path)]
+        }
+    }
+    return path
+}
+
+fn isAssignOp(k int) bool {
+    switch k {
+        case token.Assign, token.PlusAssign, token.MinusAssign, token.StarAssign, token.SlashAssign, token.PercentAssign, token.PlusPlus, token.MinusMinus {
+            return true
+        }
+    }
+    return false
+}
+
+fn binOpFor(level int, k int) int {
+    switch level {
+        case 0 {
+            if k == token.OrOr { return ast.BinOr }
+        }
+        case 1 {
+            if k == token.AndAnd { return ast.BinAnd }
+        }
+        case 2 {
+            switch k {
+                case token.Eq { return ast.BinEq }
+                case token.Ne { return ast.BinNe }
+                case token.Lt { return ast.BinLt }
+                case token.Gt { return ast.BinGt }
+                case token.Le { return ast.BinLe }
+                case token.Ge { return ast.BinGe }
+            }
+        }
+        case 3 {
+            switch k {
+                case token.Plus { return ast.BinAdd }
+                case token.Minus { return ast.BinSub }
+                case token.Pipe { return ast.BinBitOr }
+                case token.Caret { return ast.BinBitXor }
+            }
+        }
+        case 4 {
+            switch k {
+                case token.Star { return ast.BinMul }
+                case token.Slash { return ast.BinDiv }
+                case token.Percent { return ast.BinMod }
+                case token.Shl { return ast.BinShl }
+                case token.Shr { return ast.BinShr }
+                case token.Amp { return ast.BinBitAnd }
+            }
+        }
+    }
+    return -1
+}
+
+fn (p *Parser) expr(kind int, at token.Token) *ast.Expr {
+    return ast.NewExpr(kind, at.Line, at.Col)
+}
+
+fn (p *Parser) stmt(kind int, at token.Token) *ast.Stmt {
+    return ast.NewStmt(kind, at.Line, at.Col)
+}
+
+fn (p *Parser) parseProgram() *ast.Program {
+    var* prog = &ast.Program{Qualifiers: map[string]bool{}}
+    p.expect(token.KwPackage, "at the start of the file")
+    prog.Package = p.expect(token.Ident, "after 'package'").Text
+
+    while p.check(token.KwUse) {
+        p.parseImports(prog)
+    }
+
+    var* more = true
+    while more {
+        switch p.kind() {
+            case token.KwFn {
+                prog.Functions = append(prog.Functions, p.parseFunction())
+            }
+            case token.KwExtern {
+                prog.Functions = append(prog.Functions, p.parseExtern())
+            }
+            case token.KwStruct {
+                prog.Structs = append(prog.Structs, p.parseStruct())
+            }
+            case token.KwInterface {
+                prog.Interfaces = append(prog.Interfaces, p.parseInterface())
+            }
+            case token.KwConst {
+                prog.Globals = p.parseConsts(prog.Globals)
+            }
+            case token.KwVar {
+                prog.Globals = append(prog.Globals, p.parseVarDecl())
+            }
+            case token.KwVarManual {
+                p.errorHere("'var&' is only allowed inside functions")
+                more = false
+            }
+            case token.KwUse {
+                p.errorHere("'#use' must come before all declarations")
+                more = false
+            }
+            default {
+                more = false
+            }
+        }
+    }
+
+    if p.check(token.KwReturn) {
+        p.advance()
+        prog.ExitCode = p.parseExpr()
+    }
+
+    if !p.check(token.Eof) {
+        if prog.ExitCode != nil {
+            p.errorHere("unexpected code after the final 'return'")
+        }
+        p.errorHere("expected a declaration ('fn', 'struct', 'interface', 'const', 'var*') or the final 'return', found " + token.Name(p.kind()))
+    }
+    if p.failed {
+        return prog
+    }
+    var* toks = p.toks
+    var* n = len(toks)
+    var* i = 0
+    while i + 1 < n {
+        var* k = toks[i].Kind
+        if k == token.KwVarManual {
+            prog.UsesMalloc = true
+        }
+        if k == token.KwAsm {
+            prog.UsesAsm = true
+        }
+        var* afterDot = i > 0 && toks[i - 1].Kind == token.Dot
+        if k == token.KwMap {
+            prog.UsesMaps = true
+        }
+        if k == token.Ident && (toks[i].Text == "has" || toks[i].Text == "delete") && toks[i + 1].Kind == token.LParen && !afterDot {
+            prog.UsesMaps = true
+        }
+        if k == token.Ident && toks[i + 1].Kind == token.Dot && !afterDot {
+            prog.Qualifiers[toks[i].Text] = true
+        }
+        i++
+    }
+    return prog
+}
+
+fn (p *Parser) parseImports(prog *ast.Program) {
+    p.advance()
+    if p.check(token.LParen) {
+        p.advance()
+        while !p.check(token.RParen) {
+            if p.check(token.Eof) {
+                p.errorHere("unexpected end of file, expected ')'")
+                break
+            }
+            p.readImport(prog)
+        }
+        p.advance()
+    } else {
+        p.readImport(prog)
+    }
+}
+
+fn (p *Parser) readImport(prog *ast.Program) {
+    var* t = p.expect(token.String, "as the package path")
+    if len(t.Text) == 0 {
+        p.fail("empty import path", t.Line, t.Col)
+        return
+    }
+    prog.Imports = append(prog.Imports, &ast.Import{Path: normalizeImportPath(t.Text), Line: t.Line, Col: t.Col})
+}
+
+fn (p *Parser) atTypeStart() bool {
+    return p.check(token.Ident) || p.check(token.LBracket) || p.check(token.Star) || p.check(token.KwMap)
+}
+
+fn (p *Parser) parseType(context string) *ast.TypeExpr {
+    var* t = p.cur()
+    if p.check(token.LBracket) {
+        p.advance()
+        p.expect(token.RBracket, "in the array type '[]T'")
+        var* arr = &ast.TypeExpr{Kind: ast.TypeArray, Line: t.Line, Col: t.Col}
+        arr.Elem = p.parseType("as the array element type")
+        return arr
+    }
+    if p.check(token.KwMap) {
+        p.advance()
+        p.expect(token.LBracket, "after 'map'")
+        var* m = &ast.TypeExpr{Kind: ast.TypeMap, Line: t.Line, Col: t.Col}
+        m.Key = p.parseType("as the map key type")
+        p.expect(token.RBracket, "after the map key type")
+        m.Elem = p.parseType("as the map value type")
+        return m
+    }
+    if p.check(token.Star) {
+        p.advance()
+        var* ptr = &ast.TypeExpr{Kind: ast.TypePointer, Line: t.Line, Col: t.Col}
+        ptr.Elem = p.parseType("after '*'")
+        return ptr
+    }
+    var* name = p.expect(token.Ident, context)
+    var* out = ast.NamedType(name.Text, name.Line, name.Col)
+    if p.check(token.Dot) && p.peekKind(1) == token.Ident {
+        p.advance()
+        out.Qualifier = out.Name
+        out.Name = p.advance().Text
+    }
+    return out
+}
+
+fn (p *Parser) parseResult() *ast.TypeExpr {
+    if !p.check(token.LParen) {
+        return p.parseType("as the result type")
+    }
+    var* c = p.cur()
+    var* tuple = &ast.TypeExpr{Kind: ast.TypeTuple, Line: c.Line, Col: c.Col}
+    p.advance()
+    while true {
+        tuple.Elems = append(tuple.Elems, p.parseType("as a result type"))
+        if !p.accept(token.Comma) {
+            break
+        }
+    }
+    p.expect(token.RParen, "after the result types")
+    if len(tuple.Elems) < 2 {
+        p.fail("a result list needs at least two types; write a single result type without parentheses", tuple.Line, tuple.Col)
+    }
+    return tuple
+}
+
+fn (p *Parser) parseParams(allowVariadic bool) []*ast.Param {
+    var* params []*ast.Param
+    p.expect(token.LParen, "before the parameters")
+    if !p.check(token.RParen) {
+        while true {
+            if p.check(token.RParen) {
+                break
+            }
+            var* c = p.cur()
+            var* param = &ast.Param{Line: c.Line, Col: c.Col}
+            param.Name = p.expect(token.Ident, "as a parameter name").Text
+            if p.check(token.Ellipsis) {
+                if !allowVariadic {
+                    p.errorHere("variadic parameters are not allowed here")
+                }
+                p.advance()
+                var* c2 = p.cur()
+                var* arr = &ast.TypeExpr{Kind: ast.TypeArray, Line: c2.Line, Col: c2.Col}
+                arr.Elem = p.parseType("as the variadic parameter type")
+                param.Type = arr
+                param.Variadic = true
+                params = append(params, param)
+                if p.check(token.Comma) {
+                    p.errorHere("a variadic parameter must be the last parameter")
+                }
+                break
+            }
+            if p.atTypeStart() {
+                param.Type = p.parseType("as a parameter type")
+            } else {
+                param.Type = ast.NamedType("int", param.Line, param.Col)
+            }
+            params = append(params, param)
+            if !p.accept(token.Comma) {
+                break
+            }
+        }
+    }
+    p.expect(token.RParen, "after the parameters")
+    return params
+}
+
+fn (p *Parser) parseFunction() *ast.Function {
+    var* c = p.cur()
+    var* fun = &ast.Function{Line: c.Line, Col: c.Col}
+    p.expect(token.KwFn, "")
+    if p.check(token.LParen) {
+        p.advance()
+        var* rc = p.cur()
+        var* recv = &ast.Receiver{Line: rc.Line, Col: rc.Col}
+        recv.Name = p.expect(token.Ident, "as the receiver name").Text
+        recv.Pointer = p.accept(token.Star)
+        recv.TypeName = p.expect(token.Ident, "as the receiver type").Text
+        p.expect(token.RParen, "after the receiver")
+        fun.Receiver = recv
+    }
+    fun.Name = p.expect(token.Ident, "as the function name").Text
+    fun.Params = p.parseParams(true)
+    if p.atTypeStart() || p.check(token.LParen) {
+        fun.Ret = p.parseResult()
+    }
+    fun.Body = p.parseBlock("before the function body")
+    if fun.Ret == nil && ast.HasValueReturn(fun.Body) {
+        fun.Ret = ast.NamedType("int", fun.Line, fun.Col)
+    }
+    return fun
+}
+
+fn (p *Parser) parseExtern() *ast.Function {
+    var* c = p.cur()
+    var* fun = &ast.Function{Line: c.Line, Col: c.Col, IsExtern: true}
+    p.advance()
+    p.expect(token.KwFn, "after 'extern'")
+    fun.Name = p.expect(token.Ident, "as the name of the external function").Text
+    fun.Params = p.parseParams(false)
+    if p.atTypeStart() || p.check(token.LParen) {
+        fun.Ret = p.parseResult()
+    }
+    return fun
+}
+
+fn (p *Parser) parseStruct() *ast.StructDecl {
+    var* c = p.cur()
+    var* decl = &ast.StructDecl{Line: c.Line, Col: c.Col}
+    p.advance()
+    decl.Name = p.expect(token.Ident, "after 'struct'").Text
+    p.expect(token.LBrace, "after the struct name")
+    while !p.check(token.RBrace) {
+        if p.check(token.Eof) {
+            p.errorHere("unexpected end of file, expected '}'")
+            break
+        }
+        var* group []*ast.Field
+        while true {
+            var* fc = p.cur()
+            var* f = &ast.Field{Line: fc.Line, Col: fc.Col}
+            f.Name = p.expect(token.Ident, "as a field name").Text
+            group = append(group, f)
+            if !p.accept(token.Comma) {
+                break
+            }
+        }
+        var* type = p.parseType("as the field type")
+        for f in group {
+            f.Type = type
+            decl.Fields = append(decl.Fields, f)
+        }
+        p.accept(token.Semi)
+    }
+    p.advance()
+    return decl
+}
+
+fn (p *Parser) parseInterface() *ast.InterfaceDecl {
+    var* c = p.cur()
+    var* decl = &ast.InterfaceDecl{Line: c.Line, Col: c.Col}
+    p.advance()
+    decl.Name = p.expect(token.Ident, "after 'interface'").Text
+    p.expect(token.LBrace, "after the interface name")
+    while !p.check(token.RBrace) {
+        if p.check(token.Eof) {
+            p.errorHere("unexpected end of file, expected '}'")
+            break
+        }
+        var* mc = p.cur()
+        var* m = &ast.MethodSig{Line: mc.Line, Col: mc.Col}
+        m.Name = p.expect(token.Ident, "as a method name").Text
+        m.Params = p.parseParams(false)
+        if p.check(token.LParen) || (p.atTypeStart() && !(p.check(token.Ident) && p.peekKind(1) == token.LParen)) {
+            m.Ret = p.parseResult()
+        }
+        decl.Methods = append(decl.Methods, m)
+        p.accept(token.Semi)
+    }
+    p.advance()
+    return decl
+}
+
+fn (p *Parser) parseConstSpec(iota int, tmpl *constTemplate) *ast.Stmt {
+    var* decl = p.stmt(ast.StmtVarDecl, p.cur())
+    decl.IsConst = true
+    var* nameTok = p.expect(token.Ident, "as the constant name")
+    decl.Name = nameTok.Text
+    var* savedIota = p.iota
+    p.iota = int64(iota)
+    var* implicit = tmpl.valid && (p.atLineStart() || p.check(token.RParen))
+    if implicit {
+        var* resume = p.pos
+        p.pos = tmpl.typePos
+        if tmpl.hasType {
+            decl.Type = p.parseType("after the constant name")
+        }
+        p.pos = tmpl.exprPos
+        decl.Init = p.parseExpr()
+        p.pos = resume
+    } else {
+        if p.atTypeStart() {
+            tmpl.hasType = true
+            tmpl.typePos = p.pos
+            decl.Type = p.parseType("after the constant name")
+        } else {
+            tmpl.hasType = false
+            tmpl.typePos = p.pos
+        }
+        p.expect(token.Assign, "after the constant name (a constant needs a value)")
+        tmpl.exprPos = p.pos
+        tmpl.valid = true
+        decl.Init = p.parseExpr()
+    }
+    p.iota = savedIota
+    return decl
+}
+
+fn (p *Parser) parseConsts(out []*ast.Stmt) []*ast.Stmt {
+    p.advance()
+    var* tmpl = constTemplate{valid: false, hasType: false, typePos: 0, exprPos: 0}
+    if p.accept(token.LParen) {
+        var* iota = 0
+        while !p.check(token.RParen) {
+            if p.check(token.Eof) {
+                p.errorHere("unexpected end of file, expected ')'")
+                break
+            }
+            out = append(out, p.parseConstSpec(iota, &tmpl))
+            iota++
+        }
+        p.advance()
+        return out
+    }
+    out = append(out, p.parseConstSpec(0, &tmpl))
+    return out
+}
+
+fn (p *Parser) parseBlock(context string) []*ast.Stmt {
+    p.expect(token.LBrace, context)
+    var* saved = p.noStructLit
+    p.noStructLit = false
+    var* body []*ast.Stmt
+    while !p.check(token.RBrace) {
+        if p.check(token.Eof) {
+            p.errorHere("unexpected end of file, expected '}'")
+            break
+        }
+        body = append(body, p.parseStatement())
+        p.accept(token.Semi)
+    }
+    p.advance()
+    p.noStructLit = saved
+    return body
+}
+
+fn (p *Parser) parseVarDecl() *ast.Stmt {
+    var* decl = p.stmt(ast.StmtVarDecl, p.cur())
+    p.advance()
+    decl.Name = p.expect(token.Ident, "after 'var*'").Text
+    if p.check(token.Plus) && p.peekKind(1) == token.LBrace {
+        p.advance()
+        p.advance()
+        decl.Type = p.parseType("inside '{ }'")
+        p.expect(token.RBrace, "after the type")
+    } else if p.atTypeStart() {
+        decl.Type = p.parseType("after the variable name")
+    }
+    if p.accept(token.Assign) {
+        decl.Init = p.parseExpr()
+    } else if decl.Type == nil {
+        p.errorHere("expected '=' or a type after the variable name")
+    }
+    return decl
+}
+
+fn (p *Parser) parseVarStmt() *ast.Stmt {
+    if p.peekKind(2) != token.Comma {
+        return p.parseVarDecl()
+    }
+    var* decl = p.stmt(ast.StmtMultiVarDecl, p.cur())
+    p.advance()
+    while true {
+        decl.Cols = append(decl.Cols, p.cur().Col)
+        decl.Names = append(decl.Names, p.expect(token.Ident, "after 'var*'").Text)
+        if !p.accept(token.Comma) {
+            break
+        }
+    }
+    p.expect(token.Assign, "after the variable names")
+    while true {
+        decl.Values = append(decl.Values, p.parseExpr())
+        if !p.accept(token.Comma) {
+            break
+        }
+    }
+    return decl
+}
+
+fn (p *Parser) parseManualVarDecl() *ast.Stmt {
+    var* decl = p.stmt(ast.StmtVarDecl, p.cur())
+    decl.IsManual = true
+    p.advance()
+    p.expect(token.ColonAssign, "after 'var&' (write: var& := name = malloc(free[T] N))")
+    decl.Name = p.expect(token.Ident, "after 'var& :='").Text
+    p.expect(token.Assign, "after the variable name (write: var& := name = malloc(free[T] N))")
+    var* initTok = p.cur()
+    var* saved = p.allowMalloc
+    p.allowMalloc = true
+    decl.Init = p.parseExpr()
+    p.allowMalloc = saved
+    if decl.Init.Kind != ast.ExprMalloc {
+        p.fail("'var&' must be initialized with malloc(free[T] N)", initTok.Line, initTok.Col)
+    }
+    return decl
+}
+
+fn (p *Parser) parseMalloc() *ast.Expr {
+    var* at = p.cur()
+    if !p.allowMalloc {
+        p.errorHere("'malloc' can only be used as the initializer of 'var&': var& := name = malloc(free[T] N)")
+        return p.expr(ast.ExprNilLit, at)
+    }
+    var* node = p.expr(ast.ExprMalloc, at)
+    p.advance()
+    p.expect(token.LParen, "after 'malloc'")
+    if !(p.check(token.Ident) && p.cur().Text == "free" && p.peekKind(1) == token.LBracket) {
+        p.errorHere("'malloc' needs a block description: malloc(free[T] N)")
+        return node
+    }
+    p.advance()
+    p.advance()
+    node.Type = p.parseType("as the element type in 'free[T]'")
+    p.expect(token.RBracket, "after the element type in 'free[T]'")
+    var* savedMalloc = p.allowMalloc
+    var* savedStruct = p.noStructLit
+    p.allowMalloc = false
+    p.noStructLit = false
+    node.Count = p.parseExpr()
+    p.allowMalloc = savedMalloc
+    p.noStructLit = savedStruct
+    p.expect(token.RParen, "after the size in 'malloc'")
+    return node
+}
+
+fn (p *Parser) parseSimpleStatement() *ast.Stmt {
+    if p.check(token.KwVar) {
+        return p.parseVarStmt()
+    }
+    if p.check(token.KwVarManual) {
+        return p.parseManualVarDecl()
+    }
+
+    var* start = p.cur()
+    var* target = p.parseExpr()
+    if p.check(token.Comma) {
+        var* multi = p.stmt(ast.StmtMultiAssign, start)
+        multi.Targets = append(multi.Targets, target)
+        while p.accept(token.Comma) {
+            multi.Targets = append(multi.Targets, p.parseExpr())
+        }
+        p.expect(token.Assign, "after the assignment targets")
+        while true {
+            multi.Values = append(multi.Values, p.parseExpr())
+            if !p.accept(token.Comma) {
+                break
+            }
+        }
+        return multi
+    }
+    if !isAssignOp(p.kind()) {
+        var* st = p.stmt(ast.StmtExpr, start)
+        if target.Kind != ast.ExprCall {
+            p.fail("expression result is unused; only calls can be statements", start.Line, start.Col)
+        }
+        st.Value = target
+        return st
+    }
+
+    var* assign = p.stmt(ast.StmtAssign, start)
+    assign.Target = target
+    var* opTok = p.advance()
+
+    switch opTok.Kind {
+        case token.Assign {
+            assign.Op = ast.AssignSet
+        }
+        case token.PlusAssign {
+            assign.Op = ast.AssignAdd
+        }
+        case token.MinusAssign {
+            assign.Op = ast.AssignSub
+        }
+        case token.StarAssign {
+            assign.Op = ast.AssignMul
+        }
+        case token.SlashAssign {
+            assign.Op = ast.AssignDiv
+        }
+        case token.PercentAssign {
+            assign.Op = ast.AssignMod
+        }
+        case token.PlusPlus {
+            assign.Op = ast.AssignAdd
+            assign.Value = p.oneLit(opTok)
+            return assign
+        }
+        case token.MinusMinus {
+            assign.Op = ast.AssignSub
+            assign.Value = p.oneLit(opTok)
+            return assign
+        }
+    }
+    assign.Value = p.parseExpr()
+    return assign
+}
+
+fn (p *Parser) oneLit(at token.Token) *ast.Expr {
+    var* lit = p.expr(ast.ExprIntLit, at)
+    lit.IntVal = 1
+    return lit
+}
+
+fn (p *Parser) parseStatement() *ast.Stmt {
+    switch p.kind() {
+        case token.KwVar {
+            return p.parseVarStmt()
+        }
+        case token.KwVarManual {
+            return p.parseManualVarDecl()
+        }
+        case token.KwConst {
+            p.errorHere("constants can only be declared at the top level of a file")
+            return p.stmt(ast.StmtBreak, p.cur())
+        }
+        case token.KwIf {
+            return p.parseIf()
+        }
+        case token.KwWhile {
+            return p.parseWhile()
+        }
+        case token.KwFor {
+            return p.parseFor()
+        }
+        case token.KwSwitch {
+            return p.parseSwitch()
+        }
+        case token.KwReturn {
+            var* retTok = p.cur()
+            var* st = p.stmt(ast.StmtReturn, retTok)
+            p.advance()
+            if !p.check(token.RBrace) && !p.check(token.Semi) && p.cur().Line == retTok.Line {
+                st.Value = p.parseExpr()
+                while p.accept(token.Comma) {
+                    st.Rest = append(st.Rest, p.parseExpr())
+                }
+            }
+            return st
+        }
+        case token.KwBreak {
+            var* st = p.stmt(ast.StmtBreak, p.cur())
+            p.advance()
+            return st
+        }
+        case token.KwAsm {
+            var* st = p.stmt(ast.StmtAsm, p.cur())
+            st.Text = p.cur().Text
+            st.Names = lexer.AsmPlaceholders(st.Text)
+            p.advance()
+            return st
+        }
+        case token.KwContinue {
+            var* st = p.stmt(ast.StmtContinue, p.cur())
+            p.advance()
+            return st
+        }
+    }
+    return p.parseSimpleStatement()
+}
+
+fn (p *Parser) parseHeaderExpr() *ast.Expr {
+    var* saved = p.noStructLit
+    p.noStructLit = true
+    var* e = p.parseExpr()
+    p.noStructLit = saved
+    return e
+}
+
+fn (p *Parser) parseIf() *ast.Stmt {
+    var* node = p.stmt(ast.StmtIf, p.cur())
+    p.advance()
+    node.Cond = p.parseHeaderExpr()
+    node.Then = p.parseBlock("after the 'if' condition")
+    if p.check(token.KwElse) {
+        p.advance()
+        node.HasElse = true
+        if p.check(token.KwIf) {
+            node.Else = append(node.Else, p.parseIf())
+        } else {
+            node.Else = p.parseBlock("after 'else'")
+        }
+    }
+    return node
+}
+
+fn (p *Parser) parseWhile() *ast.Stmt {
+    var* loop = p.stmt(ast.StmtLoop, p.cur())
+    p.advance()
+    loop.Cond = p.parseHeaderExpr()
+    loop.Body = p.parseBlock("after the 'while' condition")
+    return loop
+}
+
+fn (p *Parser) parseFor() *ast.Stmt {
+    var* forTok = p.cur()
+    p.advance()
+
+    var* oneName = p.check(token.Ident) && p.peekKind(1) == token.KwIn
+    var* twoNames = p.check(token.Ident) && p.peekKind(1) == token.Comma && p.peekKind(2) == token.Ident && p.peekKind(3) == token.KwIn
+    if oneName || twoNames {
+        var* loop = p.stmt(ast.StmtForIn, forTok)
+        if twoNames {
+            loop.Key = p.advance().Text
+            p.advance()
+        }
+        loop.Val = p.advance().Text
+        p.advance()
+        loop.Iterable = p.parseHeaderExpr()
+        if p.accept(token.DotDot) {
+            if twoNames {
+                p.fail("a range 'a..b' has only one loop variable", forTok.Line, forTok.Col)
+            }
+            loop.RangeEnd = p.parseHeaderExpr()
+        }
+        loop.Body = p.parseBlock("after the 'for' header")
+        return loop
+    }
+
+    var* loop = p.stmt(ast.StmtLoop, forTok)
+    if p.check(token.LBrace) {
+        loop.Body = p.parseBlock("")
+        return loop
+    }
+
+    var* first *ast.Stmt
+    var* saved = p.noStructLit
+    p.noStructLit = true
+    if p.check(token.Semi) {
+        first = nil
+    } else if p.check(token.KwVar) {
+        first = p.parseVarDecl()
+    } else if p.check(token.KwVarManual) {
+        first = p.parseManualVarDecl()
+    } else {
+        var* start = p.pos
+        var* e = p.parseExpr()
+        if !isAssignOp(p.kind()) && !p.check(token.Semi) {
+            loop.Cond = e
+            p.noStructLit = saved
+            loop.Body = p.parseBlock("after the 'for' condition")
+            return loop
+        }
+        if !p.failed {
+            p.pos = start
+        }
+        first = p.parseSimpleStatement()
+    }
+    p.noStructLit = saved
+
+    loop.InitStmt = first
+    p.expect(token.Semi, "after the 'for' initializer")
+    if !p.check(token.Semi) {
+        loop.Cond = p.parseHeaderExpr()
+    }
+    p.expect(token.Semi, "after the 'for' condition")
+    if !p.check(token.LBrace) {
+        p.noStructLit = true
+        loop.Post = p.parseSimpleStatement()
+        p.noStructLit = saved
+    }
+    loop.Body = p.parseBlock("after the 'for' header")
+    return loop
+}
+
+fn (p *Parser) parseSwitch() *ast.Stmt {
+    var* sw = p.stmt(ast.StmtSwitch, p.cur())
+    p.advance()
+    if !p.check(token.LBrace) {
+        if p.check(token.Ident) && p.peekKind(1) == token.Assign {
+            sw.Bind = p.cur().Text
+            p.advance()
+            p.advance()
+        }
+        sw.Tag = p.parseHeaderExpr()
+        if sw.Tag.Kind == ast.ExprTypeAssert && sw.Tag.IsTypeKeyword {
+            sw.TypeSwitch = true
+            sw.Tag = sw.Tag.Base
+        } else if len(sw.Bind) > 0 {
+            p.errorHere("'name =' in a 'switch' header needs a type switch: switch v = x.(type)")
+        }
+    }
+    p.expect(token.LBrace, "after the 'switch' value")
+    while !p.check(token.RBrace) {
+        if p.check(token.KwCase) {
+            var* cc = p.cur()
+            var* c = &ast.Case{Line: cc.Line, Col: cc.Col}
+            p.advance()
+            while true {
+                if !sw.TypeSwitch {
+                    c.Values = append(c.Values, p.parseHeaderExpr())
+                } else if p.check(token.KwNil) {
+                    var* nc = p.cur()
+                    c.Types = append(c.Types, ast.NamedType("nil", nc.Line, nc.Col))
+                    p.advance()
+                } else {
+                    c.Types = append(c.Types, p.parseType("as a type in 'case'"))
+                }
+                if !p.accept(token.Comma) {
+                    break
+                }
+            }
+            c.Body = p.parseBlock("after the 'case' values")
+            sw.Cases = append(sw.Cases, c)
+        } else if p.check(token.KwDefault) {
+            if sw.HasDefault {
+                p.errorHere("a 'switch' can have only one 'default'")
+            }
+            p.advance()
+            sw.HasDefault = true
+            sw.Default = p.parseBlock("after 'default'")
+        } else {
+            p.errorHere("expected 'case', 'default' or '}' in 'switch', found " + token.Name(p.kind()))
+            break
+        }
+    }
+    p.advance()
+    return sw
+}
+
+fn (p *Parser) parseExpr() *ast.Expr {
+    return p.parseBinary(0)
+}
+
+fn (p *Parser) parseBinary(level int) *ast.Expr {
+    if level >= 5 {
+        return p.parseUnary()
+    }
+    var* lhs = p.parseBinary(level + 1)
+    while true {
+        if p.atLineStart() {
+            return lhs
+        }
+        var* found = binOpFor(level, p.kind())
+        if found < 0 {
+            return lhs
+        }
+        var* bin = p.expr(ast.ExprBinary, p.cur())
+        p.advance()
+        bin.Op = found
+        bin.Lhs = lhs
+        bin.Rhs = p.parseBinary(level + 1)
+        lhs = bin
+    }
+    return lhs
+}
+
+fn (p *Parser) parseUnary() *ast.Expr {
+    var* op = -1
+    switch p.kind() {
+        case token.Minus { op = ast.UnNeg }
+        case token.Bang { op = ast.UnNot }
+        case token.Tilde { op = ast.UnBitNot }
+        case token.Star { op = ast.UnDeref }
+        case token.Amp { op = ast.UnAddrOf }
+    }
+    if op < 0 {
+        return p.parsePostfix()
+    }
+    var* un = p.expr(ast.ExprUnary, p.cur())
+    p.advance()
+    un.Op = op
+    un.Operand = p.parseUnary()
+    return un
+}
+
+fn (p *Parser) parsePostfix() *ast.Expr {
+    var* e = p.parsePrimary()
+    while true {
+        if p.check(token.Dot) && p.peekKind(1) == token.LParen {
+            var* ta = p.expr(ast.ExprTypeAssert, p.cur())
+            p.advance()
+            p.advance()
+            if p.check(token.Ident) && p.cur().Text == "type" && p.peekKind(1) == token.RParen {
+                ta.IsTypeKeyword = true
+                p.advance()
+            } else {
+                var* saved = p.noStructLit
+                p.noStructLit = false
+                ta.Type = p.parseType("in a type assertion")
+                p.noStructLit = saved
+            }
+            p.expect(token.RParen, "after the asserted type")
+            ta.Base = e
+            e = ta
+        } else if p.check(token.Dot) {
+            var* sel = p.expr(ast.ExprSelector, p.cur())
+            p.advance()
+            sel.Name = p.expect(token.Ident, "after '.'").Text
+            sel.Base = e
+            e = sel
+        } else if p.check(token.LBracket) && !p.atLineStart() {
+            var* open = p.cur()
+            var* saved = p.noStructLit
+            p.advance()
+            p.noStructLit = false
+            var* index *ast.Expr
+            if !p.check(token.Colon) {
+                index = p.parseExpr()
+            }
+            if p.check(token.Colon) {
+                p.advance()
+                var* slice = p.expr(ast.ExprSlice, open)
+                slice.Lo = index
+                if !p.check(token.RBracket) {
+                    slice.Hi = p.parseExpr()
+                }
+                p.expect(token.RBracket, "after the slice bounds")
+                slice.Base = e
+                e = slice
+            } else {
+                p.expect(token.RBracket, "after the index")
+                var* idx = p.expr(ast.ExprIndex, open)
+                idx.Index = index
+                idx.Base = e
+                e = idx
+            }
+            p.noStructLit = saved
+        } else if p.check(token.LParen) && !p.atLineStart() {
+            var* call = p.expr(ast.ExprCall, p.cur())
+            call.Line = e.Line
+            call.Col = e.Col
+            p.advance()
+            var* saved = p.noStructLit
+            p.noStructLit = false
+            if e.Kind == ast.ExprVarRef && (e.Name == "make" || e.Name == "new") && !p.check(token.RParen) {
+                call.TypeArg = p.parseType("as the type argument")
+                if !p.check(token.RParen) {
+                    p.expect(token.Comma, "after the type argument")
+                }
+            }
+            while !p.check(token.RParen) {
+                call.Args = append(call.Args, p.parseExpr())
+                if p.check(token.Ellipsis) {
+                    p.advance()
+                    call.Spread = true
+                    if p.check(token.Comma) {
+                        p.errorHere("'...' must be applied to the last argument")
+                    }
+                    break
+                }
+                if !p.accept(token.Comma) {
+                    break
+                }
+            }
+            p.expect(token.RParen, "after call arguments")
+            call.Callee = e
+            e = call
+            p.noStructLit = saved
+        } else {
+            return e
+        }
+    }
+    return e
+}
+
+fn (p *Parser) atStructLitBody() bool {
+    if p.noStructLit || !p.check(token.LBrace) {
+        return false
+    }
+    var* next = p.peekKind(1)
+    return next == token.RBrace || (next == token.Ident && p.peekKind(2) == token.Colon)
+}
+
+fn (p *Parser) parseStructLit(typ *ast.TypeExpr, at token.Token) *ast.Expr {
+    var* lit = p.expr(ast.ExprStructLit, at)
+    lit.Type = typ
+    p.expect(token.LBrace, "")
+    var* saved = p.noStructLit
+    p.noStructLit = false
+    while !p.check(token.RBrace) {
+        var* fc = p.cur()
+        var* f = &ast.FieldInit{Line: fc.Line, Col: fc.Col}
+        f.Name = p.expect(token.Ident, "as a field name").Text
+        p.expect(token.Colon, "after the field name")
+        f.Value = p.parseExpr()
+        lit.Fields = append(lit.Fields, f)
+        if !p.accept(token.Comma) {
+            break
+        }
+    }
+    p.expect(token.RBrace, "after the struct fields")
+    p.noStructLit = saved
+    return lit
+}
+
+fn (p *Parser) parseUint(t token.Token) uint64 {
+    var* v uint64 = 0
+    var* maxUint64 uint64 = 18446744073709551615
+    var* i = 0
+    var* n = len(t.Text)
+    while i < n {
+        var* c = t.Text[i]
+        if c < '0' || c > '9' {
+            break
+        }
+        var* d = uint64(int(c) - int('0'))
+        if v > (maxUint64 - d) / 10 {
+            p.errorHere("integer literal is too large")
+            return 0
+        }
+        v = v * 10 + d
+        i++
+    }
+    return v
+}
+
+fn (p *Parser) parsePrimary() *ast.Expr {
+    var* t = p.cur()
+
+    switch p.kind() {
+        case token.Int {
+            var* lit = p.expr(ast.ExprIntLit, t)
+            lit.IntVal = p.parseUint(t)
+            p.advance()
+            return lit
+        }
+        case token.Float {
+            var* lit = p.expr(ast.ExprFloatLit, t)
+            lit.FloatVal = conv.ParseFloat(t.Text)
+            p.advance()
+            return lit
+        }
+        case token.Char {
+            var* lit = p.expr(ast.ExprCharLit, t)
+            if len(t.Text) > 0 {
+                lit.CharVal = t.Text[0]
+                lit.Str = t.Text[0:1]
+            }
+            p.advance()
+            return lit
+        }
+        case token.KwTrue, token.KwFalse {
+            var* lit = p.expr(ast.ExprBoolLit, t)
+            lit.BoolVal = t.Kind == token.KwTrue
+            p.advance()
+            return lit
+        }
+        case token.KwNil {
+            p.advance()
+            return p.expr(ast.ExprNilLit, t)
+        }
+        case token.String {
+            var* lit = p.expr(ast.ExprStringLit, t)
+            lit.Str = t.Text
+            p.advance()
+            return lit
+        }
+        case token.Ident {
+            if t.Text == "malloc" && p.peekKind(1) == token.LParen {
+                return p.parseMalloc()
+            }
+            if t.Text == "iota" && p.iota >= 0 {
+                var* lit = p.expr(ast.ExprIntLit, t)
+                lit.IntVal = uint64(p.iota)
+                p.advance()
+                return lit
+            }
+            p.advance()
+            if p.atStructLitBody() {
+                return p.parseStructLit(ast.NamedType(t.Text, t.Line, t.Col), t)
+            }
+            if p.check(token.Dot) && p.peekKind(1) == token.Ident && !p.noStructLit && p.peekKind(2) == token.LBrace && (p.peekKind(3) == token.RBrace || (p.peekKind(3) == token.Ident && p.peekKind(4) == token.Colon)) {
+                p.advance()
+                var* typ = ast.NamedType(p.advance().Text, t.Line, t.Col)
+                typ.Qualifier = t.Text
+                return p.parseStructLit(typ, t)
+            }
+            var* ref = p.expr(ast.ExprVarRef, t)
+            ref.Name = t.Text
+            return ref
+        }
+        case token.LParen {
+            p.advance()
+            var* saved = p.noStructLit
+            p.noStructLit = false
+            var* inner = p.parseExpr()
+            p.expect(token.RParen, "to close the parenthesized expression")
+            p.noStructLit = saved
+            return inner
+        }
+        case token.KwMap {
+            var* lit = p.expr(ast.ExprMapLit, t)
+            lit.Type = p.parseType("as the map type")
+            p.expect(token.LBrace, "in the map literal")
+            var* saved = p.noStructLit
+            p.noStructLit = false
+            while !p.check(token.RBrace) {
+                lit.Keys = append(lit.Keys, p.parseExpr())
+                p.expect(token.Colon, "after the map key")
+                lit.Values = append(lit.Values, p.parseExpr())
+                if !p.accept(token.Comma) {
+                    break
+                }
+            }
+            p.expect(token.RBrace, "after the map entries")
+            p.noStructLit = saved
+            return lit
+        }
+        case token.LBracket {
+            var* lit = p.expr(ast.ExprArrayLit, t)
+            p.advance()
+            var* saved = p.noStructLit
+            p.noStructLit = false
+            while !p.check(token.RBracket) {
+                lit.Elems = append(lit.Elems, p.parseExpr())
+                if !p.accept(token.Comma) {
+                    break
+                }
+            }
+            p.expect(token.RBracket, "after the array elements")
+            p.noStructLit = saved
+            return lit
+        }
+    }
+    p.errorHere("expected an expression, found " + token.Name(p.kind()))
+    return p.expr(ast.ExprNilLit, t)
+}

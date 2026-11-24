@@ -1,0 +1,507 @@
+package dump
+
+#use "fmt"
+#use "strings"
+#use "compiler/ast"
+
+struct Node {
+    Kind string
+    Label string
+    Line int
+    Col int
+    Kids []*Node
+}
+
+fn hex2(v int) string {
+    var* digits = "0123456789abcdef"
+    return digits[v / 16:v / 16 + 1] + digits[v % 16:v % 16 + 1]
+}
+
+fn JsonString(b *strings.Builder, s string) {
+    b.Write("\"")
+    var* start = 0
+    var* i = 0
+    var* n = len(s)
+    while i < n {
+        var* c = s[i]
+        var* rep = ""
+        if c == '"' {
+            rep = "\\\""
+        } else if c == '\\' {
+            rep = "\\\\"
+        } else if c == '\n' {
+            rep = "\\n"
+        } else if c == '\r' {
+            rep = "\\r"
+        } else if c == '\t' {
+            rep = "\\t"
+        } else if int(c) < 32 && int(c) >= 0 {
+            rep = "\\u00" + hex2(int(c))
+        }
+        if len(rep) > 0 {
+            b.Write(s[start:i])
+            b.Write(rep)
+            start = i + 1
+        }
+        i++
+    }
+    b.Write(s[start:n])
+    b.Write("\"")
+}
+
+fn quote(s string, q char) string {
+    var* b strings.Builder
+    b.Write(string(q))
+    var* start = 0
+    var* i = 0
+    var* n = len(s)
+    while i < n {
+        var* c = s[i]
+        var* rep = ""
+        if c == '\n' {
+            rep = "\\n"
+        } else if c == '\t' {
+            rep = "\\t"
+        } else if c == '\r' {
+            rep = "\\r"
+        } else if c == '\\' {
+            rep = "\\\\"
+        } else if c == q {
+            rep = "\\" + string(q)
+        }
+        if len(rep) > 0 {
+            b.Write(s[start:i])
+            b.Write(rep)
+            start = i + 1
+        }
+        i++
+    }
+    b.Write(s[start:n])
+    b.Write(string(q))
+    return b.String()
+}
+
+fn newNode(kind string, label string, line int, col int) *Node {
+    return &Node{Kind: kind, Label: label, Line: line, Col: col}
+}
+
+fn typeNode(t *ast.TypeExpr) *Node {
+    return newNode("Type", t.Text(), t.Line, t.Col)
+}
+
+fn params(ps []*ast.Param) string {
+    var* s = ""
+    for i, p in ps {
+        if i > 0 {
+            s = s + ", "
+        }
+        if p.Variadic {
+            s = s + p.Name + " ..." + p.Type.Elem.Text()
+        } else {
+            s = s + p.Name + " " + p.Type.Text()
+        }
+    }
+    return s
+}
+
+fn block(b []*ast.Stmt, label string, line int, col int) *Node {
+    var* n = newNode("Block", label, line, col)
+    for s in b {
+        n.Kids = append(n.Kids, stmt(s))
+    }
+    return n
+}
+
+fn wrap(label string, e *ast.Expr) *Node {
+    var* inner = expr(e)
+    var* n = newNode("Part", label, inner.Line, inner.Col)
+    n.Kids = append(n.Kids, inner)
+    return n
+}
+
+fn expr(e *ast.Expr) *Node {
+    switch e.Kind {
+        case ast.ExprIntLit {
+            return newNode("IntLit", str(e.IntVal), e.Line, e.Col)
+        }
+        case ast.ExprFloatLit {
+            return newNode("FloatLit", fmt.Sprintf("%g", e.FloatVal), e.Line, e.Col)
+        }
+        case ast.ExprCharLit {
+            if len(e.Str) == 0 {
+                return newNode("CharLit", "'\\0'", e.Line, e.Col)
+            }
+            return newNode("CharLit", quote(e.Str, '\''), e.Line, e.Col)
+        }
+        case ast.ExprBoolLit {
+            if e.BoolVal {
+                return newNode("BoolLit", "true", e.Line, e.Col)
+            }
+            return newNode("BoolLit", "false", e.Line, e.Col)
+        }
+        case ast.ExprStringLit {
+            return newNode("StringLit", quote(e.Str, '"'), e.Line, e.Col)
+        }
+        case ast.ExprNilLit {
+            return newNode("NilLit", "nil", e.Line, e.Col)
+        }
+        case ast.ExprVarRef {
+            return newNode("Name", e.Name, e.Line, e.Col)
+        }
+        case ast.ExprUnary {
+            var* n = newNode("Unary", ast.UnOpText(e.Op), e.Line, e.Col)
+            n.Kids = append(n.Kids, expr(e.Operand))
+            return n
+        }
+        case ast.ExprBinary {
+            var* n = newNode("Binary", ast.BinOpText(e.Op), e.Line, e.Col)
+            n.Kids = append(n.Kids, expr(e.Lhs))
+            n.Kids = append(n.Kids, expr(e.Rhs))
+            return n
+        }
+        case ast.ExprCall {
+            var* n = newNode("Call", "call", e.Line, e.Col)
+            n.Kids = append(n.Kids, expr(e.Callee))
+            if e.TypeArg != nil {
+                n.Kids = append(n.Kids, typeNode(e.TypeArg))
+            }
+            for a in e.Args {
+                n.Kids = append(n.Kids, expr(a))
+            }
+            return n
+        }
+        case ast.ExprMalloc {
+            var* n = newNode("Malloc", "malloc", e.Line, e.Col)
+            n.Kids = append(n.Kids, typeNode(e.Type))
+            n.Kids = append(n.Kids, expr(e.Count))
+            return n
+        }
+        case ast.ExprSelector {
+            var* n = newNode("Selector", "." + e.Name, e.Line, e.Col)
+            n.Kids = append(n.Kids, expr(e.Base))
+            return n
+        }
+        case ast.ExprIndex {
+            var* n = newNode("Index", "[]", e.Line, e.Col)
+            n.Kids = append(n.Kids, expr(e.Base))
+            n.Kids = append(n.Kids, expr(e.Index))
+            return n
+        }
+        case ast.ExprSlice {
+            var* n = newNode("Slice", "[:]", e.Line, e.Col)
+            n.Kids = append(n.Kids, expr(e.Base))
+            if e.Lo != nil {
+                n.Kids = append(n.Kids, expr(e.Lo))
+            }
+            if e.Hi != nil {
+                n.Kids = append(n.Kids, expr(e.Hi))
+            }
+            return n
+        }
+        case ast.ExprArrayLit {
+            var* n = newNode("ArrayLit", "[" + len(e.Elems) + " elements]", e.Line, e.Col)
+            for a in e.Elems {
+                n.Kids = append(n.Kids, expr(a))
+            }
+            return n
+        }
+        case ast.ExprMapLit {
+            var* n = newNode("MapLit", e.Type.Text() + "{}", e.Line, e.Col)
+            for i, k in e.Keys {
+                n.Kids = append(n.Kids, expr(k))
+                n.Kids = append(n.Kids, expr(e.Values[i]))
+            }
+            return n
+        }
+        case ast.ExprStructLit {
+            var* n = newNode("StructLit", e.Type.Text() + "{}", e.Line, e.Col)
+            for f in e.Fields {
+                var* fi = newNode("FieldInit", f.Name + ":", f.Line, f.Col)
+                fi.Kids = append(fi.Kids, expr(f.Value))
+                n.Kids = append(n.Kids, fi)
+            }
+            return n
+        }
+        case ast.ExprTypeAssert {
+            var* label = ".(type)"
+            if !e.IsTypeKeyword {
+                label = ".(" + e.Type.Text() + ")"
+            }
+            var* n = newNode("TypeAssert", label, e.Line, e.Col)
+            n.Kids = append(n.Kids, expr(e.Base))
+            return n
+        }
+    }
+    return newNode("Unknown", "?", e.Line, e.Col)
+}
+
+fn varDecl(d *ast.Stmt) *Node {
+    var* label = "var* "
+    if d.IsConst {
+        label = "const "
+    } else if d.IsManual {
+        label = "var& "
+    }
+    label = label + d.Name
+    if d.Type != nil {
+        label = label + " " + d.Type.Text()
+    }
+    var* kind = "VarDecl"
+    if d.IsConst {
+        kind = "Const"
+    }
+    var* n = newNode(kind, label, d.Line, d.Col)
+    if d.Init != nil {
+        n.Kids = append(n.Kids, expr(d.Init))
+    }
+    return n
+}
+
+fn stmt(s *ast.Stmt) *Node {
+    switch s.Kind {
+        case ast.StmtVarDecl {
+            return varDecl(s)
+        }
+        case ast.StmtAssign {
+            var* n = newNode("Assign", ast.AssignOpText(s.Op), s.Line, s.Col)
+            n.Kids = append(n.Kids, expr(s.Target))
+            n.Kids = append(n.Kids, expr(s.Value))
+            return n
+        }
+        case ast.StmtMultiVarDecl {
+            var* names = ""
+            for i, nm in s.Names {
+                if i > 0 {
+                    names = names + ", "
+                }
+                names = names + nm
+            }
+            var* n = newNode("MultiVarDecl", "var* " + names, s.Line, s.Col)
+            for v in s.Values {
+                n.Kids = append(n.Kids, expr(v))
+            }
+            return n
+        }
+        case ast.StmtMultiAssign {
+            var* n = newNode("MultiAssign", "=", s.Line, s.Col)
+            var* t = newNode("Part", "targets", s.Line, s.Col)
+            for v in s.Targets {
+                t.Kids = append(t.Kids, expr(v))
+            }
+            n.Kids = append(n.Kids, t)
+            for v in s.Values {
+                n.Kids = append(n.Kids, expr(v))
+            }
+            return n
+        }
+        case ast.StmtExpr {
+            return expr(s.Value)
+        }
+        case ast.StmtIf {
+            var* n = newNode("If", "if", s.Line, s.Col)
+            n.Kids = append(n.Kids, wrap("condition", s.Cond))
+            n.Kids = append(n.Kids, block(s.Then, "then", s.Line, s.Col))
+            if s.HasElse {
+                n.Kids = append(n.Kids, block(s.Else, "else", s.Line, s.Col))
+            }
+            return n
+        }
+        case ast.StmtLoop {
+            var* label = "for (infinite)"
+            if s.InitStmt != nil || s.Post != nil {
+                label = "for ;;"
+            } else if s.Cond != nil {
+                label = "while"
+            }
+            var* n = newNode("Loop", label, s.Line, s.Col)
+            if s.InitStmt != nil {
+                var* part = newNode("Part", "init", s.Line, s.Col)
+                part.Kids = append(part.Kids, stmt(s.InitStmt))
+                n.Kids = append(n.Kids, part)
+            }
+            if s.Cond != nil {
+                n.Kids = append(n.Kids, wrap("condition", s.Cond))
+            }
+            if s.Post != nil {
+                var* part = newNode("Part", "post", s.Line, s.Col)
+                part.Kids = append(part.Kids, stmt(s.Post))
+                n.Kids = append(n.Kids, part)
+            }
+            n.Kids = append(n.Kids, block(s.Body, "body", s.Line, s.Col))
+            return n
+        }
+        case ast.StmtForIn {
+            var* vars = s.Val
+            if len(s.Key) > 0 {
+                vars = s.Key + ", " + s.Val
+            }
+            var* n = newNode("ForIn", "for " + vars + " in", s.Line, s.Col)
+            if s.RangeEnd != nil {
+                n.Kids = append(n.Kids, wrap("from", s.Iterable))
+                n.Kids = append(n.Kids, wrap("to", s.RangeEnd))
+            } else {
+                n.Kids = append(n.Kids, wrap("iterable", s.Iterable))
+            }
+            n.Kids = append(n.Kids, block(s.Body, "body", s.Line, s.Col))
+            return n
+        }
+        case ast.StmtSwitch {
+            var* label = "switch"
+            if s.TypeSwitch {
+                label = "switch " + s.Bind + " .(type)"
+            }
+            var* n = newNode("Switch", label, s.Line, s.Col)
+            if s.Tag != nil {
+                n.Kids = append(n.Kids, wrap("value", s.Tag))
+            }
+            for c in s.Cases {
+                var* cn = newNode("Case", "case", c.Line, c.Col)
+                for v in c.Values {
+                    cn.Kids = append(cn.Kids, expr(v))
+                }
+                for t in c.Types {
+                    cn.Kids = append(cn.Kids, typeNode(t))
+                }
+                cn.Kids = append(cn.Kids, block(c.Body, "body", c.Line, c.Col))
+                n.Kids = append(n.Kids, cn)
+            }
+            if s.HasDefault {
+                n.Kids = append(n.Kids, block(s.Default, "default", s.Line, s.Col))
+            }
+            return n
+        }
+        case ast.StmtReturn {
+            var* n = newNode("Return", "return", s.Line, s.Col)
+            if s.Value != nil {
+                n.Kids = append(n.Kids, expr(s.Value))
+            }
+            for r in s.Rest {
+                n.Kids = append(n.Kids, expr(r))
+            }
+            return n
+        }
+        case ast.StmtAsm {
+            var* n = newNode("AsmStmt", quote(s.Text, '"'), s.Line, s.Col)
+            for name in s.Names {
+                n.Kids = append(n.Kids, newNode("Placeholder", name, s.Line, s.Col))
+            }
+            return n
+        }
+        case ast.StmtBreak {
+            return newNode("Break", "break", s.Line, s.Col)
+        }
+        case ast.StmtContinue {
+            return newNode("Continue", "continue", s.Line, s.Col)
+        }
+    }
+    return newNode("Unknown", "?", s.Line, s.Col)
+}
+
+fn before(a *Node, b *Node) bool {
+    if a.Line != b.Line {
+        return a.Line < b.Line
+    }
+    return a.Col < b.Col
+}
+
+fn program(p *ast.Program) *Node {
+    var* root = newNode("Program", "package " + p.Package, 1, 1)
+    var* kids []*Node
+    for imp in p.Imports {
+        kids = append(kids, newNode("Import", "#use " + quote(imp.Path, '"'), imp.Line, imp.Col))
+    }
+    for g in p.Globals {
+        kids = append(kids, varDecl(g))
+    }
+    for s in p.Structs {
+        var* n = newNode("Struct", "struct " + s.Name, s.Line, s.Col)
+        for f in s.Fields {
+            n.Kids = append(n.Kids, newNode("Field", f.Name + " " + f.Type.Text(), f.Line, f.Col))
+        }
+        kids = append(kids, n)
+    }
+    for i in p.Interfaces {
+        var* n = newNode("Interface", "interface " + i.Name, i.Line, i.Col)
+        for m in i.Methods {
+            var* label = m.Name + "(" + params(m.Params) + ")"
+            if m.Ret != nil {
+                label = label + " " + m.Ret.Text()
+            }
+            n.Kids = append(n.Kids, newNode("Method", label, m.Line, m.Col))
+        }
+        kids = append(kids, n)
+    }
+    for f in p.Functions {
+        var* label = "fn "
+        if f.IsExtern {
+            label = "extern fn "
+        }
+        if f.Receiver != nil {
+            var* star = ""
+            if f.Receiver.Pointer {
+                star = "*"
+            }
+            label = label + "(" + f.Receiver.Name + " " + star + f.Receiver.TypeName + ") "
+        }
+        label = label + f.Name + "(" + params(f.Params) + ")"
+        if f.Ret != nil {
+            label = label + " " + f.Ret.Text()
+        }
+        var* kind = "Function"
+        if f.IsExtern {
+            kind = "Extern"
+        } else if f.Receiver != nil {
+            kind = "Method"
+        }
+        var* n = newNode(kind, label, f.Line, f.Col)
+        if !f.IsExtern {
+            for s in f.Body {
+                n.Kids = append(n.Kids, stmt(s))
+            }
+        }
+        kids = append(kids, n)
+    }
+    var* i = 1
+    while i < len(kids) {
+        var* x = kids[i]
+        var* j = i - 1
+        while j >= 0 && before(x, kids[j]) {
+            kids[j + 1] = kids[j]
+            j--
+        }
+        kids[j + 1] = x
+        i++
+    }
+    root.Kids = kids
+    if p.ExitCode != nil {
+        var* n = newNode("ExitCode", "return (exit code)", p.ExitCode.Line, p.ExitCode.Col)
+        n.Kids = append(n.Kids, expr(p.ExitCode))
+        root.Kids = append(root.Kids, n)
+    }
+    return root
+}
+
+fn printJson(n *Node, b *strings.Builder) {
+    b.Write("{\"kind\":")
+    JsonString(b, n.Kind)
+    b.Write(",\"label\":")
+    JsonString(b, n.Label)
+    b.Write(",\"line\":" + n.Line + ",\"col\":" + n.Col)
+    if len(n.Kids) > 0 {
+        b.Write(",\"children\":[")
+        for i, k in n.Kids {
+            if i > 0 {
+                b.Write(",")
+            }
+            printJson(k, b)
+        }
+        b.Write("]")
+    }
+    b.Write("}")
+}
+
+fn AstJson(p *ast.Program) string {
+    var* b strings.Builder
+    printJson(program(p), &b)
+    return b.String()
+}

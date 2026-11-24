@@ -106,6 +106,13 @@ fn (l *Lexer) lexChar() token.Token {
             case '0' { text = "" }
             case '\\' { text = "\\" }
             case '\'' { text = "'" }
+            case 'x' {
+                var* v = l.hexEscape(line, col)
+                if v < 0 {
+                    return bad
+                }
+                text = byteText(v)
+            }
             default {
                 l.fail("unknown escape sequence '\\" + l.src[l.pos - 1:l.pos] + "'", line, col)
                 return bad
@@ -159,6 +166,13 @@ fn (l *Lexer) lexString() token.Token {
             case '0' { b.Write("") }
             case '\\' { b.Write("\\") }
             case '"' { b.Write("\"") }
+            case 'x' {
+                var* v = l.hexEscape(escLine, escCol)
+                if v < 0 {
+                    return bad
+                }
+                b.Write(byteText(v))
+            }
             default {
                 l.fail("unknown escape sequence '\\" + l.src[l.pos - 1:l.pos] + "'", escLine, escCol)
                 return bad
@@ -273,4 +287,41 @@ fn AsmPlaceholders(text string) []string {
         i++
     }
     return names
+}
+
+fn hexDigit(c char) int {
+    if c >= '0' && c <= '9' {
+        return int(c) - int('0')
+    }
+    if c >= 'a' && c <= 'f' {
+        return int(c) - int('a') + 10
+    }
+    if c >= 'A' && c <= 'F' {
+        return int(c) - int('A') + 10
+    }
+    return -1
+}
+
+fn byteText(v int) string {
+    if v == 0 {
+        return ""
+    }
+    return string(char(v))
+}
+
+fn (l *Lexer) hexEscape(line int, col int) int {
+    var* value = 0
+    for i in 0..2 {
+        var* d = -1
+        if !l.atEnd() {
+            d = hexDigit(l.src[l.pos])
+        }
+        if d < 0 {
+            l.fail("invalid escape sequence '\\x': expected two hex digits", line, col)
+            return -1
+        }
+        l.advance()
+        value = value * 16 + d
+    }
+    return value
 }

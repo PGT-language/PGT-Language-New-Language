@@ -5,43 +5,8 @@ package main
 #use "strings"
 #use "compiler/token"
 #use "compiler/lexer"
-
-fn jsonString(b *strings.Builder, s string) {
-    b.Write("\"")
-    var* start = 0
-    var* i = 0
-    var* n = len(s)
-    while i < n {
-        var* c = s[i]
-        var* rep = ""
-        if c == '"' {
-            rep = "\\\""
-        } else if c == '\\' {
-            rep = "\\\\"
-        } else if c == '\n' {
-            rep = "\\n"
-        } else if c == '\r' {
-            rep = "\\r"
-        } else if c == '\t' {
-            rep = "\\t"
-        } else if int(c) < 32 && int(c) >= 0 {
-            rep = "\\u00" + hex2(int(c))
-        }
-        if len(rep) > 0 {
-            b.Write(s[start:i])
-            b.Write(rep)
-            start = i + 1
-        }
-        i++
-    }
-    b.Write(s[start:n])
-    b.Write("\"")
-}
-
-fn hex2(v int) string {
-    var* digits = "0123456789abcdef"
-    return digits[v / 16:v / 16 + 1] + digits[v % 16:v % 16 + 1]
-}
+#use "compiler/parser"
+#use "compiler/dump"
 
 fn tokensJson(toks []token.Token) string {
     var* b strings.Builder
@@ -53,9 +18,9 @@ fn tokensJson(toks []token.Token) string {
         }
         first = false
         b.Write("{\"kind\":")
-        jsonString(&b, token.KindName(t.Kind))
+        dump.JsonString(&b, token.KindName(t.Kind))
         b.Write(",\"text\":")
-        jsonString(&b, t.Text)
+        dump.JsonString(&b, t.Text)
         b.Write(",\"line\":" + t.Line + ",\"col\":" + t.Col + "}")
     }
     b.Write("]")
@@ -67,6 +32,8 @@ fn usage() {
     fmt.Println("")
     fmt.Println("commands:")
     fmt.Println("  tokens <file.pgt>   print the tokens of a file as JSON")
+    fmt.Println("  ast <file.pgt>      print the syntax tree of a file as JSON")
+    fmt.Println("  debug <file.pgt>    print tokens, syntax tree and error as one JSON document")
     fmt.Println("  help                show this message")
 }
 
@@ -83,6 +50,74 @@ fn runTokens(path string) int {
     }
     fmt.Println(tokensJson(toks))
     return 0
+}
+
+fn readSource(path string) (string, bool) {
+    if !os.Exists(path) {
+        fmt.Println(path + ": error: cannot read the file")
+        return "", false
+    }
+    return os.ReadFile(path), true
+}
+
+fn errorLine(path string, line int, col int, msg string) string {
+    return path + ":" + line + ":" + col + ": error: " + msg
+}
+
+fn runAst(path string) int {
+    var* src, ok = readSource(path)
+    if !ok {
+        return 1
+    }
+    var* toks, lerr = lexer.Tokenize(src)
+    if len(lerr.Msg) > 0 {
+        fmt.Println(errorLine(path, lerr.Line, lerr.Col, lerr.Msg))
+        return 1
+    }
+    var* prog, perr = parser.Parse(toks)
+    if len(perr.Msg) > 0 {
+        fmt.Println(errorLine(path, perr.Line, perr.Col, perr.Msg))
+        return 1
+    }
+    fmt.Println(dump.AstJson(prog))
+    return 0
+}
+
+fn errorJson(b *strings.Builder, msg string, line int, col int) {
+    b.Write(",\"error\":{\"message\":")
+    dump.JsonString(b, msg)
+    b.Write(",\"line\":" + line + ",\"col\":" + col + "}")
+}
+
+fn runDebug(path string) int {
+    var* src, ok = readSource(path)
+    if !ok {
+        return 1
+    }
+    var* b strings.Builder
+    b.Write("{\"files\":[{\"file\":")
+    dump.JsonString(&b, path)
+    b.Write(",\"tokens\":")
+    var* toks, lerr = lexer.Tokenize(src)
+    var* code = 0
+    if len(lerr.Msg) > 0 {
+        b.Write("[]")
+        errorJson(&b, lerr.Msg, lerr.Line, lerr.Col)
+        code = 1
+    } else {
+        b.Write(tokensJson(toks))
+        var* prog, perr = parser.Parse(toks)
+        if len(perr.Msg) > 0 {
+            errorJson(&b, perr.Msg, perr.Line, perr.Col)
+            code = 1
+        } else {
+            b.Write(",\"ast\":")
+            b.Write(dump.AstJson(prog))
+        }
+    }
+    b.Write("}]}")
+    fmt.Println(b.String())
+    return code
 }
 
 fn run() int {
@@ -102,6 +137,16 @@ fn run() int {
             return 1
         }
         return runTokens(args[2])
+    }
+    if cmd == "ast" || cmd == "debug" {
+        if len(args) != 3 {
+            usage()
+            return 1
+        }
+        if cmd == "ast" {
+            return runAst(args[2])
+        }
+        return runDebug(args[2])
     }
     fmt.Println("compiler: unknown command '" + cmd + "'")
     usage()
