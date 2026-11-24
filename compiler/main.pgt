@@ -1,9 +1,115 @@
 package main
 
 #use "fmt"
+#use "os"
+#use "strings"
+#use "compiler/token"
+#use "compiler/lexer"
+
+fn jsonString(b *strings.Builder, s string) {
+    b.Write("\"")
+    var* start = 0
+    var* i = 0
+    var* n = len(s)
+    while i < n {
+        var* c = s[i]
+        var* rep = ""
+        if c == '"' {
+            rep = "\\\""
+        } else if c == '\\' {
+            rep = "\\\\"
+        } else if c == '\n' {
+            rep = "\\n"
+        } else if c == '\r' {
+            rep = "\\r"
+        } else if c == '\t' {
+            rep = "\\t"
+        } else if int(c) < 32 && int(c) >= 0 {
+            rep = "\\u00" + hex2(int(c))
+        }
+        if len(rep) > 0 {
+            b.Write(s[start:i])
+            b.Write(rep)
+            start = i + 1
+        }
+        i++
+    }
+    b.Write(s[start:n])
+    b.Write("\"")
+}
+
+fn hex2(v int) string {
+    var* digits = "0123456789abcdef"
+    return digits[v / 16:v / 16 + 1] + digits[v % 16:v % 16 + 1]
+}
+
+fn tokensJson(toks []token.Token) string {
+    var* b strings.Builder
+    b.Write("[")
+    var* first = true
+    for t in toks {
+        if !first {
+            b.Write(",")
+        }
+        first = false
+        b.Write("{\"kind\":")
+        jsonString(&b, token.KindName(t.Kind))
+        b.Write(",\"text\":")
+        jsonString(&b, t.Text)
+        b.Write(",\"line\":" + t.Line + ",\"col\":" + t.Col + "}")
+    }
+    b.Write("]")
+    return b.String()
+}
+
+fn usage() {
+    fmt.Println("usage: compiler <command> [args]")
+    fmt.Println("")
+    fmt.Println("commands:")
+    fmt.Println("  tokens <file.pgt>   print the tokens of a file as JSON")
+    fmt.Println("  help                show this message")
+}
+
+fn runTokens(path string) int {
+    if !os.Exists(path) {
+        fmt.Println(path + ": error: cannot read the file")
+        return 1
+    }
+    var* src = os.ReadFile(path)
+    var* toks, err = lexer.Tokenize(src)
+    if len(err.Msg) > 0 {
+        fmt.Println(path + ":" + err.Line + ":" + err.Col + ": error: " + err.Msg)
+        return 1
+    }
+    fmt.Println(tokensJson(toks))
+    return 0
+}
+
+fn run() int {
+    var* args = os.Args()
+    if len(args) < 2 {
+        usage()
+        return 1
+    }
+    var* cmd = args[1]
+    if cmd == "help" || cmd == "--help" || cmd == "-h" {
+        usage()
+        return 0
+    }
+    if cmd == "tokens" {
+        if len(args) != 3 {
+            usage()
+            return 1
+        }
+        return runTokens(args[2])
+    }
+    fmt.Println("compiler: unknown command '" + cmd + "'")
+    usage()
+    return 1
+}
 
 fn main() {
-    fmt.Println("Hello, World!")
+    os.Exit(run())
 }
 
 return 0

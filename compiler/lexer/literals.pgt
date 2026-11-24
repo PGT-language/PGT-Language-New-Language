@@ -1,0 +1,276 @@
+package lexer
+
+#use "compiler/token"
+#use "strings"
+
+const maxUint64 uint64 = 18446744073709551615
+
+fn digitValue(c char) int {
+    if c >= '0' && c <= '9' {
+        return int(c) - int('0')
+    }
+    if c >= 'a' && c <= 'f' {
+        return int(c) - int('a') + 10
+    }
+    return int(c) - int('A') + 10
+}
+
+fn (l *Lexer) lexNumber() token.Token {
+    var* line = l.line
+    var* col = l.col
+    var* c1 = l.peek(1)
+    if l.peek(0) == '0' && (c1 == 'x' || c1 == 'X' || c1 == 'b' || c1 == 'B') {
+        var* hex = c1 == 'x' || c1 == 'X'
+        var* base = 2
+        if hex {
+            base = 16
+        }
+        l.advance()
+        l.advance()
+        var* v uint64 = 0
+        var* overflow = false
+        var* count = 0
+        while true {
+            var* c = l.peek(0)
+            var* ok = false
+            if hex {
+                ok = isHexDigit(c)
+            } else {
+                ok = c == '0' || c == '1'
+            }
+            if !ok {
+                break
+            }
+            l.advance()
+            count++
+            var* d = uint64(digitValue(c))
+            var* b = uint64(base)
+            if v > (maxUint64 - d) / b {
+                overflow = true
+            }
+            v = v * b + d
+        }
+        if count == 0 {
+            if hex {
+                l.fail("expected hex digits after '0x'", line, col)
+            } else {
+                l.fail("expected binary digits after '0b'", line, col)
+            }
+            return token.Token{Kind: token.Int, Text: "", Line: line, Col: col}
+        }
+        if overflow {
+            l.fail("integer literal is too large", line, col)
+            return token.Token{Kind: token.Int, Text: "", Line: line, Col: col}
+        }
+        return token.Token{Kind: token.Int, Text: str(v), Line: line, Col: col}
+    }
+    var* start = l.pos
+    while isDigit(l.peek(0)) {
+        l.advance()
+    }
+    if l.peek(0) == '.' && isDigit(l.peek(1)) {
+        l.advance()
+        while isDigit(l.peek(0)) {
+            l.advance()
+        }
+        return token.Token{Kind: token.Float, Text: l.src[start:l.pos], Line: line, Col: col}
+    }
+    return token.Token{Kind: token.Int, Text: l.src[start:l.pos], Line: line, Col: col}
+}
+
+fn (l *Lexer) lexChar() token.Token {
+    var* line = l.line
+    var* col = l.col
+    var* bad = token.Token{Kind: token.Char, Text: "", Line: line, Col: col}
+    l.advance()
+    if l.atEnd() || l.peek(0) == '\n' {
+        l.fail("unterminated char literal", line, col)
+        return bad
+    }
+    var* text = l.src[l.pos:l.pos + 1]
+    var* c = l.advance()
+    if c == '\'' {
+        l.fail("empty char literal", line, col)
+        return bad
+    }
+    if c == '\\' {
+        if l.atEnd() {
+            l.fail("unterminated char literal", line, col)
+            return bad
+        }
+        var* e = l.advance()
+        switch e {
+            case 'n' { text = "\n" }
+            case 't' { text = "\t" }
+            case 'r' { text = "\r" }
+            case '0' { text = "" }
+            case '\\' { text = "\\" }
+            case '\'' { text = "'" }
+            default {
+                l.fail("unknown escape sequence '\\" + l.src[l.pos - 1:l.pos] + "'", line, col)
+                return bad
+            }
+        }
+    } else if int(c) < 0 || int(c) >= 128 {
+        l.fail("non-ASCII char literals are not supported (char is one byte)", line, col)
+        return bad
+    }
+    if l.peek(0) != '\'' {
+        l.fail("a char literal must contain exactly one character", line, col)
+        return bad
+    }
+    l.advance()
+    return token.Token{Kind: token.Char, Text: text, Line: line, Col: col}
+}
+
+fn (l *Lexer) lexString() token.Token {
+    var* line = l.line
+    var* col = l.col
+    var* bad = token.Token{Kind: token.String, Text: "", Line: line, Col: col}
+    l.advance()
+    var* segStart = l.pos
+    var* b strings.Builder
+    var* simple = true
+    while true {
+        if l.atEnd() || l.peek(0) == '\n' {
+            l.fail("unterminated string literal", line, col)
+            return bad
+        }
+        var* c = l.advance()
+        if c == '"' {
+            break
+        }
+        if c != '\\' {
+            continue
+        }
+        if l.atEnd() {
+            l.fail("unterminated string literal", line, col)
+            return bad
+        }
+        var* escLine = l.line
+        var* escCol = l.col - 1
+        b.Write(l.src[segStart:l.pos - 1])
+        simple = false
+        var* e = l.advance()
+        switch e {
+            case 'n' { b.Write("\n") }
+            case 't' { b.Write("\t") }
+            case 'r' { b.Write("\r") }
+            case '0' { b.Write("") }
+            case '\\' { b.Write("\\") }
+            case '"' { b.Write("\"") }
+            default {
+                l.fail("unknown escape sequence '\\" + l.src[l.pos - 1:l.pos] + "'", escLine, escCol)
+                return bad
+            }
+        }
+        segStart = l.pos
+    }
+    if simple {
+        return token.Token{Kind: token.String, Text: l.src[segStart:l.pos - 1], Line: line, Col: col}
+    }
+    b.Write(l.src[segStart:l.pos - 1])
+    return token.Token{Kind: token.String, Text: b.String(), Line: line, Col: col}
+}
+
+fn (l *Lexer) lexAsmBody(line int, col int) token.Token {
+    var* start = l.pos
+    while true {
+        if l.atEnd() {
+            l.fail("unterminated asm block", line, col)
+            return token.Token{Kind: token.KwAsm, Text: "", Line: line, Col: col}
+        }
+        var* cl = l.line
+        var* cc = l.col
+        var* c = l.advance()
+        if c == '}' {
+            break
+        }
+        if c == ';' {
+            while !l.atEnd() && l.peek(0) != '\n' {
+                l.advance()
+            }
+            continue
+        }
+        if c == '{' {
+            var* p = l.pos
+            if p < len(l.src) && (isAlpha(l.src[p]) || l.src[p] == '_') {
+                while p < len(l.src) && (isAlnum(l.src[p]) || l.src[p] == '_') {
+                    p++
+                }
+                if p < len(l.src) && l.src[p] == '}' {
+                    while l.pos <= p {
+                        l.advance()
+                    }
+                    continue
+                }
+            }
+            l.fail("invalid placeholder in asm block: expected {name}", cl, cc)
+            return token.Token{Kind: token.KwAsm, Text: "", Line: line, Col: col}
+        }
+    }
+    return token.Token{Kind: token.KwAsm, Text: l.src[start:l.pos - 1], Line: line, Col: col}
+}
+
+fn (l *Lexer) lexWord() token.Token {
+    var* line = l.line
+    var* col = l.col
+    var* start = l.pos
+    while isAlnum(l.peek(0)) || l.peek(0) == '_' {
+        l.advance()
+    }
+    var* word = l.src[start:l.pos]
+    if word == "var" && l.peek(0) == '*' {
+        l.advance()
+        return token.Token{Kind: token.KwVar, Text: "var*", Line: line, Col: col}
+    }
+    if word == "var" && l.peek(0) == '&' {
+        l.advance()
+        return token.Token{Kind: token.KwVarManual, Text: "var&", Line: line, Col: col}
+    }
+    if word == "asm" {
+        var* p = l.pos
+        while p < len(l.src) && (l.src[p] == ' ' || l.src[p] == '\t') {
+            p++
+        }
+        if p < len(l.src) && l.src[p] == '{' {
+            while l.pos <= p {
+                l.advance()
+            }
+            return l.lexAsmBody(line, col)
+        }
+    }
+    if has(keywords, word) {
+        return token.Token{Kind: keywords[word], Text: word, Line: line, Col: col}
+    }
+    return token.Token{Kind: token.Ident, Text: word, Line: line, Col: col}
+}
+
+fn AsmPlaceholders(text string) []string {
+    var* names + {[]string} = []
+    var* i = 0
+    while i < len(text) {
+        if text[i] == ';' {
+            while i < len(text) && text[i] != '\n' {
+                i++
+            }
+            continue
+        }
+        if text[i] == '{' {
+            var* e = strings.IndexFrom(text, "}", i)
+            var* name = text[i + 1:e]
+            var* seen = false
+            for n in names {
+                if n == name {
+                    seen = true
+                }
+            }
+            if !seen {
+                names = append(names, name)
+            }
+            i = e
+        }
+        i++
+    }
+    return names
+}

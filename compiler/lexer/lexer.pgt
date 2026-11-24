@@ -1,0 +1,300 @@
+package lexer
+
+#use "compiler/token"
+
+struct Error {
+    Msg string
+    Line int
+    Col int
+}
+
+struct Lexer {
+    src string
+    pos int
+    line int
+    col int
+    err Error
+    failed bool
+}
+
+var* keywords = buildKeywords()
+
+fn buildKeywords() map[string]int {
+    var* m = map[string]int{}
+    m["package"] = token.KwPackage
+    m["fn"] = token.KwFn
+    m["return"] = token.KwReturn
+    m["if"] = token.KwIf
+    m["else"] = token.KwElse
+    m["while"] = token.KwWhile
+    m["for"] = token.KwFor
+    m["in"] = token.KwIn
+    m["break"] = token.KwBreak
+    m["continue"] = token.KwContinue
+    m["true"] = token.KwTrue
+    m["false"] = token.KwFalse
+    m["struct"] = token.KwStruct
+    m["interface"] = token.KwInterface
+    m["const"] = token.KwConst
+    m["switch"] = token.KwSwitch
+    m["case"] = token.KwCase
+    m["default"] = token.KwDefault
+    m["nil"] = token.KwNil
+    m["extern"] = token.KwExtern
+    m["map"] = token.KwMap
+    return m
+}
+
+fn isDigit(c char) bool {
+    return c >= '0' && c <= '9'
+}
+
+fn isAlpha(c char) bool {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
+fn isAlnum(c char) bool {
+    return isAlpha(c) || isDigit(c)
+}
+
+fn isHexDigit(c char) bool {
+    return isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+}
+
+fn (l *Lexer) atEnd() bool {
+    return l.pos >= len(l.src)
+}
+
+fn (l *Lexer) peek(ahead int) char {
+    var* i = l.pos + ahead
+    if i < len(l.src) {
+        return l.src[i]
+    }
+    return char(0)
+}
+
+fn (l *Lexer) advance() char {
+    var* c = l.src[l.pos]
+    l.pos++
+    if c == '\n' {
+        l.line++
+        l.col = 1
+    } else {
+        l.col++
+    }
+    return c
+}
+
+fn (l *Lexer) fail(msg string, line int, col int) {
+    if !l.failed {
+        l.failed = true
+        l.err = Error{Msg: msg, Line: line, Col: col}
+    }
+}
+
+fn (l *Lexer) skipTrivia() {
+    while !l.atEnd() {
+        var* c = l.peek(0)
+        if c == ' ' || c == '\t' || c == '\r' || c == '\n' {
+            l.advance()
+        } else if c == '/' && l.peek(1) == '/' {
+            while !l.atEnd() && l.peek(0) != '\n' {
+                l.advance()
+            }
+        } else if c == '/' && l.peek(1) == '*' {
+            var* line = l.line
+            var* col = l.col
+            l.advance()
+            l.advance()
+            while !(l.peek(0) == '*' && l.peek(1) == '/') {
+                if l.atEnd() {
+                    l.fail("unterminated block comment", line, col)
+                    return
+                }
+                l.advance()
+            }
+            l.advance()
+            l.advance()
+        } else {
+            return
+        }
+    }
+}
+
+fn (l *Lexer) match(next char) bool {
+    if l.peek(0) != next {
+        return false
+    }
+    l.advance()
+    return true
+}
+
+fn (l *Lexer) operator(c char) int {
+    switch c {
+        case '(' { return token.LParen }
+        case ')' { return token.RParen }
+        case '{' { return token.LBrace }
+        case '}' { return token.RBrace }
+        case ',' { return token.Comma }
+        case '[' { return token.LBracket }
+        case ']' { return token.RBracket }
+        case ':' {
+            if l.match('=') {
+                return token.ColonAssign
+            }
+            return token.Colon
+        }
+        case '^' { return token.Caret }
+        case '~' { return token.Tilde }
+        case ';' { return token.Semi }
+        case '.' {
+            if l.match('.') {
+                if l.match('.') {
+                    return token.Ellipsis
+                }
+                return token.DotDot
+            }
+            return token.Dot
+        }
+        case '=' {
+            if l.match('=') {
+                return token.Eq
+            }
+            return token.Assign
+        }
+        case '!' {
+            if l.match('=') {
+                return token.Ne
+            }
+            return token.Bang
+        }
+        case '<' {
+            if l.match('<') {
+                return token.Shl
+            }
+            if l.match('=') {
+                return token.Le
+            }
+            return token.Lt
+        }
+        case '>' {
+            if l.match('>') {
+                return token.Shr
+            }
+            if l.match('=') {
+                return token.Ge
+            }
+            return token.Gt
+        }
+        case '&' {
+            if l.match('&') {
+                return token.AndAnd
+            }
+            return token.Amp
+        }
+        case '|' {
+            if l.match('|') {
+                return token.OrOr
+            }
+            return token.Pipe
+        }
+        case '+' {
+            if l.match('+') {
+                return token.PlusPlus
+            }
+            if l.match('=') {
+                return token.PlusAssign
+            }
+            return token.Plus
+        }
+        case '-' {
+            if l.match('-') {
+                return token.MinusMinus
+            }
+            if l.match('=') {
+                return token.MinusAssign
+            }
+            return token.Minus
+        }
+        case '*' {
+            if l.match('=') {
+                return token.StarAssign
+            }
+            return token.Star
+        }
+        case '/' {
+            if l.match('=') {
+                return token.SlashAssign
+            }
+            return token.Slash
+        }
+        case '%' {
+            if l.match('=') {
+                return token.PercentAssign
+            }
+            return token.Percent
+        }
+    }
+    return -1
+}
+
+fn (l *Lexer) lexDirective() token.Token {
+    var* line = l.line
+    var* col = l.col
+    l.advance()
+    var* start = l.pos
+    while isAlpha(l.peek(0)) {
+        l.advance()
+    }
+    var* word = l.src[start:l.pos]
+    if word != "use" {
+        l.fail("unknown directive '#" + word + "'", line, col)
+    }
+    return token.Token{Kind: token.KwUse, Text: "#use", Line: line, Col: col}
+}
+
+fn (l *Lexer) lexOperator() token.Token {
+    var* line = l.line
+    var* col = l.col
+    var* start = l.pos
+    var* c = l.advance()
+    var* kind = l.operator(c)
+    if kind < 0 {
+        l.fail("unexpected character '" + l.src[start:l.pos] + "'", line, col)
+        return token.Token{Kind: token.Eof, Text: "", Line: line, Col: col}
+    }
+    return token.Token{Kind: kind, Text: l.src[start:l.pos], Line: line, Col: col}
+}
+
+fn Tokenize(src string) ([]token.Token, Error) {
+    var* l = Lexer{src: src, pos: 0, line: 1, col: 1}
+    var* out = make([]token.Token, 0, len(src) / 4 + 4)
+    while true {
+        l.skipTrivia()
+        if l.failed || l.atEnd() {
+            break
+        }
+        var* c = l.peek(0)
+        if isDigit(c) {
+            out = append(out, l.lexNumber())
+        } else if isAlpha(c) || c == '_' {
+            out = append(out, l.lexWord())
+        } else if c == '\'' {
+            out = append(out, l.lexChar())
+        } else if c == '"' {
+            out = append(out, l.lexString())
+        } else if c == '#' {
+            out = append(out, l.lexDirective())
+        } else {
+            out = append(out, l.lexOperator())
+        }
+        if l.failed {
+            break
+        }
+    }
+    if l.failed {
+        return nil, l.err
+    }
+    out = append(out, token.Token{Kind: token.Eof, Text: "", Line: l.line, Col: l.col})
+    return out, Error{Msg: "", Line: 0, Col: 0}
+}

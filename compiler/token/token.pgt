@@ -1,0 +1,239 @@
+package token
+
+const (
+    Eof = iota
+    Ident
+    Int
+    Float
+    Char
+    String
+    KwPackage
+    KwFn
+    KwVar
+    KwVarManual
+    KwMap
+    KwReturn
+    KwUse
+    KwIf
+    KwElse
+    KwWhile
+    KwFor
+    KwIn
+    KwBreak
+    KwContinue
+    KwTrue
+    KwFalse
+    KwStruct
+    KwInterface
+    KwConst
+    KwSwitch
+    KwCase
+    KwDefault
+    KwNil
+    KwExtern
+    KwAsm
+    LParen
+    RParen
+    LBrace
+    RBrace
+    LBracket
+    RBracket
+    Comma
+    Colon
+    ColonAssign
+    Semi
+    Dot
+    DotDot
+    Ellipsis
+    Assign
+    PlusAssign
+    MinusAssign
+    StarAssign
+    SlashAssign
+    PercentAssign
+    PlusPlus
+    MinusMinus
+    Plus
+    Minus
+    Star
+    Slash
+    Percent
+    Eq
+    Ne
+    Lt
+    Gt
+    Le
+    Ge
+    AndAnd
+    OrOr
+    Bang
+    Amp
+    Pipe
+    Caret
+    Tilde
+    Shl
+    Shr
+)
+
+struct Token {
+    Kind int
+    Text string
+    Line int
+    Col int
+}
+
+fn Name(kind int) string {
+    switch kind {
+        case Eof { return "end of file" }
+        case Ident { return "identifier" }
+        case Int { return "integer literal" }
+        case Float { return "floating-point literal" }
+        case Char { return "char literal" }
+        case String { return "string literal" }
+        case KwPackage { return "'package'" }
+        case KwFn { return "'fn'" }
+        case KwVar { return "'var*'" }
+        case KwVarManual { return "'var&'" }
+        case KwMap { return "'map'" }
+        case KwReturn { return "'return'" }
+        case KwUse { return "'#use'" }
+        case KwIf { return "'if'" }
+        case KwElse { return "'else'" }
+        case KwWhile { return "'while'" }
+        case KwFor { return "'for'" }
+        case KwIn { return "'in'" }
+        case KwBreak { return "'break'" }
+        case KwContinue { return "'continue'" }
+        case KwTrue { return "'true'" }
+        case KwFalse { return "'false'" }
+        case KwStruct { return "'struct'" }
+        case KwInterface { return "'interface'" }
+        case KwConst { return "'const'" }
+        case KwSwitch { return "'switch'" }
+        case KwCase { return "'case'" }
+        case KwDefault { return "'default'" }
+        case KwNil { return "'nil'" }
+        case KwExtern { return "'extern'" }
+        case KwAsm { return "'asm'" }
+        case LParen { return "'('" }
+        case RParen { return "')'" }
+        case LBrace { return "'{'" }
+        case RBrace { return "'}'" }
+        case LBracket { return "'['" }
+        case RBracket { return "']'" }
+        case Comma { return "','" }
+        case Colon { return "':'" }
+        case ColonAssign { return "':='" }
+        case Semi { return "';'" }
+        case Dot { return "'.'" }
+        case DotDot { return "'..'" }
+        case Ellipsis { return "'...'" }
+        case Assign { return "'='" }
+        case PlusAssign { return "'+='" }
+        case MinusAssign { return "'-='" }
+        case StarAssign { return "'*='" }
+        case SlashAssign { return "'/='" }
+        case PercentAssign { return "'%='" }
+        case PlusPlus { return "'++'" }
+        case MinusMinus { return "'--'" }
+        case Plus { return "'+'" }
+        case Minus { return "'-'" }
+        case Star { return "'*'" }
+        case Slash { return "'/'" }
+        case Percent { return "'%'" }
+        case Eq { return "'=='" }
+        case Ne { return "'!='" }
+        case Lt { return "'<'" }
+        case Gt { return "'>'" }
+        case Le { return "'<='" }
+        case Ge { return "'>='" }
+        case AndAnd { return "'&&'" }
+        case OrOr { return "'||'" }
+        case Bang { return "'!'" }
+        case Amp { return "'&'" }
+        case Pipe { return "'|'" }
+        case Caret { return "'^'" }
+        case Tilde { return "'~'" }
+        case Shl { return "'<<'" }
+        case Shr { return "'>>'" }
+    }
+    return "?"
+}
+
+fn KindName(kind int) string {
+    switch kind {
+        case Eof { return "Eof" }
+        case Ident { return "Ident" }
+        case Int { return "Int" }
+        case Float { return "Float" }
+        case Char { return "Char" }
+        case String { return "String" }
+        case KwPackage { return "KwPackage" }
+        case KwFn { return "KwFn" }
+        case KwVar { return "KwVar" }
+        case KwVarManual { return "KwVarManual" }
+        case KwMap { return "KwMap" }
+        case KwReturn { return "KwReturn" }
+        case KwUse { return "KwUse" }
+        case KwIf { return "KwIf" }
+        case KwElse { return "KwElse" }
+        case KwWhile { return "KwWhile" }
+        case KwFor { return "KwFor" }
+        case KwIn { return "KwIn" }
+        case KwBreak { return "KwBreak" }
+        case KwContinue { return "KwContinue" }
+        case KwTrue { return "KwTrue" }
+        case KwFalse { return "KwFalse" }
+        case KwStruct { return "KwStruct" }
+        case KwInterface { return "KwInterface" }
+        case KwConst { return "KwConst" }
+        case KwSwitch { return "KwSwitch" }
+        case KwCase { return "KwCase" }
+        case KwDefault { return "KwDefault" }
+        case KwNil { return "KwNil" }
+        case KwExtern { return "KwExtern" }
+        case KwAsm { return "KwAsm" }
+        case LParen { return "LParen" }
+        case RParen { return "RParen" }
+        case LBrace { return "LBrace" }
+        case RBrace { return "RBrace" }
+        case LBracket { return "LBracket" }
+        case RBracket { return "RBracket" }
+        case Comma { return "Comma" }
+        case Colon { return "Colon" }
+        case ColonAssign { return "ColonAssign" }
+        case Semi { return "Semi" }
+        case Dot { return "Dot" }
+        case DotDot { return "DotDot" }
+        case Ellipsis { return "Ellipsis" }
+        case Assign { return "Assign" }
+        case PlusAssign { return "PlusAssign" }
+        case MinusAssign { return "MinusAssign" }
+        case StarAssign { return "StarAssign" }
+        case SlashAssign { return "SlashAssign" }
+        case PercentAssign { return "PercentAssign" }
+        case PlusPlus { return "PlusPlus" }
+        case MinusMinus { return "MinusMinus" }
+        case Plus { return "Plus" }
+        case Minus { return "Minus" }
+        case Star { return "Star" }
+        case Slash { return "Slash" }
+        case Percent { return "Percent" }
+        case Eq { return "Eq" }
+        case Ne { return "Ne" }
+        case Lt { return "Lt" }
+        case Gt { return "Gt" }
+        case Le { return "Le" }
+        case Ge { return "Ge" }
+        case AndAnd { return "AndAnd" }
+        case OrOr { return "OrOr" }
+        case Bang { return "Bang" }
+        case Amp { return "Amp" }
+        case Pipe { return "Pipe" }
+        case Caret { return "Caret" }
+        case Tilde { return "Tilde" }
+        case Shl { return "Shl" }
+        case Shr { return "Shr" }
+    }
+    return "?"
+}
