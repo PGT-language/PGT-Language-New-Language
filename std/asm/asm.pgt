@@ -1,0 +1,108 @@
+package asm
+
+#use "strings"
+
+struct Result {
+    Code []byte
+    Err string
+    Line int
+}
+
+fn (r Result) Ok() bool {
+    return r.Err == ""
+}
+
+fn (r Result) Error() string {
+    return "asm: line " + r.Line + ": " + r.Err
+}
+
+fn layout(g *Prog) {
+    var* e = Enc{B: make([]byte, 0), Addr: 0}
+    var* count = len(g.Items)
+    for round in 0..10000 {
+        var* pos = 0
+        for i in 0..count {
+            var* it = &g.Items[i]
+            it.Addr = pos
+            if it.Kind == 1 {
+                labelAddr[it.Name] = pos
+            } else {
+                pos += it.Size
+            }
+        }
+        var* changed = false
+        for i in 0..count {
+            var* it = &g.Items[i]
+            if it.Kind == 1 {
+                continue
+            }
+            encodeItem(it, &e)
+            if failed() {
+                return
+            }
+            if len(e.B) != it.Size {
+                it.Size = len(e.B)
+                changed = true
+            }
+            it.Code = e.B
+        }
+        if !changed {
+            return
+        }
+    }
+    fail("internal error: branch layout did not converge")
+}
+
+fn Assemble(src string) Result {
+    resetErrors()
+    resetLabels()
+    var* g = Prog{Items: make([]Item, 0)}
+    var* lines = strings.Split(src, "\n")
+    for i in 0..len(lines) {
+        parseLine(&g, lines[i], i + 1)
+        if failed() {
+            break
+        }
+    }
+    if !failed() {
+        layout(&g)
+    }
+    if failed() {
+        return Result{Code: make([]byte, 0), Err: errMsg, Line: errLine}
+    }
+    var* out = make([]byte, 0)
+    for i in 0..len(g.Items) {
+        if g.Items[i].Kind == 0 {
+            var* code = g.Items[i].Code
+            for j in 0..len(code) {
+                out = append(out, code[j])
+            }
+        }
+    }
+    return Result{Code: out, Err: "", Line: 0}
+}
+
+fn MustAssemble(src string) []byte {
+    var* r = Assemble(src)
+    if !r.Ok() {
+        panic(r.Error())
+    }
+    return r.Code
+}
+
+fn hexDigit(v int) string {
+    var* digits = "0123456789abcdef"
+    return substr(digits, v, 1)
+}
+
+fn Hex(code []byte) string {
+    var* out = ""
+    for i in 0..len(code) {
+        if i > 0 {
+            out = out + " "
+        }
+        var* v = int(code[i])
+        out = out + hexDigit(v >> 4) + hexDigit(v & 15)
+    }
+    return out
+}

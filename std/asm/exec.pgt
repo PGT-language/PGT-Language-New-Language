@@ -1,0 +1,75 @@
+package asm
+
+#use "unsafe"
+
+extern fn mmap(addr *byte, length int64, prot int, flags int, fd int, offset int64) *byte
+extern fn mprotect(addr *byte, length int64, prot int) int
+extern fn munmap(addr *byte, length int64) int
+extern fn calloc(count int64, size int64) *byte
+extern fn free(p *byte)
+
+const (
+    ProtRead = 1
+    ProtWrite = 2
+    ProtExec = 4
+    MapPrivate = 2
+    MapAnonymous = 32
+)
+
+struct Func {
+    Ptr *byte
+    Size int64
+}
+
+var* trampoline = Func{Ptr: nil, Size: 0}
+
+fn Load(code []byte) Func {
+    var* n = int64(len(code))
+    if n == 0 {
+        panic("asm: Load of empty code")
+    }
+    var* p = mmap(nil, n, ProtRead | ProtWrite, MapPrivate | MapAnonymous, -1, 0)
+    if unsafe.Addr(p) == -1 {
+        panic("asm: mmap failed")
+    }
+    unsafe.Copy(p, unsafe.BytesData(code), n)
+    if mprotect(p, n, ProtRead | ProtExec) != 0 {
+        munmap(p, n)
+        panic("asm: mprotect failed")
+    }
+    return Func{Ptr: p, Size: n}
+}
+
+fn Free(f Func) {
+    if f.Ptr != nil {
+        munmap(f.Ptr, f.Size)
+    }
+}
+
+fn (f Func) Addr() int64 {
+    return unsafe.Addr(f.Ptr)
+}
+
+fn trampolineFunc() Func {
+    if trampoline.Ptr == nil {
+        var* src = "push rbx\nmov rbx, rdi\nmov r11, [rbx]\nmov rdi, [rbx + 8]\nmov rsi, [rbx + 16]\nmov rdx, [rbx + 24]\nmov rcx, [rbx + 32]\nmov r8, [rbx + 40]\nmov r9, [rbx + 48]\ncall r11\nmov [rbx + 56], rax\npop rbx\nret\n"
+        trampoline = Load(MustAssemble(src))
+    }
+    return trampoline
+}
+
+fn (f Func) Call(args ...int64) int64 {
+    if len(args) > 6 {
+        panic("asm: at most 6 arguments are supported")
+    }
+    var* tr = trampolineFunc()
+    var* block = calloc(8, 8)
+    unsafe.StoreInt64(block, unsafe.Addr(f.Ptr))
+    for i in 0..len(args) {
+        unsafe.StoreInt64(unsafe.Add(block, int64(8 * (i + 1))), args[i])
+    }
+    unsafe.CallPtr(tr.Ptr, block)
+    var* r = unsafe.LoadInt64(unsafe.Add(block, 56))
+    free(block)
+    return r
+}
