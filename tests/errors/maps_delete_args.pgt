@@ -1,0 +1,9 @@
+// error: 'delete' takes a map and a key
+package main
+
+fn main() {
+    var* m = map[int]int{}
+    delete(m)
+}
+
+return 0

@@ -1,0 +1,97 @@
+// memstats
+package main
+
+#use "fmt"
+
+struct Point {
+    X int
+    Y int
+}
+
+fn count(m map[string]int) int {
+    return len(m)
+}
+
+fn fill(m map[string]int) {
+    m["filled"] = 1
+}
+
+fn main() {
+    var* ages = make(map[string]int)
+    ages["bob"] = 30
+    ages["alice"] = 25
+    ages["bob"] += 1
+    ages["carol"] -= 4
+    fmt.Println(ages)
+    fmt.Println(ages["bob"], " ", ages["alice"], " ", ages["nobody"], " ", len(ages))
+    fmt.Println(has(ages, "bob"), " ", has(ages, "dave"))
+    delete(ages, "bob")
+    delete(ages, "missing")
+    fmt.Println(ages, " ", len(ages))
+
+    var* sq = map[int]int{3: 9, 1: 1, 2: 4}
+    for k, v in sq {
+        fmt.Println(k, "->", v)
+    }
+    var* keys = 0
+    for k in sq {
+        keys += k
+    }
+    fmt.Println(keys)
+
+    var* pts = map[string]Point{"a": Point{X: 1, Y: 2}}
+    pts["b"] = Point{X: 3, Y: 4}
+    fmt.Println(pts["a"].X, " ", pts["b"].Y, " ", pts["zzz"].X)
+    fmt.Println(pts)
+
+    var* lists = map[int][]string{1: ["x", "y"]}
+    lists[2] = ["z"]
+    fmt.Println(lists[1], " ", lists[2], " ", len(lists[3]))
+
+    var* nested = map[string]map[string]int{}
+    nested["outer"] = map[string]int{"inner": 5}
+    nested["outer"]["inner"] += 2
+    nested["outer"]["more"] = 1
+    fmt.Println(nested)
+
+    var* flags = map[bool]string{true: "yes", false: "no"}
+    fmt.Println(flags)
+    var* chars = map[char]int{'b': 2, 'a': 1}
+    fmt.Println(chars)
+    var* big = map[int64]byte{int64(5000000000): byte(7)}
+    fmt.Println(big)
+
+    var* shared = ages
+    shared["shared"] = 99
+    fmt.Println(ages["shared"], " ", count(ages))
+    fill(ages)
+    fmt.Println(has(shared, "filled"))
+
+    var* none map[string]int
+    fmt.Println(none["x"], " ", len(none), " ", has(none, "x"), " ", none == nil, " ", ages == nil)
+    delete(none, "x")
+    for k, v in none {
+        fmt.Println(k, v)
+    }
+    fmt.Println(none)
+
+    var* empty = map[string]int{}
+    fmt.Println(empty, " ", len(empty), " ", empty == nil)
+
+    var* order = map[string]int{}
+    order["z"] = 1
+    order["a"] = 2
+    order["m"] = 3
+    delete(order, "a")
+    order["a"] = 4
+    var* seq = ""
+    for k in order {
+        seq += k
+    }
+    fmt.Println(seq)
+
+    var* anyMap any = sq
+    fmt.Println(anyMap)
+}
+
+return 0

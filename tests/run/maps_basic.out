@@ -1,0 +1,23 @@
+map[alice:25 bob:31 carol:-4]
+31 25 0 3
+true false
+map[alice:25 carol:-4] 2
+3->9
+1->1
+2->4
+6
+1 4 0
+map[a:{1 2} b:{3 4}]
+[x y] [z] 0
+map[outer:map[inner:7 more:1]]
+map[false:no true:yes]
+map[a:1 b:2]
+map[5000000000:7]
+99 3
+true
+0 0 false true false
+map[]
+map[] 0 false
+zma
+map[1:1 2:4 3:9]
+pgt: live blocks: 0

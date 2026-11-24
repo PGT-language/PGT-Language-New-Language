@@ -1,0 +1,9 @@
+// error: cannot use string as int in assignment
+package main
+
+fn main() {
+    var* m = map[string]int{}
+    m["a"] = "x"
+}
+
+return 0

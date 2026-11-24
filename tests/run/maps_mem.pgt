@@ -1,0 +1,69 @@
+// memstats
+package main
+
+#use "fmt"
+
+struct Holder {
+    Name string
+    Tags []string
+}
+
+fn build(n int) map[string]Holder {
+    var* m = map[string]Holder{}
+    for i in 0..n {
+        m["key" + str(i)] = Holder{Name: "n" + str(i), Tags: ["t" + str(i)]}
+    }
+    return m
+}
+
+fn main() {
+    var* sum = 0
+    var* ints = make(map[int]string)
+    for i in 0..5000 {
+        ints[i] = "value" + str(i)
+    }
+    for i in 0..5000 {
+        if i % 3 != 0 {
+            delete(ints, i)
+        }
+    }
+    for i in 0..5000 {
+        if has(ints, i) {
+            sum += len(ints[i])
+        }
+    }
+    for i in 0..2000 {
+        ints[i] = "again" + str(i)
+    }
+    fmt.Println(len(ints), " ", sum)
+
+    var* h = build(1000)
+    fmt.Println(len(h), " ", h["key10"].Name, " ", h["key999"].Tags[0])
+    h["key10"] = Holder{Name: "replaced", Tags: []}
+    delete(h, "key11")
+    fmt.Println(h["key10"].Name, " ", len(h))
+
+    var* rounds = 0
+    for r in 0..50 {
+        var* tmp = build(20)
+        rounds += len(tmp)
+    }
+    fmt.Println(rounds)
+
+    var* grid = map[int]map[int]int{}
+    for i in 0..30 {
+        grid[i] = map[int]int{}
+        for j in 0..30 {
+            grid[i][j] = i * j
+        }
+    }
+    fmt.Println(grid[7][8], " ", len(grid))
+
+    var* cyc = map[string][]string{}
+    for i in 0..200 {
+        cyc["k"] = ["a" + str(i), "b"]
+    }
+    fmt.Println(cyc)
+}
+
+return 0

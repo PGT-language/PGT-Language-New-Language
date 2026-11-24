@@ -1,0 +1,9 @@
+// error: cannot use int as string in the map key
+package main
+
+fn main() {
+    var* m = map[string]int{}
+    m[1] = 2
+}
+
+return 0

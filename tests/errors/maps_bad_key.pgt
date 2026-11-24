@@ -1,0 +1,8 @@
+// error: invalid map key type float (keys can be int, int64, char, byte, bool or string)
+package main
+
+fn main() {
+    var* m = make(map[float]int)
+}
+
+return 0

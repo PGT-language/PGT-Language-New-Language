@@ -1,0 +1,13 @@
+// error: cannot assign to a field of a map element
+package main
+
+struct P {
+    X int
+}
+
+fn main() {
+    var* m = map[int]P{}
+    m[1].X = 5
+}
+
+return 0
