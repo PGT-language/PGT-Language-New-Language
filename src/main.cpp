@@ -1,4 +1,5 @@
 #include "driver/Driver.h"
+#include "lsp/Server.h"
 #include "scaffold/ProjectGenerator.h"
 #include "scaffold/Templates.h"
 
@@ -25,6 +26,7 @@ static void printUsage(std::ostream& os) {
           "  pgt build [dir|file.pgt] [-o <out>]   compile a package (default: .)\n"
           "  pgt run [dir|file.pgt] [-- args...]   build, run and delete the program\n"
           "  pgt <dir|file.pgt>                    same as pgt build\n"
+          "  pgt lsp                               run the language server on stdin/stdout\n"
           "  pgt build [dir|file.pgt] --emit-ir    write LLVM IR (.ll) instead\n"
           "  pgt build [dir|file.pgt|-] --debug    print the tokens and the syntax tree of every file,\n"
           "                                        then build (--debug=json: print JSON and stop;\n"
@@ -138,6 +140,7 @@ int main(int argc, char** argv) {
     if (cmd == "build") return runBuild(argc, argv, 2);
     if (cmd == "run") return runBuild(argc, argv, 2, true);
     if (cmd == "new") return runNew(argc, argv);
+    if (cmd == "lsp") return pgt::lsp::runServer();
 
     if (cmd[0] != '-' && std::filesystem::exists(cmd)) return runBuild(argc, argv, 1);
 

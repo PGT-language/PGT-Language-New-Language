@@ -35,6 +35,9 @@ add_executable(pgt
     src/codegen/ObjectEmitter.cpp
     src/driver/Driver.cpp
     src/debug/Dump.cpp
+    src/lsp/Json.cpp
+    src/lsp/Index.cpp
+    src/lsp/Server.cpp
 )
 target_include_directories(pgt PRIVATE src)
 target_compile_definitions(pgt PRIVATE
