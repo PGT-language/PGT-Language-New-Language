@@ -1,0 +1,8 @@
+[10 0 20 255]
+[127 0 0 1]
+cannot resolve host 1.2.3 (use localhost or a dotted IPv4 address)
+invalid IPv4 address 1.2.3.999
+162701601025510.0.20.255:18080
+invalid port 0: must be 1-65535
+invalid port 70000: must be 1-65535
+port 80 needs root: ports below 1024 are privileged, use 1024-65535

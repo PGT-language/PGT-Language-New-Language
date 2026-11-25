@@ -1,0 +1,4 @@
+|200|application/json; charset=utf-8|{"hello": "PGT"}
+|200|client body
+|404
+https is not supported yet

@@ -990,6 +990,8 @@ fn main() {
 | `memory` | блоки памяти: `Copy`, `Set`, `Zero`, `KB`, `MB` (для `var&` и `malloc`) |
 | `rand` | случайные числа: `Int`, `IntN`, `Range`, `Float`, `Shuffle`, `Pick`, воспроизводимый `Seed` |
 | `c` | блоки `c { }`: токенайзер C, `CheckBlock`/`PrepareBlock`, типы C и привязки к libc (`stdio`, `stdlib`, `string`, `ctype`, `cmath`, `ctime`, `errno`, `unistd`, `fcntl`, `signal`) |
+| `net` | TCP-сокеты на чистом PGT (IPv4): `Listen`, `Dial`, `Accept`, `Conn.Read`/`Write`; порты ниже 1024 без root отклоняются понятной ошибкой |
+| `http` | HTTP/1.1 сервер (`NewServer`, статические маршруты `File`/`Dir`/`Text`/`Html`/`Json`, динамические запросы через `Next`) и клиент `Get`/`Post`; пример `examples/httpdemo` |
 | `syscall/linux` | пакет `syscall_linux`: номера системных вызовов Linux x86-64 `SYS_READ`, `SYS_WRITE`, `SYS_MMAP`, `SYS_EXIT`, ... (как в Go) |
 | `syscall/purec-os` | пакет `syscall_purec_os`: номера системных вызовов PureC OS (`SYS_WRITE`, `SYS_FORK`, `SYS_DRAW_RECT`, `SYS_FILE_OPEN`, ...) |
 

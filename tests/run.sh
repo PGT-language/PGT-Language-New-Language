@@ -124,5 +124,11 @@ for f in errors/*.pgt; do
     fi
 done
 
+if log=$(timeout 90 bash net_http.sh "$PGT" 2>&1); then
+    ok
+else
+    bad "net_http.sh" "$log"
+fi
+
 echo "passed: $pass, failed: $fail"
 [ $fail -eq 0 ]

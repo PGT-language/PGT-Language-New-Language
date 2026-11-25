@@ -618,3 +618,39 @@ fmt.Println(syscall_linux.SYS_WRITE, " ", syscall_linux.SYS_EXIT)    // 1 60
 ```
 
 Пока в пакете только номера; функции для прямых системных вызовов будут добавляться постепенно.
+
+## net
+
+TCP-сокеты (только IPv4), написаны на PGT поверх libc (`socket`, `bind`, `listen`, `accept`, `connect`, `send`, `read`); `sockaddr_in` собирается вручную через `unsafe`. Подключается как `#use "net"`. Ошибки возвращаются строкой, `""` означает успех.
+
+- `Listen(host, port) (Listener, string)`: `host` — `localhost`, `0.0.0.0`, `""` или IPv4 вида `127.0.0.1`. Порт должен быть 1..65535. Порт ниже 1024 без root отклоняется до `bind`: `port N needs root: ports below 1024 are privileged, use 1024-65535`. Занятый порт: `port N is already in use`. Включён `SO_REUSEADDR`.
+- `l.Accept() (Conn, string)`, `l.Close()`
+- `Dial(host, port) (Conn, string)`
+- `c.Read(max) (string, string)` (в конце потока данные `""` и ошибка `"eof"`), `c.ReadAll()`, `c.Write(s) string`, `c.WriteBytes(p, n)`, `c.Close()`, `c.RemoteAddr()`
+- `ParseIP(host) ([]int, string)`, `SockAddr(ip, port) []byte`, `FormatAddr(sa) string`
+
+Строки в PGT заканчиваются нулём, поэтому `Read` подходит для текста; бинарные данные нужно отправлять через `WriteBytes`.
+
+## http
+
+HTTP/1.1 с `Connection: close`, один поток, поверх `net`. Подключается как `#use "http"`. Пример: `examples/httpdemo`.
+
+Сервер:
+
+```pgt
+var* s = http.NewServer()
+s.File("/", "static/index.html")
+s.Dir("/static/", "static")
+s.Text("/ping", "pong")
+var* err = s.Listen("127.0.0.1", 8080)
+while true {
+    var* req, err = s.Next()
+    req.Json(200, "{\"name\": \"" + req.Query("name") + "\"}")
+}
+```
+
+- Статические маршруты: `File(path, file)`, `Dir(prefix, dir)` (`..` даёт 403, для папки отдаётся `index.html`), `Text`, `Html`, `Json` (готовая JSON-строка), `Route(method, path, contentType, body)` (только для одного метода, остальные методы уходят в `Next`). Обычные маршруты отвечают на GET и HEAD, остальные методы получают 405. Файлы отдаются потоком, поэтому бинарные (png, wasm) безопасны. MIME по расширению: html, css, js, json, png, jpg, svg, ico, txt, wasm.
+- `s.Listen(host, port) string`, `s.Next() (*Request, string)` принимает соединения, сам отвечает на статические маршруты и возвращает первый запрос без маршрута. Неотвеченный запрос получает 500 при следующем `Next`. `s.Quiet()` отключает лог `METHOD PATH STATUS` в stderr, `s.Close()`.
+- `*Request`: поля `Method`, `Path` (с декодированием `%XX`), `RawQuery`, `Body` (по `Content-Length`); `Query(key)`, `Header(name)` (без учёта регистра), `SetHeader(k, v)`, `Send(status, contentType, body)`, `Text`, `Html`, `Json`, `NotFound()`.
+- Клиент: `Get(url) (Response, string)`, `Post(url, contentType, body) (Response, string)` только для `http://` (для `https://` ошибка `https is not supported yet`). `Response{Status, Headers, Body}` и `r.Header(name)`; `Transfer-Encoding: chunked` разбирается.
+- Помощники без сокетов: `ParseHead`, `ParseQuery`, `URLDecode`, `ParseURL`, `ParseResponse`, `Mime`, `StatusText`.
