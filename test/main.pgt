@@ -16,9 +16,9 @@ fn main() {
         mov {a}, rax
     }
     var& := a = malloc(free[byte] 1024)
-    var& := n = malloc(free[byte] 1024)
+    var& := b = malloc(free[byte] 1024)
 
-    fmt.Println(n)
+    fmt.Println(a)
 }
 
 return 0
