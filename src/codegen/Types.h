@@ -35,7 +35,8 @@ namespace pgt
             Any,
             Map,
             Uint64,
-            Tuple
+            Tuple,
+            Func
         };
         Kind kind = Kind::Void;
         const Type *elem = nullptr;
@@ -68,7 +69,7 @@ namespace pgt
         bool isNillable() const
         {
             return kind == Kind::Pointer || kind == Kind::Array || kind == Kind::String ||
-                   kind == Kind::Interface || kind == Kind::Any || kind == Kind::Map;
+                   kind == Kind::Interface || kind == Kind::Any || kind == Kind::Map || kind == Kind::Func;
         }
         bool isPtrToStruct() const
         {
@@ -152,6 +153,7 @@ namespace pgt
         TyP pointerTo(TyP elem);
         TyP mapOf(TyP key, TyP elem);
         TyP tupleOf(const std::vector<TyP> &elems);
+        TyP funcOf(const std::vector<TyP> &params, TyP ret);
         TyP structT(StructInfo *st);
         TyP ifaceT(IfaceInfo *iface);
 
@@ -161,6 +163,7 @@ namespace pgt
         std::map<TyP, TyP> arrays_, pointers_;
         std::map<std::pair<TyP, TyP>, TyP> maps_;
         std::map<std::vector<TyP>, TyP> tuples_;
+        std::map<std::pair<std::vector<TyP>, TyP>, TyP> funcs_;
         std::map<const void *, TyP> named_;
     };
 

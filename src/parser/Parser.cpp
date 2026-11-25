@@ -232,7 +232,8 @@ namespace pgt
 
     bool Parser::atTypeStart() const
     {
-        return check(Tok::Ident) || check(Tok::LBracket) || check(Tok::Star) || check(Tok::KwMap);
+        return check(Tok::Ident) || check(Tok::LBracket) || check(Tok::Star) || check(Tok::KwMap) ||
+               check(Tok::KwFn);
     }
 
     TypeExpr Parser::parseType(const char *context)
@@ -261,6 +262,32 @@ namespace pgt
             expect(Tok::RBracket, "after the map key type");
             m.elem = std::make_shared<TypeExpr>(parseType("as the map value type"));
             return m;
+        }
+        if (check(Tok::KwFn))
+        {
+            advance();
+            TypeExpr fn;
+            fn.kind = TypeExpr::Kind::Func;
+            fn.line = t.line;
+            fn.col = t.col;
+            expect(Tok::LParen, "after 'fn' in a function type");
+            while (!check(Tok::RParen))
+            {
+                if (check(Tok::Ident))
+                {
+                    Tok next = peekTok().kind;
+                    if (next == Tok::Ident || next == Tok::Star || next == Tok::LBracket ||
+                        next == Tok::KwMap || next == Tok::KwFn)
+                        advance();
+                }
+                fn.elems.push_back(parseType("as a parameter type"));
+                if (!accept(Tok::Comma))
+                    break;
+            }
+            expect(Tok::RParen, "after the parameter types of a function type");
+            if (!atLineStart() && (atTypeStart() || check(Tok::LParen)))
+                fn.elem = std::make_shared<TypeExpr>(parseResult());
+            return fn;
         }
         if (check(Tok::Star))
         {
@@ -384,7 +411,7 @@ namespace pgt
         expect(Tok::KwFn, "after 'extern'");
         fn.name = expect(Tok::Ident, "as the name of the external function").text;
         fn.params = parseParams(false);
-        if (atTypeStart() || check(Tok::LParen))
+        if (!atLineStart() && (atTypeStart() || check(Tok::LParen)))
             fn.ret = parseResult();
         return fn;
     }
@@ -1230,6 +1257,19 @@ namespace pgt
             ExprPtr inner = parseExpr();
             expect(Tok::RParen, "to close the parenthesized expression");
             return inner;
+        }
+        case Tok::KwFn:
+        {
+            auto lit = make<FuncLit>(t);
+            advance();
+            lit->params = parseParams(false);
+            if (atTypeStart() || check(Tok::LParen))
+                lit->ret = parseResult();
+            FlagGuard guard(noStructLit_, false);
+            lit->body = parseBlock("before the function body");
+            if (!lit->ret && hasValueReturn(lit->body))
+                lit->ret = TypeExpr::named("int", lit->line, lit->col);
+            return lit;
         }
         case Tok::KwMap:
         {

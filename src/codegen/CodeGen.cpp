@@ -212,6 +212,7 @@ namespace pgt
         case Type::Kind::Nil:
         case Type::Kind::Pointer:
         case Type::Kind::Map:
+        case Type::Kind::Func:
             return builder_.getPtrTy();
         case Type::Kind::Array:
             return arrayTy_;
@@ -263,6 +264,14 @@ namespace pgt
             for (const TypeExpr &e : type.elems)
                 elems.push_back(resolveType(e));
             return types_.tupleOf(elems);
+        }
+        case TypeExpr::Kind::Func:
+        {
+            std::vector<TyP> params;
+            for (const TypeExpr &e : type.elems)
+                params.push_back(resolveType(e));
+            TyP ret = type.elem ? resolveType(*type.elem, true) : types_.voidT;
+            return types_.funcOf(params, ret);
         }
         case TypeExpr::Kind::Named:
             break;
@@ -823,19 +832,26 @@ namespace pgt
 
     void CodeGen::genFunction(const Function &fn, const FuncInfo &info)
     {
+        std::string fullName = fn.receiver ? fn.receiver->typeName + "." + fn.name : fn.name;
+        genBody(fn.params, fn.receiver ? &*fn.receiver : nullptr, fn.body, fullName, fn.line, fn.col, info);
+    }
+
+    void CodeGen::genBody(const std::vector<Param> &params, const Receiver *receiver, const Block &body,
+                          const std::string &fullName, int line, int col, const FuncInfo &info)
+    {
         builder_.SetInsertPoint(llvm::BasicBlock::Create(ctx_, "entry", info.fn));
         scopes_.clear();
         temps_.clear();
         loops_.clear();
         heapVars_.clear();
-        collectBlock(fn.body, heapVars_);
+        collectBlock(body, heapVars_);
         currentRet_ = info.ret;
 
         pushScope();
         std::vector<std::pair<std::string, std::pair<int, int>>> names;
-        if (fn.receiver)
-            names.push_back({fn.receiver->name, {fn.receiver->line, fn.receiver->col}});
-        for (const Param &p : fn.params)
+        if (receiver)
+            names.push_back({receiver->name, {receiver->line, receiver->col}});
+        for (const Param &p : params)
             names.push_back({p.name, {p.line, p.col}});
 
         size_t i = 0;
@@ -850,14 +866,13 @@ namespace pgt
             ++i;
         }
 
-        std::string fullName = fn.receiver ? fn.receiver->typeName + "." + fn.name : fn.name;
-        if (!info.ret->is(Type::Kind::Void) && !terminates(fn.body))
-            fail("missing return at the end of function '" + fullName + "'", fn.line, fn.col);
+        if (!info.ret->is(Type::Kind::Void) && !terminates(body))
+            fail("missing return at the end of function '" + fullName + "'", line, col);
 
         defers_.clear();
         overrides_.clear();
         pushScope();
-        for (const StmtPtr &stmt : fn.body)
+        for (const StmtPtr &stmt : body)
             genStmt(*stmt);
         if (info.ret->is(Type::Kind::Void))
             emitDefers();
@@ -869,6 +884,81 @@ namespace pgt
             builder_.CreateRetVoid();
         else
             builder_.CreateUnreachable();
+    }
+
+    CodeGen::Value CodeGen::genFuncLit(const FuncLit &lit)
+    {
+        FuncInfo info;
+        info.name = "func literal";
+        info.line = lit.line;
+        info.col = lit.col;
+        std::vector<llvm::Type *> llvmParams;
+        for (const Param &param : lit.params)
+        {
+            TyP t = resolveType(param.type);
+            info.params.push_back(t);
+            llvmParams.push_back(llvmType(t));
+        }
+        info.ret = lit.ret ? resolveType(*lit.ret, true) : types_.voidT;
+        auto *fnTy = llvm::FunctionType::get(llvmType(info.ret), llvmParams, false);
+        info.fn = llvm::Function::Create(fnTy, llvm::Function::InternalLinkage,
+                                         mangle(pkg_->pkg->importPath, "func" + std::to_string(litCounter_++)),
+                                         module_.get());
+
+        llvm::IRBuilderBase::InsertPointGuard guard(builder_);
+        auto savedScopes = std::move(scopes_);
+        auto savedTemps = std::move(temps_);
+        auto savedLoops = std::move(loops_);
+        auto savedDefers = std::move(defers_);
+        auto savedOverrides = std::move(overrides_);
+        auto savedHeap = std::move(heapVars_);
+        TyP savedRet = currentRet_;
+        MapTarget savedMap = mapTarget_;
+        mapTarget_ = MapTarget{};
+        scopes_.clear();
+        temps_.clear();
+        loops_.clear();
+        defers_.clear();
+        overrides_.clear();
+        heapVars_.clear();
+
+        auto outerHas = [&](const std::string &name)
+        {
+            for (const Scope &sc : savedScopes)
+                if (sc.vars.count(name))
+                    return true;
+            return false;
+        };
+        try
+        {
+            genBody(lit.params, nullptr, lit.body, "func literal", lit.line, lit.col, info);
+        }
+        catch (const CompileError &e)
+        {
+            std::string msg = e.what();
+            for (const char *prefix : {"undefined variable '", "call to undefined function '"})
+            {
+                std::string p = prefix;
+                if (msg.compare(0, p.size(), p) == 0)
+                {
+                    size_t end = msg.find('\'', p.size());
+                    std::string name = msg.substr(p.size(), end - p.size());
+                    if (outerHas(name))
+                        throw CompileError("function literal cannot capture '" + name + "' yet", e.line, e.col);
+                }
+            }
+            throw;
+        }
+
+        scopes_ = std::move(savedScopes);
+        temps_ = std::move(savedTemps);
+        loops_ = std::move(savedLoops);
+        defers_ = std::move(savedDefers);
+        overrides_ = std::move(savedOverrides);
+        heapVars_ = std::move(savedHeap);
+        currentRet_ = savedRet;
+        mapTarget_ = savedMap;
+        return {info.fn, types_.funcOf(info.params, info.ret)};
     }
 
     bool CodeGen::inStdFile() const

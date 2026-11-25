@@ -278,9 +278,8 @@ namespace pgt
             if (lookupPackage(ref->name))
                 fail("package '" + ref->name + "' is not a value; use " + ref->name + ".Name",
                      ref->line, ref->col);
-            if (pkg_->functions.count(ref->name))
-                fail("function '" + ref->name + "' is not a value; call it: " + ref->name + "(...)",
-                     ref->line, ref->col);
+            if (auto fit = pkg_->functions.find(ref->name); fit != pkg_->functions.end())
+                return funcValue(fit->second, ref->name, ref->line, ref->col);
             if (ref->name == "iota")
                 fail("'iota' can only be used inside a const block", ref->line, ref->col);
             fail("undefined variable '" + ref->name + "'", ref->line, ref->col);
@@ -304,6 +303,8 @@ namespace pgt
         }
         if (auto *sel = dynamic_cast<const Selector *>(&expr))
             return genSelector(*sel);
+        if (auto *fl = dynamic_cast<const FuncLit *>(&expr))
+            return genFuncLit(*fl);
         if (auto *idx = dynamic_cast<const Index *>(&expr))
             return genIndex(*idx);
         if (auto *sl = dynamic_cast<const SliceExpr *>(&expr))
@@ -551,6 +552,7 @@ namespace pgt
                 return result(builder_.getInt1(true));
             case Type::Kind::Pointer:
             case Type::Kind::Map:
+            case Type::Kind::Func:
                 return result(builder_.CreateIsNull(v.value));
             case Type::Kind::String:
                 return result(builder_.CreateICmpEQ(rt("pgt_strlen", builder_.getInt32Ty(), {v.value}),
@@ -938,8 +940,33 @@ namespace pgt
              expr.line, expr.col);
     }
 
+    CodeGen::Value CodeGen::funcValue(const FuncInfo &info, const std::string &name, int line, int col)
+    {
+        if (info.isExtern)
+            fail("external function '" + name + "' cannot be used as a value", line, col);
+        if (info.variadic)
+            fail("variadic function '" + name + "' cannot be used as a value", line, col);
+        return {info.fn, types_.funcOf(info.params, info.ret)};
+    }
+
+    std::optional<CodeGen::Value> CodeGen::packageFuncValue(const Selector &sel)
+    {
+        auto *ref = dynamic_cast<const VarRef *>(sel.base.get());
+        if (!ref || lookupVar(ref->name))
+            return std::nullopt;
+        PackageSyms *p = lookupPackage(ref->name);
+        if (!p || !isPublic(sel.name))
+            return std::nullopt;
+        auto it = p->functions.find(sel.name);
+        if (it == p->functions.end())
+            return std::nullopt;
+        return funcValue(it->second, ref->name + "." + sel.name, sel.line, sel.col);
+    }
+
     CodeGen::Value CodeGen::genSelector(const Selector &sel)
     {
+        if (auto fv = packageFuncValue(sel))
+            return *fv;
         if (auto a = addressOf(sel, false))
             return {builder_.CreateLoad(llvmType(a->type), a->addr), a->type};
 
@@ -1150,7 +1177,8 @@ namespace pgt
     }
 
     CodeGen::Value CodeGen::callFunction(const FuncInfo &info, const std::string &name, const Call &call,
-                                         std::vector<llvm::Value *> args, size_t firstParam)
+                                         std::vector<llvm::Value *> args, size_t firstParam,
+                                         llvm::Value *indirect)
     {
         size_t fixed = info.params.size() - firstParam - (info.variadic ? 1 : 0);
         if (call.typeArg)
@@ -1217,10 +1245,33 @@ namespace pgt
         }
         if (!info.intrinsic.empty())
             return genIntrinsic(info, args);
-        llvm::Value *result = builder_.CreateCall(info.fn, args);
+        llvm::Value *result;
+        if (indirect)
+        {
+            std::vector<llvm::Type *> paramTys;
+            for (TyP p : info.params)
+                paramTys.push_back(llvmType(p));
+            panicIf(builder_.CreateIsNull(indirect), "panicString",
+                    {builder_.CreateGlobalString("call of nil function value", ".str")});
+            result = builder_.CreateCall(llvm::FunctionType::get(llvmType(info.ret), paramTys, false), indirect, args);
+        }
+        else
+            result = builder_.CreateCall(info.fn, args);
         if (info.ret->is(Type::Kind::Void))
             return {nullptr, info.ret};
         return owned({result, info.ret});
+    }
+
+    CodeGen::Value CodeGen::callValue(Value fn, const Call &call, const std::string &name)
+    {
+        if (!fn.type->is(Type::Kind::Func))
+            fail("cannot call " + name + ": it has type " + fn.type->name() + ", not a function", call.line,
+                 call.col);
+        FuncInfo info;
+        info.name = name;
+        info.params = fn.type->elems;
+        info.ret = fn.type->elem;
+        return callFunction(info, name, call, {}, 0, fn.value);
     }
 
     CodeGen::Value CodeGen::genCall(const Call &call, TyP hint)
@@ -1228,6 +1279,8 @@ namespace pgt
         if (auto *ref = dynamic_cast<const VarRef *>(call.callee.get()))
         {
             const std::string &name = ref->name;
+            if (auto var = lookupVar(name); var && var->type->is(Type::Kind::Func))
+                return callValue(genExpr(*ref), call, name);
             if (auto it = pkg_->functions.find(name); it != pkg_->functions.end())
                 return callFunction(it->second, name, call, {}, 0);
             if (call.spread)
@@ -1274,6 +1327,9 @@ namespace pgt
                         fail("'" + full + "' is not exported (lowercase names are private)", call.line,
                              call.col);
                     auto it = p->functions.find(sel->name);
+                    if (it == p->functions.end())
+                        if (auto g = p->globals.find(sel->name); g != p->globals.end() && g->second.type->is(Type::Kind::Func))
+                            return callValue(genExpr(*sel), call, full);
                     if (it == p->functions.end() && freestanding_ && p->pkg->importPath == "c")
                         fail("'" + full + "' needs libc and is not available in freestanding builds", call.line,
                              call.col);
@@ -1284,6 +1340,12 @@ namespace pgt
                 }
             }
             return genMethodCall(call, *sel);
+        }
+        if (dynamic_cast<const Index *>(call.callee.get()) || dynamic_cast<const Call *>(call.callee.get()) ||
+            dynamic_cast<const FuncLit *>(call.callee.get()) || dynamic_cast<const Ternary *>(call.callee.get()))
+        {
+            Value fn = genExpr(*call.callee);
+            return callValue(fn, call, "function value");
         }
         fail("this expression cannot be called", call.line, call.col);
     }
@@ -1314,6 +1376,29 @@ namespace pgt
         auto it = st->methods.find(sel.name);
         if (it == st->methods.end())
         {
+            if (int fi = st->fieldIndex(sel.name); fi >= 0 && st->fields[fi].type->is(Type::Kind::Func))
+            {
+                TyP ft = st->fields[fi].type;
+                llvm::Value *fv;
+                if (recvAddr)
+                {
+                    llvm::Value *base = recvAddr->addr;
+                    if (t->isPtrToStruct())
+                    {
+                        base = builder_.CreateLoad(builder_.getPtrTy(), base);
+                        nilCheck(base);
+                    }
+                    fv = builder_.CreateLoad(builder_.getPtrTy(), builder_.CreateStructGEP(st->llvm, base, static_cast<unsigned>(fi)));
+                }
+                else if (t->isPtrToStruct())
+                {
+                    nilCheck(recvVal.value);
+                    fv = builder_.CreateLoad(builder_.getPtrTy(), builder_.CreateStructGEP(st->llvm, recvVal.value, static_cast<unsigned>(fi)));
+                }
+                else
+                    fv = builder_.CreateExtractValue(recvVal.value, static_cast<unsigned>(fi));
+                return callValue(Value{fv, ft}, call, sel.name);
+            }
             if (st->fieldIndex(sel.name) >= 0)
                 fail("'" + sel.name + "' is a field of " + structTy->name() + ", not a method", sel.line,
                      sel.col);
@@ -1549,6 +1634,9 @@ namespace pgt
             break;
         case Type::Kind::Map:
             kind = 13;
+            break;
+        case Type::Kind::Func:
+            kind = 15;
             break;
         default:
             break;

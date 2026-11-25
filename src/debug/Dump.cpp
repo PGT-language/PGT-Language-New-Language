@@ -220,6 +220,13 @@ namespace pgt
                 }
                 return n;
             }
+            if (auto *x = dynamic_cast<const FuncLit *>(e))
+            {
+                Node n = node("FuncLit", "fn(" + params(x->params) + ")" + (x->ret ? " " + x->ret->text() : ""), *x);
+                for (const StmtPtr &s : x->body)
+                    n.kids.push_back(stmt(s.get()));
+                return n;
+            }
             if (auto *x = dynamic_cast<const TypeAssert *>(e))
             {
                 Node n = node("TypeAssert", x->isTypeKeyword ? ".(type)" : ".(" + x->type.text() + ")", *x);

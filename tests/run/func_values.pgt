@@ -1,0 +1,80 @@
+package main
+
+#use (
+    "strings"
+    "fmt"
+)
+
+struct Server {
+    name string
+    onReq fn(int, string) bool
+    hooks []fn(int) int
+}
+
+var* table = map[string]fn(int, int) int{}
+var* upper fn(string) string = strings.Upper
+
+fn add(a int, b int) int {
+    return a + b
+}
+
+fn twice(n int) int {
+    return n * 2
+}
+
+fn check(n int, s string) bool {
+    fmt.Println("check ", n, " ", s)
+    return n > 1
+}
+
+fn divmod(a int, b int) (int, int) {
+    return a / b, a % b
+}
+
+fn apply(f fn(int, int) int, x int) int {
+    return f(x, x)
+}
+
+fn pick() fn(int, int) int {
+    return add
+}
+
+fn named(f fn(w string, n int) string) string {
+    return f("ab", 2)
+}
+
+fn repeat(s string, n int) string {
+    return strings.Repeat(s, n)
+}
+
+fn main() {
+    var* f = add
+    fmt.Println(f(1, 2))
+    fmt.Println(apply(f, 5))
+    fmt.Println(apply(fn(a int, b int) int { return a * b }, 6))
+    fmt.Println(pick()(3, 4))
+    var* s = Server{name: "srv", onReq: check, hooks: [twice, fn(n int) int { return n + 100 }]}
+    fmt.Println(s.onReq(2, "a"))
+    var* p = &s
+    fmt.Println(p.onReq(0, "z"))
+    fmt.Println(s.hooks[1](1), s.hooks[0](4))
+    table["add"] = add
+    table["mul"] = fn(a int, b int) int { return a * b }
+    fmt.Println(table["add"](7, 8), table["mul"](7, 8))
+    fmt.Println(upper("shout"))
+    fmt.Println(named(repeat))
+    var* dm fn(int, int) (int, int) = divmod
+    var* q, r = dm(17, 5)
+    fmt.Println(q, r)
+    var* g fn(int, int) int
+    fmt.Println(g == nil, f != nil)
+    g = f
+    fmt.Println(g == nil, g(20, 22))
+    var* log fn(string) = fn(msg string) { fmt.Println("log: ", msg) }
+    log("done")
+    for i in 0..3 {
+        var* h fn(int) int = i % 2 == 0 ? twice : fn(n int) int { return -n }
+        fmt.Println(h(i + 1))
+    }
+}
+return 0

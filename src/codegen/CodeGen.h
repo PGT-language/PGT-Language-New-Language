@@ -173,6 +173,12 @@ namespace pgt
         void genGlobals(const Package &pkg);
         void bindImports(const Program &program);
         void genFunction(const Function &fn, const FuncInfo &info);
+        void genBody(const std::vector<Param> &params, const Receiver *receiver, const Block &body,
+                     const std::string &fullName, int line, int col, const FuncInfo &info);
+        Value genFuncLit(const FuncLit &lit);
+        Value funcValue(const FuncInfo &info, const std::string &name, int line, int col);
+        std::optional<Value> packageFuncValue(const Selector &sel);
+        Value callValue(Value fn, const Call &call, const std::string &name);
         void genEntryPoint(const Package &root, const Expr &exitCode);
 
         void genBlock(const Block &block);
@@ -248,7 +254,8 @@ namespace pgt
         SpreadArgs genSpreadArgs(const Call &call, TyP hint);
         Value genCall(const Call &call, TyP hint);
         Value callFunction(const FuncInfo &info, const std::string &name, const Call &call,
-                           std::vector<llvm::Value *> args, size_t firstParam);
+                           std::vector<llvm::Value *> args, size_t firstParam,
+                           llvm::Value *indirect = nullptr);
         Value genMethodCall(const Call &call, const Selector &sel);
         Value genIfaceCall(Value iface, const Call &call, const std::string &method);
         Value makeIface(Value v, TyP ifaceType, int line, int col);
@@ -321,6 +328,7 @@ namespace pgt
         std::map<std::pair<TyP, TyP>, llvm::GlobalVariable *> vtables_;
         std::map<std::string, llvm::Function *> thunks_;
         std::map<TyP, llvm::Function *> assertFns_;
+        int litCounter_ = 0;
     };
 
 }

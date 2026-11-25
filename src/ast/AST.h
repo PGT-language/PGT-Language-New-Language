@@ -117,7 +117,8 @@ namespace pgt
             Array,
             Pointer,
             Map,
-            Tuple
+            Tuple,
+            Func
         };
         Kind kind = Kind::Named;
         std::string qualifier;
@@ -151,6 +152,16 @@ namespace pgt
                 for (size_t i = 0; i < elems.size(); ++i)
                     out += (i ? ", " : "") + elems[i].text();
                 return out + ")";
+            }
+            case Kind::Func:
+            {
+                std::string out = "fn(";
+                for (size_t i = 0; i < elems.size(); ++i)
+                    out += (i ? ", " : "") + elems[i].text();
+                out += ")";
+                if (elem)
+                    out += " " + elem->text();
+                return out;
             }
             case Kind::Named:
                 break;
@@ -403,6 +414,13 @@ namespace pgt
         TypeExpr type;
         bool variadic = false;
         int line = 0, col = 0;
+    };
+
+    struct FuncLit : Expr
+    {
+        std::vector<Param> params;
+        std::optional<TypeExpr> ret;
+        Block body;
     };
 
     struct Receiver

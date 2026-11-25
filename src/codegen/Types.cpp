@@ -46,6 +46,16 @@ namespace pgt
                 out += (i ? ", " : "") + elems[i]->name();
             return out + ")";
         }
+        case Kind::Func:
+        {
+            std::string out = "fn(";
+            for (size_t i = 0; i < elems.size(); ++i)
+                out += (i ? ", " : "") + elems[i]->name();
+            out += ")";
+            if (elem && elem->kind != Kind::Void)
+                out += " " + elem->name();
+            return out;
+        }
         }
         return "?";
     }
@@ -125,6 +135,20 @@ namespace pgt
             Type t;
             t.kind = Type::Kind::Tuple;
             t.elems = elems;
+            slot = add(t);
+        }
+        return slot;
+    }
+
+    TyP TypeTable::funcOf(const std::vector<TyP> &params, TyP ret)
+    {
+        auto &slot = funcs_[{params, ret}];
+        if (!slot)
+        {
+            Type t;
+            t.kind = Type::Kind::Func;
+            t.elems = params;
+            t.elem = ret;
             slot = add(t);
         }
         return slot;
