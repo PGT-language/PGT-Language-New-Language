@@ -120,8 +120,12 @@ namespace pgt
         expect(Tok::KwPackage, "at the start of the file");
         prog.package = expect(Tok::Ident, "after 'package'").text;
 
-        while (check(Tok::KwUse))
+        if (check(Tok::KwUse))
+        {
             parseImports(prog);
+            if (check(Tok::KwUse))
+                errorHere("only one '#use' is allowed per file; list several packages in one block: #use ( ... )");
+        }
 
         while (true)
         {

@@ -183,8 +183,11 @@ fn (p *Parser) parseProgram() *ast.Program {
     p.expect(token.KwPackage, "at the start of the file")
     prog.Package = p.expect(token.Ident, "after 'package'").Text
 
-    while p.check(token.KwUse) {
+    if p.check(token.KwUse) {
         p.parseImports(prog)
+        if p.check(token.KwUse) {
+            p.errorHere("only one '#use' is allowed per file; list several packages in one block: #use ( ... )")
+        }
     }
 
     var* more = true
