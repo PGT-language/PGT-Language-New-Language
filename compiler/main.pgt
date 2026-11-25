@@ -7,6 +7,7 @@ package main
 #use "compiler/lexer"
 #use "compiler/parser"
 #use "compiler/dump"
+#use "compiler/driver"
 
 fn tokensJson(toks []token.Token) string {
     var* b strings.Builder
@@ -27,25 +28,45 @@ fn tokensJson(toks []token.Token) string {
     return b.String()
 }
 
+fn usageLines() []string {
+    return [
+        "usage: compiler <command> [args]",
+        "",
+        "commands:",
+        "  new <name> [-t <template>]       create a project (default template: hello)",
+        "  new --list                       list project templates",
+        "  build [dir|file.pgt] [-o <out>]  compile a package (default: .)",
+        "  run [dir|file.pgt] [-- args...]  build, run and delete the program",
+        "  build [dir|file.pgt] --emit-ir   write LLVM IR (.ll) instead",
+        "  build|run [...] -O0|-O1|-O2|-O3  optimization level (default -O0)",
+        "  tokens <file.pgt>                print the tokens of a file as JSON",
+        "  ast <file.pgt>                   print the syntax tree of a file as JSON",
+        "  debug <file.pgt>                 print tokens, syntax tree and error as one JSON document",
+        "  help                             show this message"
+    ]
+}
+
 fn usage() {
-    fmt.Println("usage: compiler <command> [args]")
-    fmt.Println("")
-    fmt.Println("commands:")
-    fmt.Println("  tokens <file.pgt>   print the tokens of a file as JSON")
-    fmt.Println("  ast <file.pgt>      print the syntax tree of a file as JSON")
-    fmt.Println("  debug <file.pgt>    print tokens, syntax tree and error as one JSON document")
-    fmt.Println("  help                show this message")
+    for l in usageLines() {
+        fmt.Println(l)
+    }
+}
+
+fn usageErr() {
+    for l in usageLines() {
+        fmt.Eprintln(l)
+    }
 }
 
 fn runTokens(path string) int {
     if !os.Exists(path) {
-        fmt.Println(path + ": error: cannot read the file")
+        fmt.Eprintln(path + ": error: cannot read the file")
         return 1
     }
     var* src = os.ReadFile(path)
     var* toks, err = lexer.Tokenize(src)
     if len(err.Msg) > 0 {
-        fmt.Println(path + ":" + err.Line + ":" + err.Col + ": error: " + err.Msg)
+        fmt.Eprintln(path + ":" + err.Line + ":" + err.Col + ": error: " + err.Msg)
         return 1
     }
     fmt.Println(tokensJson(toks))
@@ -54,7 +75,7 @@ fn runTokens(path string) int {
 
 fn readSource(path string) (string, bool) {
     if !os.Exists(path) {
-        fmt.Println(path + ": error: cannot read the file")
+        fmt.Eprintln(path + ": error: cannot read the file")
         return "", false
     }
     return os.ReadFile(path), true
@@ -71,12 +92,12 @@ fn runAst(path string) int {
     }
     var* toks, lerr = lexer.Tokenize(src)
     if len(lerr.Msg) > 0 {
-        fmt.Println(errorLine(path, lerr.Line, lerr.Col, lerr.Msg))
+        fmt.Eprintln(errorLine(path, lerr.Line, lerr.Col, lerr.Msg))
         return 1
     }
     var* prog, perr = parser.Parse(toks)
     if len(perr.Msg) > 0 {
-        fmt.Println(errorLine(path, perr.Line, perr.Col, perr.Msg))
+        fmt.Eprintln(errorLine(path, perr.Line, perr.Col, perr.Msg))
         return 1
     }
     fmt.Println(dump.AstJson(prog))
@@ -120,10 +141,90 @@ fn runDebug(path string) int {
     return code
 }
 
+fn runBuild(args []string, first int, isRun bool) int {
+    var* opts = driver.BuildOptions{Input: "", Output: "", Run: isRun, EmitIr: false, OptLevel: 0}
+    var* i = first
+    while i < len(args) {
+        var* a = args[i]
+        if isRun && a == "--" {
+            i++
+            while i < len(args) {
+                opts.RunArgs = append(opts.RunArgs, args[i])
+                i++
+            }
+            break
+        }
+        if isRun && (a == "-o" || a == "--emit-ir") {
+            fmt.Eprintln("pgt: error: '" + a + "' cannot be used with 'pgt run'")
+            return 1
+        }
+        if a == "-o" {
+            i++
+            if i >= len(args) {
+                fmt.Eprintln("pgt: error: '-o' needs an argument")
+                return 1
+            }
+            opts.Output = args[i]
+        } else if a == "-O0" || a == "-O1" || a == "-O2" || a == "-O3" {
+            opts.OptLevel = int(a[2]) - 48
+        } else if a == "--emit-ir" {
+            opts.EmitIr = true
+        } else if len(a) > 0 && a[0] == '-' {
+            fmt.Eprintln("pgt: error: unknown option '" + a + "'")
+            return 1
+        } else if len(opts.Input) == 0 {
+            opts.Input = a
+        } else {
+            fmt.Eprintln("pgt: error: more than one input file")
+            return 1
+        }
+        i++
+    }
+    if len(opts.Input) == 0 {
+        opts.Input = "."
+    }
+    return driver.Build(&opts)
+}
+
+fn runNew(args []string) int {
+    var* name = ""
+    var* templateName = "hello"
+    var* i = 2
+    while i < len(args) {
+        var* a = args[i]
+        if a == "--list" {
+            driver.ListTemplates()
+            return 0
+        }
+        if a == "-t" || a == "--template" {
+            i++
+            if i >= len(args) {
+                fmt.Eprintln("pgt: error: '" + a + "' needs a template name")
+                return 1
+            }
+            templateName = args[i]
+        } else if len(a) > 0 && a[0] == '-' {
+            fmt.Eprintln("pgt: error: unknown option '" + a + "'")
+            return 1
+        } else if len(name) == 0 {
+            name = a
+        } else {
+            fmt.Eprintln("pgt: error: more than one project name")
+            return 1
+        }
+        i++
+    }
+    if len(name) == 0 {
+        fmt.Eprintln("pgt: error: usage: pgt new <name> [-t <template>]")
+        return 1
+    }
+    return driver.New(name, templateName)
+}
+
 fn run() int {
     var* args = os.Args()
     if len(args) < 2 {
-        usage()
+        usageErr()
         return 1
     }
     var* cmd = args[1]
@@ -131,16 +232,25 @@ fn run() int {
         usage()
         return 0
     }
+    if cmd == "build" {
+        return runBuild(args, 2, false)
+    }
+    if cmd == "run" {
+        return runBuild(args, 2, true)
+    }
+    if cmd == "new" {
+        return runNew(args)
+    }
     if cmd == "tokens" {
         if len(args) != 3 {
-            usage()
+            usageErr()
             return 1
         }
         return runTokens(args[2])
     }
     if cmd == "ast" || cmd == "debug" {
         if len(args) != 3 {
-            usage()
+            usageErr()
             return 1
         }
         if cmd == "ast" {
@@ -148,8 +258,11 @@ fn run() int {
         }
         return runDebug(args[2])
     }
-    fmt.Println("compiler: unknown command '" + cmd + "'")
-    usage()
+    if len(cmd) > 0 && cmd[0] != '-' && os.Exists(cmd) {
+        return runBuild(args, 1, false)
+    }
+    fmt.Eprintln("compiler: unknown command '" + cmd + "'")
+    usageErr()
     return 1
 }
 

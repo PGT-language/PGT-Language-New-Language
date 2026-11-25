@@ -1,0 +1,218 @@
+package driver
+
+#use "compiler/loader"
+#use "compiler/irgen"
+#use "compiler/scaffold"
+#use "fmt"
+#use "os"
+#use "path"
+#use "strings"
+#use "time"
+
+struct BuildOptions {
+    Input string
+    Output string
+    Run bool
+    EmitIr bool
+    OptLevel int
+    RunArgs []string
+}
+
+fn shellQuote(s string) string {
+    return "'" + strings.Replace(s, "'", "'\\''") + "'"
+}
+
+fn outputName(input string) string {
+    if os.IsDir(input) {
+        return path.Base(path.Abs(input))
+    }
+    var* base = path.Base(input)
+    var* ext = path.Ext(base)
+    if len(ext) > 0 {
+        return base[0:len(base) - len(ext)]
+    }
+    return base
+}
+
+fn errorLine(file string, line int, col int, msg string) string {
+    var* out = file
+    if line > 0 {
+        out = out + ":" + line + ":" + col
+    }
+    return out + ": error: " + msg
+}
+
+fn tempDir() string {
+    var* dir = os.Getenv("TMPDIR")
+    if len(dir) == 0 {
+        return "/tmp"
+    }
+    return dir
+}
+
+fn decodeStatus(status int) int {
+    if status < 0 {
+        return 1
+    }
+    if status % 128 == 0 || status % 256 == 0 {
+        return status / 256
+    }
+    return 128 + status % 128
+}
+
+fn Build(opts *BuildOptions) int {
+    var* ws, lerr = loader.Load(opts.Input)
+    if len(lerr.Msg) > 0 {
+        var* file = lerr.File
+        if len(file) == 0 {
+            file = opts.Input
+        }
+        fmt.Eprintln(errorLine(file, lerr.Line, lerr.Col, lerr.Msg))
+        return 1
+    }
+    var* isMain = ws.Root.Name == "main"
+    var* name = outputName(opts.Input)
+    if opts.Run && !isMain {
+        fmt.Eprintln("pgt: error: 'pgt run' needs package main")
+        return 1
+    }
+    var* output = opts.Output
+    if opts.Run {
+        output = path.Join(tempDir(), "pgt-run-" + time.NowMs() + "-" + name)
+    } else if len(output) == 0 {
+        var* file = name
+        if opts.EmitIr {
+            file = name + ".ll"
+        } else if !isMain {
+            file = name + ".o"
+        }
+        var* base = path.Dir(opts.Input)
+        if os.IsDir(opts.Input) {
+            base = opts.Input
+        }
+        output = path.Join(base, file)
+    }
+    var* ir, gerr = irgen.Generate(ws)
+    if len(gerr.Msg) > 0 {
+        var* file = gerr.File
+        if len(file) == 0 {
+            file = opts.Input
+        }
+        fmt.Eprintln(errorLine(file, gerr.Line, gerr.Col, gerr.Msg))
+        return 1
+    }
+    if opts.EmitIr {
+        if !os.WriteFile(output, ir) {
+            fmt.Eprintln("pgt: error: cannot write '" + output + "'")
+            return 1
+        }
+        return 0
+    }
+    var* llPath = output + ".ll"
+    if !os.WriteFile(llPath, ir) {
+        fmt.Eprintln("pgt: error: cannot write '" + llPath + "'")
+        return 1
+    }
+    var* opt = "-O" + opts.OptLevel
+    var* cmd = ""
+    if !isMain {
+        cmd = "clang " + opt + " -w -c -x ir " + shellQuote(llPath) + " -o " + shellQuote(output)
+    } else {
+        var* runtimeLib, okRt = loader.FindRuntimeLib()
+        if !okRt {
+            os.Remove(llPath)
+            fmt.Eprintln("pgt: error: cannot find the runtime library libpgtrt.a (set PGT_RUNTIME)")
+            return 1
+        }
+        var* stdLib, okStd = loader.FindStdBundle()
+        if !okStd {
+            os.Remove(llPath)
+            fmt.Eprintln("pgt: error: cannot find the standard library bundle libpgtstd.a (run compiler/stdlib/build.sh or set PGT_STDLIB)")
+            return 1
+        }
+        cmd = "clang " + opt + " -w -x ir " + shellQuote(llPath) + " -x none " + shellQuote(stdLib) + " " + shellQuote(runtimeLib) + " -lm -o " + shellQuote(output)
+    }
+    var* rc = os.Run(cmd)
+    os.Remove(llPath)
+    if rc != 0 {
+        fmt.Eprintln("pgt: error: linking failed")
+        return 1
+    }
+    if !opts.Run {
+        return 0
+    }
+    var* runCmd = shellQuote(output)
+    for a in opts.RunArgs {
+        runCmd = runCmd + " " + shellQuote(a)
+    }
+    var* status = os.Run(runCmd)
+    os.Remove(output)
+    return decodeStatus(status)
+}
+
+fn validName(name string) bool {
+    if len(name) == 0 || name[0] == '-' {
+        return false
+    }
+    for c in name {
+        var* ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-'
+        if !ok {
+            return false
+        }
+    }
+    return true
+}
+
+fn New(name string, templateName string) int {
+    if !validName(name) {
+        fmt.Eprintln("pgt: error: invalid project name '" + name + "': use letters, digits, '_' and '-'")
+        return 1
+    }
+    var* tpl = scaffold.Find(templateName)
+    if tpl == nil {
+        var* known = ""
+        for t in scaffold.Templates() {
+            if len(known) > 0 {
+                known = known + ", "
+            }
+            known = known + t.Name
+        }
+        fmt.Eprintln("pgt: error: unknown template '" + templateName + "' (available: " + known + ")")
+        return 1
+    }
+    if os.Exists(name) {
+        fmt.Eprintln("pgt: error: '" + name + "' already exists")
+        return 1
+    }
+    if !os.MkdirAll(name) {
+        fmt.Eprintln("pgt: error: cannot write '" + name + "'")
+        return 1
+    }
+    if !os.WriteFile(path.Join(name, "pgt.mod"), "module " + name + "\n\nversion 0.1\n\ndependencies {\n}\n") {
+        fmt.Eprintln("pgt: error: cannot write '" + path.Join(name, "pgt.mod") + "'")
+        return 1
+    }
+    for f in tpl.Files {
+        var* target = path.Join(name, f.Path)
+        os.MkdirAll(path.Dir(target))
+        if !os.WriteFile(target, strings.Replace(f.Content, "{{module}}", name)) {
+            fmt.Eprintln("pgt: error: cannot write '" + target + "'")
+            return 1
+        }
+    }
+    fmt.Println("Created project '" + name + "' (template: " + templateName + ")")
+    fmt.Println("  cd " + name)
+    fmt.Println("  pgt build")
+    fmt.Println("  ./" + name)
+    return 0
+}
+
+fn ListTemplates() {
+    for t in scaffold.Templates() {
+        var* pad = 12 - len(t.Name)
+        if pad < 1 {
+            pad = 1
+        }
+        fmt.Println("  " + t.Name + strings.Repeat(" ", pad) + t.Description)
+    }
+}

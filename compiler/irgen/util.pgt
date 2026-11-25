@@ -1,7 +1,6 @@
 package irgen
 
 #use "compiler/ast"
-#use "strings"
 
 fn hexByte(n uint64) string {
     var* digits = "0123456789ABCDEF"

@@ -1,7 +1,6 @@
 package irgen
 
 #use "compiler/ast"
-#use "strings"
 
 fn isIntConst(v string) bool {
     if len(v) == 0 {
