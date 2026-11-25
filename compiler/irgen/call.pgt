@@ -1,0 +1,407 @@
+package irgen
+
+#use "compiler/ast"
+#use "strings"
+
+struct SpreadArgs {
+    Spread bool
+    Values []Value
+}
+
+fn (g *Gen) genSpreadArgs(e *ast.Expr, hint *Type) SpreadArgs {
+    var* sa = SpreadArgs{}
+    if len(e.Args) != 1 || e.Spread {
+        return sa
+    }
+    var* inner = e.Args[0]
+    if inner.Kind != ast.ExprCall {
+        return sa
+    }
+    var* v = g.genCall(inner, hint)
+    if g.failed {
+        return sa
+    }
+    if v.T.Kind == KVoid {
+        g.fail("this call does not return a value", inner.Line, inner.Col)
+        return sa
+    }
+    if v.T.Kind == KTuple {
+        sa.Spread = true
+        sa.Values = g.expandTuple(v)
+    } else {
+        sa.Values = append(sa.Values, v)
+    }
+    return sa
+}
+
+fn (g *Gen) expandTuple(v Value) []Value {
+    var* out + {[]Value} = []
+    for i, t in v.T.Elems {
+        out = append(out, Value{V: g.extract(v.T, v.V, i), T: t})
+    }
+    return out
+}
+
+fn (g *Gen) argValue(e *ast.Expr, sa SpreadArgs, i int, want *Type) Value {
+    if len(sa.Values) > 0 {
+        return sa.Values[i]
+    }
+    return g.genExpr(e.Args[i], want)
+}
+
+fn (g *Gen) argExpr(e *ast.Expr, sa SpreadArgs, i int) *ast.Expr {
+    if sa.Spread {
+        return e.Args[0]
+    }
+    return e.Args[i]
+}
+
+fn (g *Gen) callFunction(info *FuncInfo, name string, e *ast.Expr, recv []string, firstParam int) Value {
+    var* variadicCount = 0
+    if info.Variadic {
+        variadicCount = 1
+    }
+    var* fixed = len(info.Params) - firstParam - variadicCount
+    if e.TypeArg != nil {
+        g.fail("'" + name + "' does not take a type argument", e.Line, e.Col)
+        return g.dummy()
+    }
+    if e.Spread && !info.Variadic {
+        g.fail("cannot use '...' when calling '" + name + "': it has no variadic parameter", e.Line, e.Col)
+        return g.dummy()
+    }
+    var* firstHint *Type = nil
+    if fixed > 0 {
+        firstHint = info.Params[firstParam]
+    } else if info.Variadic {
+        firstHint = info.Params[len(info.Params) - 1].Elem
+    }
+    var* sa = g.genSpreadArgs(e, firstHint)
+    if g.failed {
+        return g.dummy()
+    }
+    var* count = len(e.Args)
+    if sa.Spread {
+        count = len(sa.Values)
+    }
+    if info.Variadic {
+        if count < fixed {
+            g.fail("'" + name + "' takes at least " + fixed + " argument(s), got " + count, e.Line, e.Col)
+            return g.dummy()
+        }
+        if e.Spread && len(e.Args) != fixed + 1 {
+            g.fail("'...' must be applied to the argument for the variadic parameter of '" + name + "'", e.Line, e.Col)
+            return g.dummy()
+        }
+    } else if count != fixed {
+        g.fail("'" + name + "' takes " + fixed + " argument(s), got " + count, e.Line, e.Col)
+        return g.dummy()
+    }
+    var* args + {[]string} = []
+    for r in recv {
+        args = append(args, r)
+    }
+    for i in 0..fixed {
+        var* pt = info.Params[firstParam + i]
+        var* ax = g.argExpr(e, sa, i)
+        var* v = g.coerce(g.argValue(e, sa, i, pt), pt, ax.Line, ax.Col, "argument " + (i + 1) + " of '" + name + "'")
+        if g.failed {
+            return g.dummy()
+        }
+        if info.IsExtern && pt.Kind == KArray {
+            args = append(args, "ptr " + g.arrayToPtr(v.V))
+        } else if info.IsExtern && (pt.Kind == KBool || pt.Kind == KChar || pt.Kind == KByte) {
+            args = append(args, g.llvmType(pt) + " zeroext " + v.V)
+        } else {
+            args = append(args, g.llvmType(pt) + " " + v.V)
+        }
+    }
+    if info.Variadic {
+        var* arrTy = info.Params[len(info.Params) - 1]
+        if e.Spread {
+            var* ax = e.Args[fixed]
+            var* v = g.coerce(g.argValue(e, sa, fixed, arrTy), arrTy, ax.Line, ax.Col, "argument " + (fixed + 1) + " of '" + name + "'")
+            if g.failed {
+                return g.dummy()
+            }
+            args = append(args, "%pgt.array " + v.V)
+        } else {
+            var* extra + {[]Value} = []
+            for i in fixed..count {
+                var* ax = g.argExpr(e, sa, i)
+                extra = append(extra, g.coerce(g.argValue(e, sa, i, arrTy.Elem), arrTy.Elem, ax.Line, ax.Col, "argument " + (i + 1) + " of '" + name + "'"))
+                if g.failed {
+                    return g.dummy()
+                }
+            }
+            var* packed = g.packArray(arrTy.Elem, extra)
+            args = append(args, "%pgt.array " + packed.V)
+        }
+    }
+    g.useFn(info)
+    var* argText = strings.Join(args, ", ")
+    if info.Ret.Kind == KVoid {
+        g.emit("call void " + g.fnRef(info.Symbol) + "(" + argText + ")")
+        return Value{V: "", T: info.Ret}
+    }
+    var* attr = ""
+    if info.IsExtern && (info.Ret.Kind == KBool || info.Ret.Kind == KChar || info.Ret.Kind == KByte) {
+        attr = "zeroext "
+    }
+    var* r = g.inst("call " + attr + g.llvmType(info.Ret) + " " + g.fnRef(info.Symbol) + "(" + argText + ")")
+    return Value{V: r, T: info.Ret}
+}
+
+fn (g *Gen) conversionTarget(name string) *Type {
+    switch name {
+        case "int" { return g.tt.intT }
+        case "int64" { return g.tt.int64T }
+        case "float" { return g.tt.floatT }
+        case "char" { return g.tt.charT }
+        case "bool" { return g.tt.boolT }
+        case "string" { return g.tt.stringT }
+        case "byte" { return g.tt.byteT }
+        case "uint64" { return g.tt.uint64T }
+    }
+    return nil
+}
+
+fn (g *Gen) genCall(e *ast.Expr, hint *Type) Value {
+    if g.failed {
+        return g.dummy()
+    }
+    var* callee = e.Callee
+    if callee.Kind == ast.ExprVarRef {
+        var* name = callee.Name
+        if has(g.pkg.Functions, name) {
+            return g.callFunction(g.pkg.Functions[name], name, e, [], 0)
+        }
+        if e.Spread {
+            g.fail("'...' can only be used when calling a variadic function", e.Line, e.Col)
+            return g.dummy()
+        }
+        var* target = g.conversionTarget(name)
+        if target != nil {
+            return g.genConversion(e, target)
+        }
+        var* built = g.genBuiltin(e, name, hint)
+        if g.failed {
+            return g.dummy()
+        }
+        if built.T != nil {
+            return built
+        }
+        if g.lookupVar(name) != nil {
+            g.fail("'" + name + "' is a variable, not a function", e.Line, e.Col)
+            return g.dummy()
+        }
+        if has(g.pkg.Structs, name) {
+            g.fail("'" + name + "' is a struct; create it with " + name + "{Field: value}", e.Line, e.Col)
+            return g.dummy()
+        }
+        switch name {
+            case "print", "println", "output" {
+                g.fail("undefined: " + name + " (use fmt.Print from #use \"fmt\")", e.Line, e.Col)
+                return g.dummy()
+            }
+            case "input", "inputln" {
+                g.fail("undefined: " + name + " (use fmt.Input from #use \"fmt\")", e.Line, e.Col)
+                return g.dummy()
+            }
+        }
+        g.fail("call to undefined function '" + name + "'", e.Line, e.Col)
+        return g.dummy()
+    }
+    if callee.Kind == ast.ExprSelector {
+        var* base = callee.Base
+        if base.Kind == ast.ExprVarRef && g.lookupVar(base.Name) == nil {
+            var* p = g.lookupPackage(base.Name)
+            if p != nil {
+                var* full = base.Name + "." + callee.Name
+                if !isPublic(callee.Name) {
+                    g.fail("'" + full + "' is not exported (lowercase names are private)", e.Line, e.Col)
+                    return g.dummy()
+                }
+                if !has(p.Functions, callee.Name) {
+                    g.fail("package '" + base.Name + "' has no function '" + callee.Name + "'", e.Line, e.Col)
+                    return g.dummy()
+                }
+                return g.callFunction(p.Functions[callee.Name], full, e, [], 0)
+            }
+        }
+        return g.genMethodCall(e, callee)
+    }
+    g.fail("this expression cannot be called", e.Line, e.Col)
+    return g.dummy()
+}
+
+fn (g *Gen) genMethodCall(e *ast.Expr, sel *ast.Expr) Value {
+    var* recvVal = Value{}
+    var* recvAddr = g.addressOf(sel.Base, false)
+    if g.failed {
+        return g.dummy()
+    }
+    var* t *Type = nil
+    if recvAddr.Ok {
+        t = recvAddr.T
+    } else {
+        recvVal = g.genExpr(sel.Base, nil)
+        if g.failed {
+            return g.dummy()
+        }
+        t = recvVal.T
+    }
+    if t.Kind == KIface {
+        g.fail("interface method calls are not supported by the self-hosted compiler yet", e.Line, e.Col)
+        return g.dummy()
+    }
+    var* structTy *Type = nil
+    if t.Kind == KStruct {
+        structTy = t
+    } else if t.IsPtrToStruct() {
+        structTy = t.Elem
+    }
+    if structTy == nil {
+        g.fail(t.Name() + " has no methods (calling '" + sel.Name + "')", sel.Line, sel.Col)
+        return g.dummy()
+    }
+    var* st = structTy.St
+    if !has(st.Methods, sel.Name) {
+        if st.FieldIndex(sel.Name) >= 0 {
+            g.fail("'" + sel.Name + "' is a field of " + structTy.Name() + ", not a method", sel.Line, sel.Col)
+        } else {
+            g.fail(structTy.Name() + " has no method '" + sel.Name + "'", sel.Line, sel.Col)
+        }
+        return g.dummy()
+    }
+    var* m = st.Methods[sel.Name]
+    if st.PkgPath != g.pkg.Pkg.ImportPath && !isPublic(sel.Name) {
+        g.fail("method '" + sel.Name + "' of " + structTy.Name() + " is not exported (lowercase names are private)", sel.Line, sel.Col)
+        return g.dummy()
+    }
+    var* recv = ""
+    if t.Kind == KStruct {
+        if m.PtrRecv {
+            if recvAddr.Ok && recvAddr.IsConst {
+                g.fail("cannot call the pointer method '" + sel.Name + "' on a constant", sel.Line, sel.Col)
+                return g.dummy()
+            }
+            if recvAddr.Ok {
+                recv = recvAddr.A
+            } else {
+                recv = g.entryAlloca(structTy, "recv")
+                g.store(structTy, recvVal.V, recv)
+            }
+        } else if recvAddr.Ok {
+            recv = g.load(structTy, recvAddr.A)
+        } else {
+            recv = recvVal.V
+        }
+    } else {
+        var* p = recvVal.V
+        if recvAddr.Ok {
+            p = g.load(t, recvAddr.A)
+        }
+        if m.PtrRecv {
+            recv = p
+        } else {
+            g.nilCheck(p)
+            recv = g.load(structTy, p)
+        }
+    }
+    var* recvArg = g.llvmType(m.Params[0]) + " " + recv
+    return g.callFunction(m, structTy.Name() + "." + sel.Name, e, [recvArg], 1)
+}
+
+fn (g *Gen) makeIface(v Value, ifaceType *Type, line int, col int) Value {
+    g.fail("interfaces are not supported by the self-hosted compiler yet", line, col)
+    return v
+}
+
+fn (g *Gen) makeAny(v Value) Value {
+    if v.T.Kind == KAny {
+        return v
+    }
+    if v.T.Kind == KNil {
+        return Value{V: "zeroinitializer", T: g.tt.anyT}
+    }
+    if v.T.Kind == KIface {
+        g.fail("converting an interface to any is not supported by the self-hosted compiler yet", 0, 0)
+        return v
+    }
+    var* data = v.V
+    var* desc = g.typeDesc(v.T)
+    if v.T.Kind != KPointer && v.T.Kind != KMap {
+        data = g.callRt("pgt_alloc", "ptr", "i64, ptr", "i64 " + g.sizeOf(v.T) + ", ptr null")
+        g.store(v.T, v.V, data)
+    }
+    var* r1 = g.inst("insertvalue %pgt.iface undef, ptr " + data + ", 0")
+    var* r2 = g.inst("insertvalue %pgt.iface " + r1 + ", ptr " + desc + ", 1")
+    return Value{V: r2, T: g.tt.anyT}
+}
+
+fn kindNumber(t *Type) int {
+    switch t.Kind {
+        case KInt { return 1 }
+        case KInt64 { return 2 }
+        case KUint64 { return 14 }
+        case KFloat { return 3 }
+        case KChar { return 4 }
+        case KByte { return 5 }
+        case KBool { return 6 }
+        case KString { return 7 }
+        case KArray { return 8 }
+        case KPointer { return 9 }
+        case KStruct { return 10 }
+        case KIface { return 11 }
+        case KAny { return 12 }
+        case KMap { return 13 }
+    }
+    return 0
+}
+
+fn (g *Gen) typeDesc(t *Type) string {
+    if has(g.descs, t.Id) {
+        return g.descs[t.Id]
+    }
+    g.uniq++
+    var* sym = "@pgt.type." + g.uniq
+    g.descs[t.Id] = sym
+    var* elem = "null"
+    if t.Kind == KArray || t.Kind == KPointer || t.Kind == KMap {
+        elem = g.typeDesc(t.Elem)
+    }
+    var* fields = "null"
+    var* nfields = 0
+    if t.Kind == KStruct {
+        var* items = ""
+        for i, f in t.St.Fields {
+            var* offset = "ptrtoint (ptr getelementptr (" + t.St.Llvm + ", ptr null, i32 0, i32 " + i + ") to i64)"
+            if i > 0 {
+                items = items + ", "
+            }
+            items = items + "%pgt.fielddesc { ptr " + g.strLit(f.Name) + ", ptr " + g.typeDesc(f.Type) + ", i64 " + offset + " }"
+        }
+        nfields = len(t.St.Fields)
+        if nfields > 0 {
+            g.uniq++
+            fields = "@pgt.fields." + g.uniq
+            g.globals.Write(fields + " = internal constant [" + nfields + " x %pgt.fielddesc] [" + items + "]\n")
+        }
+    }
+    g.globals.Write(sym + " = internal constant %pgt.typedesc { i32 " + kindNumber(t) + ", i32 " + nfields + ", ptr " + g.strLit(t.Name()) + ", ptr " + elem + ", i64 " + g.sizeOf(t) + ", ptr null, ptr null, ptr " + fields + " }\n")
+    return sym
+}
+
+fn (g *Gen) genConversion(e *ast.Expr, target *Type) Value {
+    if len(e.Args) != 1 {
+        g.fail("the conversion '" + target.Name() + "' takes exactly one argument", e.Line, e.Col)
+        return g.dummy()
+    }
+    var* hint *Type = nil
+    if target.IsNumeric() {
+        hint = target
+    }
+    var* v = g.genExpr(e.Args[0], hint)
+    return g.convert(v, target, e.Line, e.Col)
+}
