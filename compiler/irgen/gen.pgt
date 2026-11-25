@@ -77,6 +77,16 @@ struct Gen {
     loops []*LoopTarget
     heapVars map[string]bool
     curRet *Type
+    mtActive bool
+    mtMap string
+    mtKey string
+    mtVal string
+    mtType *Type
+    descTypes []*Type
+    vtables map[string]string
+    thunks map[string]string
+    assertFns map[string]string
+    assertTypes []*Type
     failed bool
     err Error
 }
@@ -90,6 +100,9 @@ fn newGen() *Gen {
         descs: map[string]string{},
         strLits: map[string]string{},
         heapVars: map[string]bool{},
+        vtables: map[string]string{},
+        thunks: map[string]string{},
+        assertFns: map[string]string{},
     }
 }
 
@@ -925,6 +938,7 @@ fn Generate(ws *loader.Workspace) (string, Error) {
         g.bindImports(entry)
         g.genEntryPoint(ws.Root, entry)
     }
+    g.finishAssertFns()
     if g.failed {
         return "", g.err
     }

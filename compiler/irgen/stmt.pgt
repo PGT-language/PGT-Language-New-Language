@@ -148,6 +148,9 @@ fn (g *Gen) genValueList(values []*ast.Expr, want int, hints []*Type, line int, 
         }
         return g.expandTuple(v)
     }
+    if e.Kind == ast.ExprTypeAssert && want == 2 && !e.IsTypeKeyword {
+        return g.genAssertOk(e)
+    }
     g.fail("assignment mismatch: " + want + " variables but 1 value", line, col)
     return out
 }
@@ -197,8 +200,13 @@ fn (g *Gen) genMultiAssign(s *ast.Stmt) {
             hints = append(hints, nil)
             continue
         }
+        g.mtActive = false
         var* a = g.requireAddress(t, true)
         if g.failed {
+            return
+        }
+        if g.mtActive {
+            g.fail("multiple assignment to map elements is not supported", t.Line, t.Col)
             return
         }
         addrs = append(addrs, a)
@@ -227,8 +235,13 @@ fn (g *Gen) genMultiAssign(s *ast.Stmt) {
 }
 
 fn (g *Gen) genAssign(s *ast.Stmt) {
+    g.mtActive = false
     var* target = g.requireAddress(s.Target, true)
     if g.failed {
+        return
+    }
+    if g.mtActive && s.Target.Kind != ast.ExprIndex {
+        g.fail("cannot assign to a field of a map element", s.Line, s.Col)
         return
     }
     var* rhs = g.genExpr(s.Value, target.T)
@@ -241,6 +254,7 @@ fn (g *Gen) genAssign(s *ast.Stmt) {
             return
         }
         g.store(target.T, rhs.V, target.A)
+        g.commitMapTarget()
         return
     }
     var* op = ast.BinAdd
@@ -261,6 +275,7 @@ fn (g *Gen) genAssign(s *ast.Stmt) {
         return
     }
     g.store(target.T, res.V, target.A)
+    g.commitMapTarget()
 }
 
 fn (g *Gen) genMultiReturn(s *ast.Stmt) {
@@ -438,6 +453,10 @@ fn (g *Gen) genForIn(s *ast.Stmt) {
     if g.failed {
         return
     }
+    if seq.T.Kind == KMap {
+        g.genMapForIn(s, seq)
+        return
+    }
     var* elemTy *Type = nil
     var* n = ""
     var* data = ""
@@ -491,7 +510,7 @@ fn (g *Gen) genForIn(s *ast.Stmt) {
 
 fn (g *Gen) genSwitch(s *ast.Stmt) {
     if s.TypeSwitch {
-        g.fail("type switches are not supported by the self-hosted compiler yet", s.Line, s.Col)
+        g.genTypeSwitch(s)
         return
     }
     var* endBB = g.newLabel("switch.end")

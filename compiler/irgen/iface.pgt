@@ -1,0 +1,412 @@
+package irgen
+
+#use "compiler/ast"
+
+fn (g *Gen) structOf(t *Type) *StructInfo {
+    if t.Kind == KStruct {
+        return t.St
+    }
+    if t.IsPtrToStruct() {
+        return t.Elem.St
+    }
+    return nil
+}
+
+fn (g *Gen) missingMethod(concrete *Type, ii *IfaceInfo) string {
+    var* st = g.structOf(concrete)
+    for im in ii.Methods {
+        var* m *FuncInfo = nil
+        if st != nil && has(st.Methods, im.Name) {
+            m = st.Methods[im.Name]
+        }
+        if m == nil {
+            return "missing method '" + im.Name + "'"
+        }
+        if m.PtrRecv && concrete.Kind == KStruct {
+            return "method '" + im.Name + "' has a pointer receiver; use &value"
+        }
+        var* same = m.Ret == im.Ret && len(m.Params) == len(im.Params) + 1
+        for i, p in im.Params {
+            if same && m.Params[i + 1] != p {
+                same = false
+            }
+        }
+        if !same {
+            return "method '" + im.Name + "' has a different signature"
+        }
+    }
+    return ""
+}
+
+fn (g *Gen) methodThunk(m *FuncInfo, structTy *Type) string {
+    var* sym = m.Symbol + ".thunk"
+    if has(g.thunks, sym) {
+        return g.thunks[sym]
+    }
+    var* ref = g.fnRef(sym)
+    g.thunks[sym] = ref
+    g.useFn(m)
+    var* params = "ptr %data"
+    var* callArgs = ""
+    for i in 1..len(m.Params) {
+        params = params + ", " + g.llvmType(m.Params[i]) + " %a" + i
+        callArgs = callArgs + ", " + g.llvmType(m.Params[i]) + " %a" + i
+    }
+    var* ret = g.llvmType(m.Ret)
+    var* text = "define internal " + ret + " " + ref + "(" + params + ") {\nentry:\n"
+    var* recv = ""
+    if m.PtrRecv {
+        recv = "ptr %data"
+    } else {
+        var* panicFn = g.panicDecl("panicNil")
+        text = text + "  %isnil = icmp eq ptr %data, null\n  br i1 %isnil, label %nilp, label %okp\nnilp:\n  call void " + panicFn + "()\n  unreachable\nokp:\n"
+        text = text + "  %recv = load " + structTy.St.Llvm + ", ptr %data\n"
+        recv = structTy.St.Llvm + " %recv"
+    }
+    if m.Ret.Kind == KVoid {
+        text = text + "  call void " + g.fnRef(m.Symbol) + "(" + recv + callArgs + ")\n  ret void\n}\n\n"
+    } else {
+        text = text + "  %res = call " + ret + " " + g.fnRef(m.Symbol) + "(" + recv + callArgs + ")\n  ret " + ret + " %res\n}\n\n"
+    }
+    g.funcs.Write(text)
+    return ref
+}
+
+fn (g *Gen) vtableFor(concrete *Type, ifaceType *Type) string {
+    var* key = concrete.Id + "|" + ifaceType.Id
+    if has(g.vtables, key) {
+        return g.vtables[key]
+    }
+    var* st = g.structOf(concrete)
+    var* structTy = g.tt.structT(st)
+    var* items = "ptr " + g.typeDesc(concrete)
+    for im in ifaceType.Iface.Methods {
+        items = items + ", ptr " + g.methodThunk(st.Methods[im.Name], structTy)
+    }
+    g.uniq++
+    var* sym = "@pgt.vtable." + g.uniq
+    g.globals.Write(sym + " = internal constant [" + (len(ifaceType.Iface.Methods) + 1) + " x ptr] [" + items + "]\n")
+    g.vtables[key] = sym
+    return sym
+}
+
+fn (g *Gen) makeIface(v Value, ifaceType *Type, line int, col int) Value {
+    var* why = g.missingMethod(v.T, ifaceType.Iface)
+    if len(why) > 0 {
+        g.fail(v.T.Name() + " does not implement " + ifaceType.Name() + ": " + why, line, col)
+        return v
+    }
+    var* data = v.V
+    if v.T.Kind != KPointer {
+        data = g.callRt("pgt_alloc", "ptr", "i64, ptr", "i64 " + g.sizeOf(v.T) + ", ptr null")
+        g.store(v.T, v.V, data)
+    }
+    var* r1 = g.inst("insertvalue %pgt.iface undef, ptr " + data + ", 0")
+    var* r2 = g.inst("insertvalue %pgt.iface " + r1 + ", ptr " + g.vtableFor(v.T, ifaceType) + ", 1")
+    return Value{V: r2, T: ifaceType}
+}
+
+fn (g *Gen) dynTypeDesc(v Value) string {
+    if v.T.Kind == KAny {
+        return g.extract(v.T, v.V, 1)
+    }
+    var* vt = g.extract(v.T, v.V, 1)
+    var* isNil = g.inst("icmp eq ptr " + vt + ", null")
+    var* from = g.newLabel("desc.from")
+    g.br(from)
+    g.label(from)
+    var* loadBB = g.newLabel("desc.load")
+    var* doneBB = g.newLabel("desc.done")
+    g.condBr(isNil, doneBB, loadBB)
+    g.label(loadBB)
+    var* loaded = g.inst("load ptr, ptr " + vt)
+    g.br(doneBB)
+    g.label(doneBB)
+    return g.inst("phi ptr [ null, %" + from + " ], [ " + loaded + ", %" + loadBB + " ]")
+}
+
+fn (g *Gen) genIfaceCall(iface Value, e *ast.Expr, method string) Value {
+    if e.Spread {
+        g.fail("'...' can only be used when calling a variadic function", e.Line, e.Col)
+        return g.dummy()
+    }
+    var* ii = iface.T.Iface
+    var* idx = ii.MethodIndex(method)
+    if idx < 0 {
+        g.fail("interface " + iface.T.Name() + " has no method '" + method + "'", e.Line, e.Col)
+        return g.dummy()
+    }
+    var* m = ii.Methods[idx]
+    var* name = iface.T.Name() + "." + method
+    if len(e.Args) != len(m.Params) {
+        g.fail("'" + name + "' takes " + len(m.Params) + " argument(s), got " + len(e.Args), e.Line, e.Col)
+        return g.dummy()
+    }
+    var* data = g.extract(iface.T, iface.V, 0)
+    var* vt = g.extract(iface.T, iface.V, 1)
+    var* isNil = g.inst("icmp eq ptr " + vt + ", null")
+    var* msg = g.strLit("method call on a nil interface")
+    g.panicIf(isNil, "panicString", "ptr " + msg)
+    var* ptys = "ptr"
+    var* args = "ptr " + data
+    for i, a in e.Args {
+        var* v = g.coerce(g.genExpr(a, m.Params[i]), m.Params[i], a.Line, a.Col, "argument " + (i + 1) + " of '" + name + "'")
+        if g.failed {
+            return g.dummy()
+        }
+        ptys = ptys + ", " + g.llvmType(m.Params[i])
+        args = args + ", " + g.llvmType(m.Params[i]) + " " + v.V
+    }
+    var* slot = g.inst("getelementptr ptr, ptr " + vt + ", i64 " + (idx + 1))
+    var* fp = g.inst("load ptr, ptr " + slot)
+    var* ret = g.llvmType(m.Ret)
+    if m.Ret.Kind == KVoid {
+        g.emit("call void " + fp + "(" + args + ")")
+        return Value{V: "", T: m.Ret}
+    }
+    var* r = g.inst("call " + ret + " " + fp + "(" + args + ")")
+    return Value{V: r, T: m.Ret}
+}
+
+fn (g *Gen) ifaceAssertFn(ifaceType *Type) string {
+    if has(g.assertFns, ifaceType.Id) {
+        return g.assertFns[ifaceType.Id]
+    }
+    g.uniq++
+    var* ref = "@pgt.assert." + g.uniq
+    g.assertFns[ifaceType.Id] = ref
+    g.assertTypes = append(g.assertTypes, ifaceType)
+    g.declareRaw(ref, "declare ptr " + ref + "(ptr)")
+    return ref
+}
+
+fn (g *Gen) finishAssertFns() {
+    for ifaceType in g.assertTypes {
+        var* ref = g.assertFns[ifaceType.Id]
+        var* cands + {[]*Type} = []
+        for t in g.descTypes {
+            if (t.Kind == KStruct || t.IsPtrToStruct()) && len(g.missingMethod(t, ifaceType.Iface)) == 0 {
+                cands = append(cands, t)
+            }
+        }
+        var* i = 1
+        while i < len(cands) {
+            var* j = i
+            while j > 0 && cands[j].Name() < cands[j - 1].Name() {
+                var* tmp = cands[j]
+                cands[j] = cands[j - 1]
+                cands[j - 1] = tmp
+                j--
+            }
+            i++
+        }
+        var* text = "define internal ptr " + ref + "(ptr %d) {\nentry:\n"
+        for k, t in cands {
+            text = text + "  %c" + k + " = icmp eq ptr %d, " + g.typeDesc(t) + "\n  br i1 %c" + k + ", label %hit" + k + ", label %next" + k + "\nhit" + k + ":\n  ret ptr " + g.vtableFor(t, ifaceType) + "\nnext" + k + ":\n"
+        }
+        text = text + "  ret ptr null\n}\n\n"
+        g.funcs.Write(text)
+    }
+}
+
+fn (g *Gen) assertMatch(desc string, target *Type) string {
+    if target.Kind == KIface {
+        var* r = g.inst("call ptr " + g.ifaceAssertFn(target) + "(ptr " + desc + ")")
+        return g.inst("icmp ne ptr " + r + ", null")
+    }
+    if target.Kind == KAny {
+        return g.inst("icmp ne ptr " + desc + ", null")
+    }
+    return g.inst("icmp eq ptr " + desc + ", " + g.typeDesc(target))
+}
+
+fn (g *Gen) assertExtract(data string, desc string, target *Type) string {
+    if target.Kind == KIface || target.Kind == KAny {
+        var* second = desc
+        if target.Kind == KIface {
+            second = g.inst("call ptr " + g.ifaceAssertFn(target) + "(ptr " + desc + ")")
+        }
+        var* r1 = g.inst("insertvalue %pgt.iface undef, ptr " + data + ", 0")
+        return g.inst("insertvalue %pgt.iface " + r1 + ", ptr " + second + ", 1")
+    }
+    if target.Kind == KPointer || target.Kind == KMap {
+        return data
+    }
+    return g.load(target, data)
+}
+
+fn (g *Gen) checkAssertable(src Value, target *Type, line int, col int) {
+    if src.T.Kind != KIface && src.T.Kind != KAny {
+        g.fail("invalid type assertion: the value has type " + src.T.Name() + ", which is not an interface", line, col)
+        return
+    }
+    if src.T.Kind == KIface && target.Kind != KIface && target.Kind != KAny {
+        var* why = g.missingMethod(target, src.T.Iface)
+        if len(why) > 0 {
+            g.fail("impossible type assertion: " + target.Name() + " does not implement " + src.T.Name() + " (" + why + ")", line, col)
+        }
+    }
+}
+
+fn (g *Gen) assertTo(src Value, target *Type, commaOk bool) (Value, string) {
+    var* desc = g.dynTypeDesc(src)
+    var* data = g.extract(src.T, src.V, 0)
+    var* match = g.assertMatch(desc, target)
+    var* okBB = g.newLabel("assert.ok")
+    if !commaOk {
+        var* badBB = g.newLabel("assert.fail")
+        g.condBr(match, okBB, badBB)
+        g.label(badBB)
+        if !has(g.declared, "pgt.nilname") {
+            g.declared["pgt.nilname"] = true
+            g.globals.Write("@pgt.nilname = internal constant ptr " + g.strLit("nil") + "\n")
+        }
+        var* isNil = g.inst("icmp eq ptr " + desc + ", null")
+        var* np = g.inst("getelementptr %pgt.typedesc, ptr " + desc + ", i32 0, i32 2")
+        var* namePtr = g.inst("select i1 " + isNil + ", ptr @pgt.nilname, ptr " + np)
+        var* dyn = g.inst("load ptr, ptr " + namePtr)
+        g.callRtNoReturn("pgt_assert_fail", "ptr, ptr", "ptr " + dyn + ", ptr " + g.strLit(target.Name()))
+        g.label(okBB)
+        return Value{V: g.assertExtract(data, desc, target), T: target}, ""
+    }
+    var* from = g.newLabel("assert.from")
+    g.br(from)
+    g.label(from)
+    var* doneBB = g.newLabel("assert.done")
+    g.condBr(match, okBB, doneBB)
+    g.label(okBB)
+    var* val = g.assertExtract(data, desc, target)
+    var* okEnd = g.newLabel("assert.oke")
+    g.br(okEnd)
+    g.label(okEnd)
+    g.br(doneBB)
+    g.label(doneBB)
+    var* phi = g.inst("phi " + g.llvmType(target) + " [ " + g.zeroValue(target) + ", %" + from + " ], [ " + val + ", %" + okEnd + " ]")
+    return Value{V: phi, T: target}, match
+}
+
+fn (g *Gen) genTypeAssert(e *ast.Expr) Value {
+    if e.IsTypeKeyword {
+        g.fail("'.(type)' can only be used in a type switch: switch v = x.(type)", e.Line, e.Col)
+        return g.dummy()
+    }
+    var* src = g.genExpr(e.Base, nil)
+    var* target = g.resolveType(e.Type, false)
+    if g.failed {
+        return g.dummy()
+    }
+    g.checkAssertable(src, target, e.Line, e.Col)
+    if g.failed {
+        return g.dummy()
+    }
+    var* v, ok = g.assertTo(src, target, false)
+    return v
+}
+
+fn (g *Gen) genAssertOk(e *ast.Expr) []Value {
+    var* out + {[]Value} = []
+    var* src = g.genExpr(e.Base, nil)
+    var* target = g.resolveType(e.Type, false)
+    if g.failed {
+        return out
+    }
+    g.checkAssertable(src, target, e.Line, e.Col)
+    if g.failed {
+        return out
+    }
+    var* v, ok = g.assertTo(src, target, true)
+    out = append(out, v)
+    out = append(out, Value{V: ok, T: g.tt.boolT})
+    return out
+}
+
+fn (g *Gen) bindTag(s *ast.Stmt, tag Value, data string, desc string, single *Type, body []*ast.Stmt, line int, col int) {
+    g.pushScope()
+    if len(s.Bind) > 0 && s.Bind != "_" {
+        var* ty = tag.T
+        var* val = tag.V
+        if single != nil {
+            ty = single
+            val = g.assertExtract(data, desc, single)
+        }
+        var* slot = g.newVarSlot(ty, s.Bind)
+        g.store(ty, val, slot)
+        g.declare(s.Bind, &Var{Addr: slot, T: ty, IsConst: false}, line, col)
+    }
+    g.genBlock(body)
+    g.popScope()
+}
+
+fn (g *Gen) genTypeSwitch(s *ast.Stmt) {
+    var* endBB = g.newLabel("switch.end")
+    g.pushScope()
+    var* tag = g.genExpr(s.Tag, nil)
+    if g.failed {
+        return
+    }
+    if tag.T.Kind != KIface && tag.T.Kind != KAny {
+        g.fail("a type switch needs an interface or any value, found " + tag.T.Name(), s.Tag.Line, s.Tag.Col)
+        return
+    }
+    var* desc = g.dynTypeDesc(tag)
+    var* data = g.extract(tag.T, tag.V, 0)
+    var* caseTypes + {[][]*Type} = []
+    var* bodies + {[]string} = []
+    for c in s.Cases {
+        bodies = append(bodies, g.newLabel("case.body"))
+        var* none + {[]*Type} = []
+        caseTypes = append(caseTypes, none)
+    }
+    var* defaultBB = endBB
+    if s.HasDefault {
+        defaultBB = g.newLabel("switch.default")
+    }
+    var* seenNil = false
+    for i, c in s.Cases {
+        for te in c.Types {
+            var* cond = ""
+            if te.Kind == ast.TypeNamed && len(te.Qualifier) == 0 && te.Name == "nil" {
+                if seenNil {
+                    g.fail("duplicate case nil in type switch", te.Line, te.Col)
+                    return
+                }
+                seenNil = true
+                caseTypes[i] = append(caseTypes[i], nil)
+                cond = g.inst("icmp eq ptr " + desc + ", null")
+            } else {
+                var* t = g.resolveType(te, false)
+                if g.failed {
+                    return
+                }
+                g.checkAssertable(tag, t, te.Line, te.Col)
+                if g.failed {
+                    return
+                }
+                caseTypes[i] = append(caseTypes[i], t)
+                cond = g.assertMatch(desc, t)
+            }
+            var* next = g.newLabel("case.next")
+            g.condBr(cond, bodies[i], next)
+            g.label(next)
+        }
+    }
+    g.br(defaultBB)
+    g.loops = append(g.loops, &LoopTarget{Continue: "", Break: endBB})
+    for i, c in s.Cases {
+        g.label(bodies[i])
+        var* single *Type = nil
+        if len(caseTypes[i]) == 1 {
+            single = caseTypes[i][0]
+        }
+        g.bindTag(s, tag, data, desc, single, c.Body, c.Line, c.Col)
+        g.br(endBB)
+    }
+    if s.HasDefault {
+        g.label(defaultBB)
+        g.bindTag(s, tag, data, desc, nil, s.Default, s.Line, s.Col)
+        g.br(endBB)
+    }
+    g.loops = g.loops[0:len(g.loops) - 1]
+    g.label(endBB)
+    g.popScope()
+}

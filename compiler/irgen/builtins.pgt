@@ -74,7 +74,10 @@ fn (g *Gen) genBuiltin(e *ast.Expr, name string, hint *Type) Value {
             if v.T.Kind == KString {
                 return Value{V: g.callRt("pgt_strlen", "i32", "ptr", "ptr " + v.V), T: intT}
             }
-            g.fail("'len' needs an array or a string, found " + v.T.Name(), e.Line, e.Col)
+            if v.T.Kind == KMap {
+                return g.mapLen(v)
+            }
+            g.fail("'len' needs an array, a map or a string, found " + v.T.Name(), e.Line, e.Col)
             return v
         }
         case "cap" {
@@ -138,8 +141,11 @@ fn (g *Gen) genBuiltin(e *ast.Expr, name string, hint *Type) Value {
                 return g.dummy()
             }
             if t.Kind == KMap {
-                g.fail("maps are not supported by the self-hosted compiler yet", e.Line, e.Col)
-                return g.dummy()
+                if len(e.Args) != 0 {
+                    g.fail("'make' of a map takes only the type: make(map[K]V)", e.Line, e.Col)
+                    return g.dummy()
+                }
+                return g.genMapNew(t)
             }
             if t.Kind != KArray {
                 g.fail("'make' creates arrays; use new(T) for a pointer", e.Line, e.Col)
@@ -408,8 +414,7 @@ fn (g *Gen) genBuiltin(e *ast.Expr, name string, hint *Type) Value {
             return g.noValue()
         }
         case "has", "delete" {
-            g.fail("maps are not supported by the self-hosted compiler yet", e.Line, e.Col)
-            return g.dummy()
+            return g.genMapBuiltin(e, name)
         }
     }
     return none

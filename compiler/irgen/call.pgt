@@ -252,8 +252,11 @@ fn (g *Gen) genMethodCall(e *ast.Expr, sel *ast.Expr) Value {
         t = recvVal.T
     }
     if t.Kind == KIface {
-        g.fail("interface method calls are not supported by the self-hosted compiler yet", e.Line, e.Col)
-        return g.dummy()
+        var* iv = recvVal
+        if recvAddr.Ok {
+            iv = Value{V: g.load(t, recvAddr.A), T: t}
+        }
+        return g.genIfaceCall(iv, e, sel.Name)
     }
     var* structTy *Type = nil
     if t.Kind == KStruct {
@@ -313,11 +316,6 @@ fn (g *Gen) genMethodCall(e *ast.Expr, sel *ast.Expr) Value {
     return g.callFunction(m, structTy.Name() + "." + sel.Name, e, [recvArg], 1)
 }
 
-fn (g *Gen) makeIface(v Value, ifaceType *Type, line int, col int) Value {
-    g.fail("interfaces are not supported by the self-hosted compiler yet", line, col)
-    return v
-}
-
 fn (g *Gen) makeAny(v Value) Value {
     if v.T.Kind == KAny {
         return v
@@ -326,8 +324,11 @@ fn (g *Gen) makeAny(v Value) Value {
         return Value{V: "zeroinitializer", T: g.tt.anyT}
     }
     if v.T.Kind == KIface {
-        g.fail("converting an interface to any is not supported by the self-hosted compiler yet", 0, 0)
-        return v
+        var* desc = g.dynTypeDesc(v)
+        var* d = g.extract(v.T, v.V, 0)
+        var* r1 = g.inst("insertvalue %pgt.iface undef, ptr " + d + ", 0")
+        var* r2 = g.inst("insertvalue %pgt.iface " + r1 + ", ptr " + desc + ", 1")
+        return Value{V: r2, T: g.tt.anyT}
     }
     var* data = v.V
     var* desc = g.typeDesc(v.T)
@@ -367,6 +368,7 @@ fn (g *Gen) typeDesc(t *Type) string {
     g.uniq++
     var* sym = "@pgt.type." + g.uniq
     g.descs[t.Id] = sym
+    g.descTypes = append(g.descTypes, t)
     var* elem = "null"
     if t.Kind == KArray || t.Kind == KPointer || t.Kind == KMap {
         elem = g.typeDesc(t.Elem)

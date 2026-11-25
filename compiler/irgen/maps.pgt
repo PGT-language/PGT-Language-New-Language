@@ -1,0 +1,169 @@
+package irgen
+
+#use "compiler/ast"
+
+fn (g *Gen) mapsFn(name string) *FuncInfo {
+    var* info = g.syms["maps"].Functions[name]
+    g.useFn(info)
+    return info
+}
+
+fn (g *Gen) mapKeySlot(mapType *Type, key *ast.Expr) string {
+    var* k = g.coerce(g.genExpr(key, mapType.Key), mapType.Key, key.Line, key.Col, "the map key")
+    var* slot = g.entryAlloca(mapType.Key, "mkey")
+    g.store(mapType.Key, k.V, slot)
+    return slot
+}
+
+fn (g *Gen) genMapNew(t *Type) Value {
+    var* info = g.mapsFn("New")
+    var* kd = g.typeDesc(t.Key)
+    var* vd = g.typeDesc(t.Elem)
+    var* m = g.inst("call ptr " + g.fnRef(info.Symbol) + "(ptr " + kd + ", ptr " + vd + ", ptr null)")
+    return Value{V: m, T: t}
+}
+
+fn (g *Gen) genMapLit(e *ast.Expr) Value {
+    var* t = g.resolveType(e.Type, false)
+    if g.failed {
+        return g.dummy()
+    }
+    if t.Kind != KMap {
+        g.fail("'" + e.Type.Text() + "' is not a map type", e.Line, e.Col)
+        return g.dummy()
+    }
+    var* m = g.genMapNew(t)
+    var* setInfo = g.mapsFn("Set")
+    for i, ke in e.Keys {
+        var* ks = g.mapKeySlot(t, ke)
+        var* ve = e.Values[i]
+        var* v = g.coerce(g.genExpr(ve, t.Elem), t.Elem, ve.Line, ve.Col, "the map value")
+        if g.failed {
+            return m
+        }
+        var* vs = g.entryAlloca(t.Elem, "mval")
+        g.store(t.Elem, v.V, vs)
+        g.emit("call void " + g.fnRef(setInfo.Symbol) + "(ptr " + m.V + ", ptr " + ks + ", ptr " + vs + ")")
+    }
+    return m
+}
+
+fn (g *Gen) genMapAddr(m Value, key *ast.Expr, forWrite bool) Addr {
+    var* vt = m.T.Elem
+    var* ks = g.mapKeySlot(m.T, key)
+    var* vs = g.entryAlloca(vt, "mval")
+    g.store(vt, g.zeroValue(vt), vs)
+    var* getInfo = g.mapsFn("Get")
+    g.emit("call void " + g.fnRef(getInfo.Symbol) + "(ptr " + m.V + ", ptr " + ks + ", ptr " + vs + ")")
+    if forWrite {
+        g.mtActive = true
+        g.mtMap = m.V
+        g.mtKey = ks
+        g.mtVal = vs
+        g.mtType = vt
+    }
+    return Addr{A: vs, T: vt, IsConst: false, Ok: true}
+}
+
+fn (g *Gen) commitMapTarget() {
+    if !g.mtActive {
+        return
+    }
+    var* setInfo = g.mapsFn("Set")
+    g.emit("call void " + g.fnRef(setInfo.Symbol) + "(ptr " + g.mtMap + ", ptr " + g.mtKey + ", ptr " + g.mtVal + ")")
+    g.mtActive = false
+}
+
+fn (g *Gen) genMapGet(m Value, key *ast.Expr) Value {
+    var* a = g.genMapAddr(m, key, false)
+    return Value{V: g.load(a.T, a.A), T: a.T}
+}
+
+fn (g *Gen) genMapForIn(s *ast.Stmt, seq Value) {
+    var* condBB = g.newLabel("mfor.cond")
+    var* bodyBB = g.newLabel("mfor.body")
+    var* postBB = g.newLabel("mfor.post")
+    var* endBB = g.newLabel("mfor.end")
+    var* kt = seq.T.Key
+    var* vt = seq.T.Elem
+    var* i64 = g.tt.int64T
+    var* idx = g.entryAlloca(i64, "midx")
+    g.store(i64, "0", idx)
+    var* keyName = s.Key
+    if len(keyName) == 0 {
+        keyName = s.Val
+    }
+    var* keySlot = g.newVarSlot(kt, keyName)
+    g.store(kt, g.zeroValue(kt), keySlot)
+    g.declare(keyName, &Var{Addr: keySlot, T: kt, IsConst: false}, s.Line, s.Col)
+    var* valSlot = ""
+    if len(s.Key) > 0 {
+        valSlot = g.newVarSlot(vt, s.Val)
+        g.store(vt, g.zeroValue(vt), valSlot)
+        g.declare(s.Val, &Var{Addr: valSlot, T: vt, IsConst: false}, s.Line, s.Col)
+    }
+    var* nextInfo = g.mapsFn("Next")
+    var* keyAt = g.mapsFn("KeyAt")
+    var* valAt = g.mapsFn("ValAt")
+    g.br(condBB)
+    g.label(condBB)
+    var* cur = g.load(i64, idx)
+    var* n = g.inst("call i64 " + g.fnRef(nextInfo.Symbol) + "(ptr " + seq.V + ", i64 " + cur + ")")
+    g.store(i64, n, idx)
+    var* ok = g.inst("icmp sge i64 " + n + ", 0")
+    g.condBr(ok, bodyBB, endBB)
+    g.label(bodyBB)
+    var* at = g.load(i64, idx)
+    var* kp = g.inst("call ptr " + g.fnRef(keyAt.Symbol) + "(ptr " + seq.V + ", i64 " + at + ")")
+    g.store(kt, g.load(kt, kp), keySlot)
+    if len(valSlot) > 0 {
+        var* vp = g.inst("call ptr " + g.fnRef(valAt.Symbol) + "(ptr " + seq.V + ", i64 " + at + ")")
+        g.store(vt, g.load(vt, vp), valSlot)
+    }
+    g.loops = append(g.loops, &LoopTarget{Continue: postBB, Break: endBB})
+    g.genBlock(s.Body)
+    g.loops = g.loops[0:len(g.loops) - 1]
+    g.br(postBB)
+    g.label(postBB)
+    var* c2 = g.load(i64, idx)
+    var* nx = g.inst("add i64 " + c2 + ", 1")
+    g.store(i64, nx, idx)
+    g.br(condBB)
+    g.label(endBB)
+    g.popScope()
+}
+
+fn (g *Gen) genMapBuiltin(e *ast.Expr, name string) Value {
+    if e.TypeArg != nil {
+        g.fail("'" + name + "' does not take a type argument", e.Line, e.Col)
+        return g.dummy()
+    }
+    if len(e.Args) != 2 {
+        g.fail("'" + name + "' takes a map and a key", e.Line, e.Col)
+        return g.dummy()
+    }
+    var* m = g.genExpr(e.Args[0], nil)
+    if g.failed {
+        return m
+    }
+    if m.T.Kind != KMap {
+        g.fail("'" + name + "' needs a map, found " + m.T.Name(), e.Args[0].Line, e.Args[0].Col)
+        return m
+    }
+    var* ks = g.mapKeySlot(m.T, e.Args[1])
+    if g.failed {
+        return m
+    }
+    if name == "has" {
+        var* info = g.mapsFn("Has")
+        return Value{V: g.inst("call i1 " + g.fnRef(info.Symbol) + "(ptr " + m.V + ", ptr " + ks + ")"), T: g.tt.boolT}
+    }
+    var* info = g.mapsFn("Delete")
+    g.emit("call void " + g.fnRef(info.Symbol) + "(ptr " + m.V + ", ptr " + ks + ")")
+    return g.noValue()
+}
+
+fn (g *Gen) mapLen(m Value) Value {
+    var* info = g.mapsFn("Len")
+    return Value{V: g.inst("call i32 " + g.fnRef(info.Symbol) + "(ptr " + m.V + ")"), T: g.tt.intT}
+}

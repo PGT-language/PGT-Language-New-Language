@@ -127,6 +127,8 @@ fn (g *Gen) genExpr(e *ast.Expr, hint *Type) Value {
         case ast.ExprSlice { return g.genSlice(e) }
         case ast.ExprArrayLit { return g.genArrayLit(e, h) }
         case ast.ExprStructLit { return g.genStructLit(e) }
+        case ast.ExprMapLit { return g.genMapLit(e) }
+        case ast.ExprTypeAssert { return g.genTypeAssert(e) }
     }
     g.fail("this expression is not supported by the self-hosted compiler yet", e.Line, e.Col)
     return g.dummy()
@@ -719,8 +721,7 @@ fn (g *Gen) addressOf(e *ast.Expr, forWrite bool) Addr {
                 return Addr{}
             }
             if base.T.Kind == KMap {
-                g.fail("maps are not supported by the self-hosted compiler yet", e.Line, e.Col)
-                return Addr{}
+                return g.genMapAddr(base, e.Index, forWrite)
             }
             if base.T.Kind == KString {
                 g.fail("strings are immutable; build a new string instead", e.Line, e.Col)
@@ -831,8 +832,7 @@ fn (g *Gen) genIndex(e *ast.Expr) Value {
         return Value{V: g.inst("load i8, ptr " + p), T: g.tt.charT}
     }
     if base.T.Kind == KMap {
-        g.fail("maps are not supported by the self-hosted compiler yet", e.Line, e.Col)
-        return base
+        return g.genMapGet(base, e.Index)
     }
     g.fail("cannot index " + base.T.Name(), e.Line, e.Col)
     return base
