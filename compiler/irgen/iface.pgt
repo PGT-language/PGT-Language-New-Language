@@ -78,10 +78,9 @@ fn (g *Gen) vtableFor(concrete *Type, ifaceType *Type) string {
         return g.vtables[key]
     }
     var* st = g.structOf(concrete)
-    var* structTy = g.tt.structT(st)
     var* items = "ptr " + g.typeDesc(concrete)
     for im in ifaceType.Iface.Methods {
-        items = items + ", ptr " + g.methodThunk(st.Methods[im.Name], structTy)
+        items = items + ", ptr " + g.methodThunk(st.Methods[im.Name], g.tt.structT(st))
     }
     g.uniq++
     var* sym = "@pgt.vtable." + g.uniq
@@ -265,7 +264,9 @@ fn (g *Gen) assertTo(src Value, target *Type, commaOk bool) (Value, string) {
         var* np = g.inst("getelementptr %pgt.typedesc, ptr " + desc + ", i32 0, i32 2")
         var* namePtr = g.inst("select i1 " + isNil + ", ptr @pgt.nilname, ptr " + np)
         var* dyn = g.inst("load ptr, ptr " + namePtr)
-        g.callRtNoReturn("pgt_assert_fail", "ptr, ptr", "ptr " + dyn + ", ptr " + g.strLit(target.Name()))
+        g.declareRaw("pgt_assert_fail", "declare void @pgt_assert_fail(ptr, ptr) noreturn")
+        g.emit("call void @pgt_assert_fail(ptr " + dyn + ", ptr " + g.strLit(target.Name()) + ")")
+        g.emit("unreachable")
         g.label(okBB)
         return Value{V: g.assertExtract(data, desc, target), T: target}, ""
     }

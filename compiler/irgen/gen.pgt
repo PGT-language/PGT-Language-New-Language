@@ -741,6 +741,12 @@ fn (g *Gen) stdGlobalType(e *ast.Expr) *Type {
         case ast.ExprStringLit { return g.tt.stringT }
         case ast.ExprBoolLit { return g.tt.boolT }
         case ast.ExprCharLit { return g.tt.charT }
+        case ast.ExprVarRef {
+            if has(g.pkg.Globals, e.Name) {
+                return g.pkg.Globals[e.Name].T
+            }
+            return nil
+        }
         case ast.ExprUnary {
             return g.stdGlobalType(e.Operand)
         }
