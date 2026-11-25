@@ -152,7 +152,7 @@ static const char fs_date_tag[] = "Date: ";
 static int fs_build(char *dst, int cap, int status, const char *reason, const char *ctype,
                     const char *body, int blen, int *date_at, int keep)
 {
-    int n = snprintf(dst, cap, "HTTP/1.1 %d %s\r\nServer: pgt-fast\r\n%s", status, reason, fs_date_tag);
+    int n = snprintf(dst, cap, "HTTP/1.1 %d %s\r\nServer: hello woreld-fast\r\n%s", status, reason, fs_date_tag);
     *date_at = n;
     n += snprintf(dst + n, cap - n, "%s\r\nConnection: %s\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n",
                   "Thu, 01 Jan 1970 00:00:00 GMT", keep ? "keep-alive" : "close", ctype, blen);
@@ -284,8 +284,8 @@ static void fs_put(FsConn *c, const char *src, int n, int date_at)
 static void fs_close(FsWorker *w, FsConn *c)
 {
     epoll_ctl(w->epfd, EPOLL_CTL_DEL, c->fd, NULL);
-    close(c->fd);
     fs_conns[c->fd] = NULL;
+    close(c->fd);
     atomic_fetch_sub(&w->conns, 1);
     free(c);
 }
@@ -376,7 +376,7 @@ static void fs_stats_resp(FsWorker *w, FsConn *c, int keep)
                         fs_nworkers);
     char head[256];
     int hlen = snprintf(head, sizeof head,
-                        "HTTP/1.1 200 OK\r\nServer: pgt-fast\r\nDate: %s\r\nConnection: %s\r\n"
+                        "HTTP/1.1 200 OK\r\nServer: hello woreld-fast\r\nDate: %s\r\nConnection: %s\r\n"
                         "Content-Type: application/json\r\nContent-Length: %d\r\nCache-Control: no-store\r\n\r\n",
                         fs_dates[atomic_load(&fs_date_idx)], keep ? "keep-alive" : "close", blen);
     fs_put(c, head, hlen, -1);
@@ -490,6 +490,7 @@ static void fs_serve(FsWorker *w, FsConn *c, uint32_t ev)
         }
     }
     for (;;) {
+        int before = c->inlen;
         fs_process(w, c);
         int f = fs_flush(w, c);
         if (f < 0) {
@@ -498,7 +499,7 @@ static void fs_serve(FsWorker *w, FsConn *c, uint32_t ev)
         }
         if (f == 0)
             return;
-        if (c->closing || c->inlen == 0 || fs_hdr_end(c->in, c->inlen) < 0)
+        if (c->closing || c->inlen == 0 || c->inlen == before)
             break;
     }
     if (c->closing || eof)
@@ -561,8 +562,8 @@ static void *fs_worker(void *arg)
     for (int fd = 0; fd < FS_MAX_FDS; fd++) {
         FsConn *c = fs_conns[fd];
         if (c && epoll_ctl(w->epfd, EPOLL_CTL_DEL, fd, NULL) == 0) {
-            close(fd);
             fs_conns[fd] = NULL;
+            close(fd);
             atomic_fetch_sub(&w->conns, 1);
             free(c);
         }
@@ -699,7 +700,7 @@ fn checkPort(port int) string {
 }
 
 fn registerRoutes() {
-    fs_route_add("/", 200, "text/html; charset=utf-8", "<!doctype html><title>pgt-fast</title><h1>PGT + C + asm</h1><p>Try /plaintext, /json, /stats</p>\n")
+    fs_route_add("/", 200, "text/html; charset=utf-8", "<!doctype html><title>hello woreld-fast</title><h1>hello woreld + C + asm</h1><p>Try /plaintext, /json, /stats</p>\n")
     fs_route_add("/plaintext", 200, "text/plain", "Hello, World!")
     fs_route_add("/json", 200, "application/json", "{\"message\":\"Hello, World!\"}")
     fs_route_stats("/stats")
