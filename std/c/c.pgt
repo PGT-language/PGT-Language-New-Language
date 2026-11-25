@@ -2,7 +2,6 @@ package c
 
 #use "unsafe"
 
-extern fn malloc(n int64) *byte
 extern fn calloc(count int64, size int64) *byte
 extern fn realloc(p *byte, n int64) *byte
 extern fn free(p *byte)
@@ -22,7 +21,7 @@ const SizeofFloat = 4
 const SizeofDouble = 8
 
 fn Malloc(n int64) *byte {
-    return malloc(n)
+    return calloc(1, n)
 }
 
 fn Calloc(count int64, size int64) *byte {
@@ -55,7 +54,7 @@ fn CharPtr(s string) *byte {
 
 fn CString(s string) *byte {
     var* n = strlen(unsafe.StringData(s))
-    var* p = malloc(n + 1)
+    var* p = calloc(1, n + 1)
     memcpy(p, unsafe.StringData(s), n + 1)
     return p
 }

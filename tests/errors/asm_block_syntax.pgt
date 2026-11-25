@@ -1,4 +1,4 @@
-// error: errors/asm_block_syntax.pgt:9:
+// error: errors/asm_block_syntax.pgt:11:
 package main
 
 #use "asm"

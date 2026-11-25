@@ -1,4 +1,4 @@
-// error: errors/asm_block_line.pgt:10:
+// error: errors/asm_block_line.pgt:12:
 package main
 
 #use "asm"

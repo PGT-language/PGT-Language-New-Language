@@ -1,4 +1,4 @@
-// error: errors/asm_top_error.pgt:6:
+// error: errors/asm_top_error.pgt:8:
 package main
 
 #use "asm"

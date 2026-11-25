@@ -1,4 +1,4 @@
-// error: errors/c_block_error.pgt:9:
+// error: errors/c_block_error.pgt:11:
 package main
 
 #use "c"
