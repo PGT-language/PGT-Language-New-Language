@@ -1,0 +1,9 @@
+// error: only one '#use' is allowed per file
+package main
+#use (
+    "fmt"
+)
+#use "os"
+fn main() {
+    fmt.Println(os.NumArgs())
+}
