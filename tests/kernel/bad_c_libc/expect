@@ -1,0 +1,1 @@
+'c.Puts' needs libc and is not available in freestanding builds

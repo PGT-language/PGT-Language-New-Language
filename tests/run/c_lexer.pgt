@@ -1,0 +1,35 @@
+package main
+
+#use (
+    "fmt"
+    "c"
+)
+
+fn dump(src string) {
+    var* toks, r = c.Tokenize(src)
+    if !r.Ok() {
+        fmt.Println("error ", r.Line, ":", r.Col, " ", r.Err)
+    }
+    for t in toks {
+        fmt.Println(t.Line, ":", t.Col, " ", c.KindName(t.Kind), " [", t.Text, "] ", t.Value)
+    }
+}
+
+fn main() {
+    dump("int main(void) { return 0x1F + 017 + 0b101 + 42UL; }")
+    dump("double d = 1.5e-3f + .25 + 3.; char c = '\\n'; char q = '\\x41'; char z = '\\101';")
+    dump("#include <stdio.h>\n#define MAX(a, b) \\\n  ((a) > (b) ? (a) : (b))\nx = a << 2 >>= 1 ... -> ++ -- && || != ==;")
+    dump("/* multi\nline */ int x; // tail\nconst char *s = \"say \\\"hi\\\"\\t\";")
+    dump("char *s = \"open")
+    dump("int x = 09;")
+    dump("/* never closed")
+    dump("char c = '';")
+    dump("a = $b;")
+    var* toks, r = c.TokenizeAll("a /* k */ b // z")
+    for t in toks {
+        fmt.Println(c.KindName(t.Kind), " ", t.Text)
+    }
+    fmt.Println(c.IsKeyword("while"), " ", c.IsKeyword("whilst"), " ", c.CType("int"), " ", c.CType("*Node"), " ", c.CType("string"), " ", c.PgtType("uint8_t"), " ", c.SizeofType("int64"), " ", c.SizeofInt, " ", c.AlignofDouble)
+}
+
+return 0

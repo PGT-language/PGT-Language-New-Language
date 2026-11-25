@@ -1,0 +1,44 @@
+package main
+
+#use (
+    "fmt"
+    "c"
+)
+
+fn show(r c.Result) {
+    if r.Ok() {
+        fmt.Println("ok")
+        if r.Text != "" {
+            fmt.Println(r.Text)
+        }
+    } else {
+        fmt.Println("error ", r.Line, ":", r.Col, " ", r.Err)
+    }
+}
+
+fn main() {
+    var* names = ["n", "s", "p"]
+    var* types = ["int", "string", "*byte"]
+    show(c.PrepareBlock("\n    {n} = (int)strlen({s});\n    if (n) { x(); }\n    {p} = 0;\n", names, types, "dir/a.pgt", 7, "pgt_cblock_main_0"))
+    show(c.PrepareBlock("puts(\"{n}\"); /* {s} */", names, types, "a\"b.pgt", 3, c.BlockFuncName("my/pkg", 4)))
+    show(c.PrepareBlock("int a = {z};", [], [], "a.pgt", 1, "f"))
+    show(c.CheckBlock("\n  {s} = 2;\n", names, types))
+    show(c.CheckBlock("\n  {s}++;\n", names, types))
+    show(c.CheckBlock("int x;\n  foo(\"abc);\n", names, types))
+    show(c.CheckBlock("{ x(;", names, types))
+    show(c.CheckBlock("a);", names, types))
+    show(c.CheckBlock("f(]", names, types))
+    show(c.CheckBlock("\n{n};", ["n"], ["[]int"]))
+    show(c.CheckBlock("{n}", ["n", "n"], ["int", "int"]))
+    show(c.CheckBlock("{n}", ["n"], []))
+    var* src = "x = \"}\"; /* } */ { } } rest"
+    var* end = c.FindBlockEnd(src, 0)
+    fmt.Println(end, " ", substr(src, 0, end))
+    fmt.Println(c.FindBlockEnd("no end { here", 0))
+    fmt.Println(c.FindBlockEnd("/* open", 0))
+    fmt.Println(c.Placeholders("{a} {b} {a} \"{c}\" {1} { d } // {e}\n{f}"))
+    fmt.Println(c.TopLevelBlock("int x;", "f.pgt", 9))
+    fmt.Println(c.Prelude)
+}
+
+return 0

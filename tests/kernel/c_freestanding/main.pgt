@@ -1,0 +1,26 @@
+package main
+
+#use (
+    "asm"
+    "c"
+)
+
+fn kmain() {
+    var* toks, r = c.Tokenize("int x = 1;")
+    var* p = c.CString("abc")
+    var* n = c.Strlen(p)
+    var* prep = c.PrepareBlock("{v} = 1;", ["v"], ["int"], "a.pgt", 1, "f")
+    if r.Ok() && len(toks) == 5 && n == 3 && prep.Ok() {
+        c {
+            extern void pgt_serial_putc(char ch);
+            pgt_serial_putc('k');
+        }
+    }
+    c.Free(p)
+    while true {
+        asm {
+            cli
+            hlt
+        }
+    }
+}

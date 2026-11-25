@@ -1,0 +1,91 @@
+1:1 keyword [int] 0
+1:5 identifier [main] 0
+1:9 operator [(] 0
+1:10 keyword [void] 0
+1:14 operator [)] 0
+1:16 operator [{] 0
+1:18 keyword [return] 0
+1:25 integer [0x1F] 31
+1:30 operator [+] 0
+1:32 integer [017] 15
+1:36 operator [+] 0
+1:38 integer [0b101] 5
+1:44 operator [+] 0
+1:46 integer [42UL] 42
+1:50 operator [;] 0
+1:52 operator [}] 0
+1:1 keyword [double] 0
+1:8 identifier [d] 0
+1:10 operator [=] 0
+1:12 float [1.5e-3f] 0
+1:20 operator [+] 0
+1:22 float [.25] 0
+1:26 operator [+] 0
+1:28 float [3.] 0
+1:30 operator [;] 0
+1:32 keyword [char] 0
+1:37 identifier [c] 0
+1:39 operator [=] 0
+1:41 char ['\n'] 10
+1:45 operator [;] 0
+1:47 keyword [char] 0
+1:52 identifier [q] 0
+1:54 operator [=] 0
+1:56 char ['\x41'] 65
+1:62 operator [;] 0
+1:64 keyword [char] 0
+1:69 identifier [z] 0
+1:71 operator [=] 0
+1:73 char ['\101'] 65
+1:79 operator [;] 0
+1:1 preprocessor [#include <stdio.h>] 0
+2:1 preprocessor [#define MAX(a, b) \
+  ((a) > (b) ? (a) : (b))] 0
+4:1 identifier [x] 0
+4:3 operator [=] 0
+4:5 identifier [a] 0
+4:7 operator [<<] 0
+4:10 integer [2] 2
+4:12 operator [>>=] 0
+4:16 integer [1] 1
+4:18 operator [...] 0
+4:22 operator [->] 0
+4:25 operator [++] 0
+4:28 operator [--] 0
+4:31 operator [&&] 0
+4:34 operator [||] 0
+4:37 operator [!=] 0
+4:40 operator [==] 0
+4:42 operator [;] 0
+2:9 keyword [int] 0
+2:13 identifier [x] 0
+2:14 operator [;] 0
+3:1 keyword [const] 0
+3:7 keyword [char] 0
+3:12 operator [*] 0
+3:13 identifier [s] 0
+3:15 operator [=] 0
+3:17 string ["say \"hi\"\t"] 0
+3:31 operator [;] 0
+error 1:11 unterminated string literal
+1:1 keyword [char] 0
+1:6 operator [*] 0
+1:7 identifier [s] 0
+1:9 operator [=] 0
+error 1:9 invalid digit in numeric constant '09'
+1:1 keyword [int] 0
+1:5 identifier [x] 0
+1:7 operator [=] 0
+error 1:1 unterminated comment
+error 1:10 empty character constant
+1:1 keyword [char] 0
+1:6 identifier [c] 0
+1:8 operator [=] 0
+error 1:5 unexpected character '$'
+1:1 identifier [a] 0
+1:3 operator [=] 0
+identifier a
+comment /* k */
+identifier b
+comment // z
+true false int32_t void * const char * byte 8 4 8
