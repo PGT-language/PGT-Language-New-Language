@@ -80,6 +80,7 @@ namespace pgt
         Shr,
         Question,
         KwDefer,
+        KwC,
     };
 
     struct Token

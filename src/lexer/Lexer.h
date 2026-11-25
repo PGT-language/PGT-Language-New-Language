@@ -1,6 +1,7 @@
 #pragma once
 #include "lexer/Token.h"
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -8,6 +9,8 @@ namespace pgt
 {
 
     std::vector<std::string> asmPlaceholders(const std::string &text);
+    std::vector<std::string> cPlaceholders(const std::string &text);
+    void scanC(const std::string &text, const std::function<void(size_t, size_t)> &onBrace);
 
     class Lexer
     {
@@ -33,6 +36,10 @@ namespace pgt
         Token lexWord();
         int hexEscape(int line, int col);
         Token lexAsmBody(int line, int col);
+        Token lexCBody(int line, int col);
+        Tok prevKind_ = Tok::Eof;
+        int prevEnd_ = 0;
+        bool hasPrev_ = false;
 
         std::string src_;
         size_t pos_ = 0;

@@ -361,6 +361,13 @@ namespace pgt
                     n.kids.push_back(group("Placeholder", name, x->line, x->col));
                 return n;
             }
+            if (auto *x = dynamic_cast<const CStmt *>(s))
+            {
+                Node n = node("CStmt", quote(x->text), *x);
+                for (const std::string &name : x->names)
+                    n.kids.push_back(group("Placeholder", name, x->line, x->col));
+                return n;
+            }
             if (auto *x = dynamic_cast<const Break *>(s))
                 return node("Break", "break", *x);
             if (auto *x = dynamic_cast<const Continue *>(s))
@@ -406,6 +413,8 @@ namespace pgt
                         n.kids.push_back(stmt(s.get()));
                 root.kids.push_back(std::move(n));
             }
+            for (const TopBlock &b : p.blocks)
+                root.kids.push_back(group(b.isC ? "CDecl" : "AsmDecl", quote(b.text), b.line, b.col));
             std::stable_sort(root.kids.begin(), root.kids.end(), [](const Node &a, const Node &b) {
                 return a.line != b.line ? a.line < b.line : a.col < b.col;
             });

@@ -35,6 +35,8 @@ namespace pgt
             return "'map'";
         case Tok::KwAsm:
             return "'asm'";
+        case Tok::KwC:
+            return "'c'";
         case Tok::KwReturn:
             return "'return'";
         case Tok::KwUse:
@@ -191,6 +193,8 @@ namespace pgt
             return "KwMap";
         case Tok::KwAsm:
             return "KwAsm";
+        case Tok::KwC:
+            return "KwC";
         case Tok::KwReturn:
             return "KwReturn";
         case Tok::KwUse:
@@ -578,7 +582,115 @@ namespace pgt
             }
             out += c;
         }
-        return make(Tok::KwAsm, std::move(out), line, col);
+        Token t = make(Tok::KwAsm, std::move(out), line, col);
+        t.endLine = line_;
+        return t;
+    }
+
+    Token Lexer::lexCBody(int line, int col)
+    {
+        size_t start = pos_;
+        int depth = 1;
+        while (true)
+        {
+            if (atEnd())
+                throw CompileError("unterminated c block", line, col);
+            char c = advance();
+            if (c == '"' || c == '\'')
+            {
+                while (!atEnd() && peek() != c && peek() != '\n')
+                {
+                    if (peek() == '\\')
+                        advance();
+                    if (!atEnd())
+                        advance();
+                }
+                if (!atEnd() && peek() == c)
+                    advance();
+            }
+            else if (c == '/' && peek() == '/')
+            {
+                while (!atEnd() && peek() != '\n')
+                    advance();
+            }
+            else if (c == '/' && peek() == '*')
+            {
+                advance();
+                while (!atEnd() && !(peek() == '*' && peek(1) == '/'))
+                    advance();
+                if (atEnd())
+                    throw CompileError("unterminated c block", line, col);
+                advance();
+                advance();
+            }
+            else if (c == '{')
+                ++depth;
+            else if (c == '}' && --depth == 0)
+                break;
+        }
+        Token t = make(Tok::KwC, src_.substr(start, pos_ - 1 - start), line, col);
+        t.endLine = line_;
+        return t;
+    }
+
+    void scanC(const std::string &text, const std::function<void(size_t, size_t)> &onBrace)
+    {
+        size_t i = 0, n = text.size();
+        while (i < n)
+        {
+            char c = text[i];
+            if (c == '"' || c == '\'')
+            {
+                ++i;
+                while (i < n && text[i] != c && text[i] != '\n')
+                {
+                    if (text[i] == '\\')
+                        ++i;
+                    ++i;
+                }
+                ++i;
+            }
+            else if (c == '/' && i + 1 < n && text[i + 1] == '/')
+            {
+                while (i < n && text[i] != '\n')
+                    ++i;
+            }
+            else if (c == '/' && i + 1 < n && text[i + 1] == '*')
+            {
+                i += 2;
+                while (i + 1 < n && !(text[i] == '*' && text[i + 1] == '/'))
+                    ++i;
+                i += 2;
+            }
+            else if (c == '{' && i + 1 < n && (std::isalpha(static_cast<unsigned char>(text[i + 1])) || text[i + 1] == '_'))
+            {
+                size_t p = i + 1;
+                while (p < n && (std::isalnum(static_cast<unsigned char>(text[p])) || text[p] == '_'))
+                    ++p;
+                if (p < n && text[p] == '}')
+                {
+                    onBrace(i, p);
+                    i = p + 1;
+                }
+                else
+                    ++i;
+            }
+            else
+                ++i;
+        }
+    }
+
+    std::vector<std::string> cPlaceholders(const std::string &text)
+    {
+        std::vector<std::string> names;
+        scanC(text, [&](size_t b, size_t e) {
+            std::string name = text.substr(b + 1, e - b - 1);
+            for (const std::string &n : names)
+                if (n == name)
+                    return;
+            names.push_back(name);
+        });
+        return names;
     }
 
     std::vector<std::string> asmPlaceholders(const std::string &text)
@@ -667,6 +779,45 @@ namespace pgt
             return make(Tok::KwTrue, word, line, col);
         if (word == "false")
             return make(Tok::KwFalse, word, line, col);
+        if (word == "c" && (!hasPrev_ || prevEnd_ < line))
+        {
+            bool stmtStart = true;
+            if (hasPrev_)
+                switch (prevKind_)
+                {
+                case Tok::RBrace:
+                case Tok::LBrace:
+                case Tok::Semi:
+                case Tok::Ident:
+                case Tok::Int:
+                case Tok::Float:
+                case Tok::Char:
+                case Tok::String:
+                case Tok::RParen:
+                case Tok::RBracket:
+                case Tok::KwTrue:
+                case Tok::KwFalse:
+                case Tok::KwNil:
+                case Tok::KwBreak:
+                case Tok::KwContinue:
+                case Tok::PlusPlus:
+                case Tok::MinusMinus:
+                case Tok::KwAsm:
+                case Tok::KwC:
+                    break;
+                default:
+                    stmtStart = false;
+                }
+            size_t p = pos_;
+            while (p < src_.size() && (src_[p] == ' ' || src_[p] == '\t'))
+                ++p;
+            if (stmtStart && p < src_.size() && src_[p] == '{')
+            {
+                while (pos_ <= p)
+                    advance();
+                return lexCBody(line, col);
+            }
+        }
         if (word == "asm")
         {
             size_t p = pos_;
@@ -699,6 +850,12 @@ namespace pgt
             if (atEnd())
                 break;
 
+            if (!out.empty())
+            {
+                hasPrev_ = true;
+                prevKind_ = out.back().kind;
+                prevEnd_ = std::max(out.back().line, out.back().endLine);
+            }
             char c = peek();
             int line = line_, col = col_;
 

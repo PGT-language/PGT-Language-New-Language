@@ -380,6 +380,12 @@ namespace pgt
         std::vector<std::string> names;
     };
 
+    struct CStmt : Stmt
+    {
+        std::string text;
+        std::vector<std::string> names;
+    };
+
     struct Defer : Stmt
     {
         ExprPtr call;
@@ -453,8 +459,16 @@ namespace pgt
         int line = 0, col = 0;
     };
 
+    struct TopBlock
+    {
+        bool isC = false;
+        std::string text;
+        int line = 0, col = 0;
+    };
+
     struct Program
     {
+        std::vector<TopBlock> blocks;
         std::string file;
         std::string package;
         std::vector<Import> imports;

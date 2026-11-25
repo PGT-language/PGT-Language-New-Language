@@ -137,6 +137,11 @@ namespace pgt
             case Tok::KwExtern:
                 prog.functions.push_back(parseExtern());
                 continue;
+            case Tok::KwAsm:
+            case Tok::KwC:
+                prog.blocks.push_back({cur().kind == Tok::KwC, cur().text, cur().line, cur().col});
+                advance();
+                continue;
             case Tok::KwStruct:
                 prog.structs.push_back(parseStruct());
                 continue;
@@ -733,6 +738,14 @@ namespace pgt
             auto stmt = make<AsmStmt>(cur());
             stmt->text = cur().text;
             stmt->names = asmPlaceholders(stmt->text);
+            advance();
+            return stmt;
+        }
+        case Tok::KwC:
+        {
+            auto stmt = make<CStmt>(cur());
+            stmt->text = cur().text;
+            stmt->names = cPlaceholders(stmt->text);
             advance();
             return stmt;
         }
