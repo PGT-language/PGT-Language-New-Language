@@ -79,6 +79,28 @@ fn (g *Gen) genMapGet(m Value, key *ast.Expr) Value {
     return Value{V: g.load(a.T, a.A), T: a.T}
 }
 
+fn (g *Gen) genMapGetOk(e *ast.Expr) []Value {
+    var* out + {[]Value} = []
+    var* m = g.genExpr(e.Base, nil)
+    if g.failed || m.T.Kind != KMap {
+        return out
+    }
+    var* vt = m.T.Elem
+    var* ks = g.mapKeySlot(m.T, e.Index)
+    if g.failed {
+        return out
+    }
+    var* hasInfo = g.mapsFn("Has")
+    var* ok = g.inst("call i1 " + g.fnRef(hasInfo.Symbol) + "(ptr " + m.V + ", ptr " + ks + ")")
+    var* vs = g.entryAlloca(vt, "mval")
+    g.store(vt, g.zeroValue(vt), vs)
+    var* getInfo = g.mapsFn("Get")
+    g.emit("call void " + g.fnRef(getInfo.Symbol) + "(ptr " + m.V + ", ptr " + ks + ", ptr " + vs + ")")
+    out = append(out, Value{V: g.load(vt, vs), T: vt})
+    out = append(out, Value{V: ok, T: g.tt.boolT})
+    return out
+}
+
 fn (g *Gen) genMapForIn(s *ast.Stmt, seq Value) {
     var* condBB = g.newLabel("mfor.cond")
     var* bodyBB = g.newLabel("mfor.body")

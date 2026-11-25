@@ -973,17 +973,19 @@ fn (g *Gen) genTernary(e *ast.Expr, hint0 *Type) Value {
     if g.failed {
         return g.dummy()
     }
-    var* firstBB = g.newLabel("tern.then")
-    var* secondBB = g.newLabel("tern.else")
+    var* thenBB = g.newLabel("tern.then")
+    var* elseBB = g.newLabel("tern.else")
     var* endBB = g.newLabel("tern.end")
-    g.condBr(c.V, firstBB, secondBB)
+    g.condBr(c.V, thenBB, elseBB)
+    var* firstBB = thenBB
+    var* secondBB = elseBB
     var* firstExpr = e.Lhs
     var* secondExpr = e.Rhs
     var* lazyThen = g.isLazyExpr(e.Lhs)
     var* lazyElse = g.isLazyExpr(e.Rhs)
     if lazyThen && !lazyElse {
-        firstBB = secondBB
-        secondBB = g.newLabel("tern.then")
+        firstBB = elseBB
+        secondBB = thenBB
         firstExpr = e.Rhs
         secondExpr = e.Lhs
     }

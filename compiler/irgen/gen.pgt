@@ -690,7 +690,19 @@ fn (g *Gen) genGlobals(pkg *loader.Package) {
                 ty = g.resolveType(d.Type, false)
             }
             var* init = Value{V: "", T: nil}
-            if d.Init != nil {
+            var* folded = false
+            var* fw = Wide{}
+            if d.IsConst && d.Type == nil && d.Init != nil {
+                var* cw, cok = g.constValue(d.Init)
+                if cok && wideFits64(cw) {
+                    folded = true
+                    fw = cw
+                }
+            }
+            if folded {
+                ty = g.foldedType(fw)
+                init = g.untypedConst(fw, ty, d.Line, d.Col)
+            } else if d.Init != nil {
                 init = g.genExpr(d.Init, ty)
                 if g.failed {
                     return
@@ -722,7 +734,7 @@ fn (g *Gen) genGlobals(pkg *loader.Package) {
             if len(init.V) > 0 {
                 g.store(ty, init.V, g.fnRef(sym))
             }
-            g.pkg.Globals[d.Name] = &Global{Sym: g.fnRef(sym), T: ty, IsConst: d.IsConst}
+            g.pkg.Globals[d.Name] = &Global{Sym: g.fnRef(sym), T: ty, IsConst: d.IsConst, Untyped: folded, Val: fw}
         }
     }
     g.globals.Write(defs)
@@ -734,11 +746,22 @@ fn (g *Gen) declareStdGlobals(pkg *loader.Package) {
         g.currentFile = p.File
         g.bindImports(p)
         for d in p.Globals {
-            if !isPublic(d.Name) {
+            var* folded = false
+            var* fw = Wide{}
+            if d.IsConst && d.Type == nil && d.Init != nil {
+                var* cw, cok = g.constValue(d.Init)
+                if cok && wideFits64(cw) {
+                    folded = true
+                    fw = cw
+                }
+            }
+            if !folded && !isPublic(d.Name) {
                 continue
             }
             var* ty *Type = nil
-            if d.Type != nil {
+            if folded {
+                ty = g.foldedType(fw)
+            } else if d.Type != nil {
                 ty = g.resolveType(d.Type, false)
             } else if d.Init != nil {
                 ty = g.stdGlobalType(d.Init)
@@ -747,8 +770,10 @@ fn (g *Gen) declareStdGlobals(pkg *loader.Package) {
                 continue
             }
             var* sym = mangle(pkg.ImportPath, d.Name)
-            g.globals.Write(g.fnRef(sym) + " = external global " + g.llvmType(ty) + "\n")
-            g.pkg.Globals[d.Name] = &Global{Sym: g.fnRef(sym), T: ty, IsConst: d.IsConst}
+            if isPublic(d.Name) {
+                g.globals.Write(g.fnRef(sym) + " = external global " + g.llvmType(ty) + "\n")
+            }
+            g.pkg.Globals[d.Name] = &Global{Sym: g.fnRef(sym), T: ty, IsConst: d.IsConst, Untyped: folded, Val: fw}
         }
     }
 }
@@ -783,6 +808,7 @@ fn (g *Gen) genFunction(fd *ast.Function, info *FuncInfo) {
     g.labelCount = 0
     g.scopes = []
     g.loops = []
+    g.defers = []
     g.heapVars = map[string]bool{}
     g.collectHeapVars(fd.Body)
     g.curRet = info.Ret
@@ -816,6 +842,9 @@ fn (g *Gen) genFunction(fd *ast.Function, info *FuncInfo) {
         return
     }
     g.genBlock(fd.Body)
+    if info.Ret.Kind == KVoid {
+        g.emitDefers()
+    }
     g.popScope()
     if info.Ret.Kind == KVoid {
         g.emit("ret void")

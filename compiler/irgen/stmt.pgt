@@ -23,6 +23,7 @@ fn (g *Gen) genStmt(s *ast.Stmt) {
         case ast.StmtMultiAssign { g.genMultiAssign(s) }
         case ast.StmtAssign { g.genAssign(s) }
         case ast.StmtReturn { g.genReturn(s) }
+        case ast.StmtDefer { g.genDefer(s) }
         case ast.StmtExpr {
             if s.Value.Kind == ast.ExprCall {
                 g.genCall(s.Value, nil)
@@ -62,6 +63,109 @@ fn (g *Gen) genStmt(s *ast.Stmt) {
         default {
             g.fail("internal error: unknown statement", s.Line, s.Col)
         }
+    }
+}
+
+fn (g *Gen) zeroedSlot(lt string, zero string) string {
+    g.uniq++
+    var* slot = "%defer." + g.uniq
+    g.emitAlloca(slot + " = alloca " + lt)
+    g.emitAlloca("store " + lt + " " + zero + ", ptr " + slot)
+    return slot
+}
+
+fn (g *Gen) isStatelessExpr(e *ast.Expr) bool {
+    switch e.Kind {
+        case ast.ExprIntLit, ast.ExprFloatLit, ast.ExprCharLit, ast.ExprBoolLit, ast.ExprStringLit, ast.ExprNilLit {
+            return true
+        }
+    }
+    if isEmptyArrayLit(e) {
+        return true
+    }
+    return g.isConstExpr(e)
+}
+
+fn (g *Gen) addCapture(site *DeferSite, e *ast.Expr, slot string, t *Type, isAddr bool) {
+    g.ovTypes = append(g.ovTypes, t)
+    site.Caps = append(site.Caps, &DeferCapture{E: e, Slot: slot, TypeIdx: len(g.ovTypes) - 1, Addr: isAddr})
+}
+
+fn (g *Gen) captureValue(site *DeferSite, e *ast.Expr) {
+    if g.isStatelessExpr(e) {
+        return
+    }
+    var* v = g.genExpr(e, nil)
+    if g.failed {
+        return
+    }
+    var* slot = g.zeroedSlot(g.llvmType(v.T), g.zeroValue(v.T))
+    g.store(v.T, v.V, slot)
+    g.addCapture(site, e, slot, v.T, false)
+}
+
+fn (g *Gen) genDefer(s *ast.Stmt) {
+    for l in g.loops {
+        if len(l.Continue) > 0 {
+            g.fail("'defer' cannot be used inside a loop", s.Line, s.Col)
+            return
+        }
+    }
+    var* call = s.Value
+    var* site = &DeferSite{Call: call}
+    if call.Callee.Kind == ast.ExprSelector {
+        var* base = call.Callee.Base
+        var* isPackage = base.Kind == ast.ExprVarRef && g.lookupLocal(base.Name) == nil && !has(g.pkg.Globals, base.Name) && g.lookupPackage(base.Name) != nil
+        if !isPackage {
+            var* a = g.addressOf(base, false)
+            if g.failed {
+                return
+            }
+            if a.Ok && a.T.Kind == KStruct {
+                var* rslot = g.zeroedSlot("ptr", "null")
+                g.emit("store ptr " + a.A + ", ptr " + rslot)
+                g.addCapture(site, base, rslot, a.T, true)
+            } else {
+                g.captureValue(site, base)
+            }
+        }
+    }
+    var* keepArgs = call.Callee.Kind == ast.ExprVarRef && call.Callee.Name == "free" && !has(g.pkg.Functions, "free")
+    if !keepArgs {
+        for a in call.Args {
+            g.captureValue(site, a)
+        }
+    }
+    if g.failed {
+        return
+    }
+    var* flag = g.zeroedSlot("i1", "false")
+    g.emit("store i1 true, ptr " + flag)
+    site.Flag = flag
+    g.defers = append(g.defers, site)
+}
+
+fn (g *Gen) emitDefers() {
+    var* i = len(g.defers) - 1
+    while i >= 0 {
+        var* site = g.defers[i]
+        var* runBB = g.newLabel("defer.run")
+        var* nextBB = g.newLabel("defer.next")
+        var* on = g.load(g.tt.boolT, site.Flag)
+        g.condBr(on, runBB, nextBB)
+        g.label(runBB)
+        for c in site.Caps {
+            c.E.OvSlot = c.Slot
+            c.E.OvAddr = c.Addr
+            c.E.OvType = c.TypeIdx
+        }
+        g.genCall(site.Call, nil)
+        for c in site.Caps {
+            c.E.OvSlot = ""
+        }
+        g.br(nextBB)
+        g.label(nextBB)
+        i--
     }
 }
 
@@ -150,6 +254,15 @@ fn (g *Gen) genValueList(values []*ast.Expr, want int, hints []*Type, line int, 
     }
     if e.Kind == ast.ExprTypeAssert && want == 2 && !e.IsTypeKeyword {
         return g.genAssertOk(e)
+    }
+    if e.Kind == ast.ExprIndex && want == 2 {
+        var* r = g.genMapGetOk(e)
+        if g.failed {
+            return out
+        }
+        if len(r) > 0 {
+            return r
+        }
     }
     g.fail("assignment mismatch: " + want + " variables but 1 value", line, col)
     return out
@@ -297,6 +410,7 @@ fn (g *Gen) genMultiReturn(s *ast.Stmt) {
             g.fail("cannot return " + v.T.Name() + " from a function returning " + g.curRet.Name(), s.Line, s.Col)
             return
         }
+        g.emitDefers()
         g.emit("ret " + g.llvmType(g.curRet) + " " + v.V)
         g.startDead()
         return
@@ -313,6 +427,7 @@ fn (g *Gen) genMultiReturn(s *ast.Stmt) {
         }
         agg = g.insert(g.curRet, agg, elems[i], v.V, i)
     }
+    g.emitDefers()
     g.emit("ret " + g.llvmType(g.curRet) + " " + agg)
     g.startDead()
 }
@@ -331,6 +446,7 @@ fn (g *Gen) genReturn(s *ast.Stmt) {
             g.fail("this function does not return a value", s.Line, s.Col)
             return
         }
+        g.emitDefers()
         g.emit("ret void")
     } else {
         if s.Value == nil {
@@ -342,6 +458,7 @@ fn (g *Gen) genReturn(s *ast.Stmt) {
         if g.failed {
             return
         }
+        g.emitDefers()
         g.emit("ret " + g.llvmType(g.curRet) + " " + v.V)
     }
     g.startDead()

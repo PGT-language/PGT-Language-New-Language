@@ -16,7 +16,7 @@ fn (g *Gen) genSpreadArgs(e *ast.Expr, hint *Type) SpreadArgs {
         return sa
     }
     var* inner = e.Args[0]
-    if inner.Kind != ast.ExprCall {
+    if inner.Kind != ast.ExprCall || len(inner.OvSlot) > 0 {
         return sa
     }
     var* v = g.genCall(inner, hint)
