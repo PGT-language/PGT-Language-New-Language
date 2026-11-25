@@ -678,6 +678,10 @@ fn (g *Gen) genGlobals(pkg *loader.Package) {
     for p in pkg.Programs {
         g.currentFile = p.File
         g.bindImports(p)
+        if len(p.Blocks) > 0 {
+            g.fail("top-level asm and c blocks are not supported by the self-hosted compiler yet", p.Blocks[0].Line, p.Blocks[0].Col)
+            return
+        }
         for d in p.Globals {
             if has(g.pkg.Globals, d.Name) || has(g.pkg.Functions, d.Name) || has(g.pkg.Structs, d.Name) {
                 g.fail("'" + d.Name + "' is already declared in package '" + pkg.Name + "'", d.Line, d.Col)

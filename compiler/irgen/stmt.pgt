@@ -60,6 +60,9 @@ fn (g *Gen) genStmt(s *ast.Stmt) {
         case ast.StmtAsm {
             g.fail("asm blocks are not supported by the self-hosted compiler yet", s.Line, s.Col)
         }
+        case ast.StmtC {
+            g.fail("c blocks are not supported by the self-hosted compiler yet", s.Line, s.Col)
+        }
         default {
             g.fail("internal error: unknown statement", s.Line, s.Col)
         }
