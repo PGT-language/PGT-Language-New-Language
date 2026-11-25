@@ -820,6 +820,13 @@ namespace pgt
 
     std::optional<CodeGen::Addr> CodeGen::addressOf(const Expr &expr, bool forWrite)
     {
+        if (!overrides_.empty())
+            if (auto it = overrides_.find(&expr); it != overrides_.end())
+            {
+                if (!it->second.addr)
+                    return std::nullopt;
+                return Addr{builder_.CreateLoad(builder_.getPtrTy(), it->second.slot), it->second.type, false};
+            }
         if (auto *ref = dynamic_cast<const VarRef *>(&expr))
         {
             auto var = lookupVar(ref->name);
@@ -1030,10 +1037,30 @@ namespace pgt
             fail("cannot infer the type of an empty array; write it: var* a []int = []", lit.line,
                  lit.col);
 
+        auto isEmptyLit = [](const Expr &e)
+        {
+            auto *a = dynamic_cast<const ArrayLit *>(&e);
+            return a && a->elems.empty();
+        };
+        size_t anchor = lit.elems.size();
+        std::optional<Value> anchorValue;
+        if (!elemTy && isEmptyLit(*lit.elems[0]))
+        {
+            size_t i = 0;
+            while (i < lit.elems.size() && isEmptyLit(*lit.elems[i]))
+                ++i;
+            if (i == lit.elems.size())
+                fail("cannot infer the type of an empty array; write it: var* a []int = []",
+                     lit.elems[0]->line, lit.elems[0]->col);
+            anchor = i;
+            anchorValue = genExpr(*lit.elems[i]);
+            elemTy = anchorValue->type;
+        }
+
         for (size_t i = 0; i < lit.elems.size(); ++i)
         {
             const Expr &e = *lit.elems[i];
-            Value v = genExpr(e, elemTy);
+            Value v = i == anchor ? *anchorValue : genExpr(e, elemTy);
             if (!elemTy)
             {
                 if (v.type->is(Type::Kind::Nil) || v.type->is(Type::Kind::Void))
@@ -1098,7 +1125,7 @@ namespace pgt
         if (call.args.size() != 1 || call.spread)
             return sa;
         auto *inner = dynamic_cast<const Call *>(call.args[0].get());
-        if (!inner)
+        if (!inner || overrides_.count(inner))
             return sa;
         Value v = genCall(*inner, hint);
         if (v.type->is(Type::Kind::Void))
@@ -1610,6 +1637,94 @@ namespace pgt
         else
             builder_.CreateRet(res);
         return fn;
+    }
+
+    CodeGen::Value CodeGen::genTernary(const Ternary &t, TyP hint)
+    {
+        llvm::Function *f = builder_.GetInsertBlock()->getParent();
+        size_t mark = temps_.size();
+        Value c = genCond(*t.cond);
+        flushTemps(mark);
+        auto *firstBB = llvm::BasicBlock::Create(ctx_, "tern.then", f);
+        auto *secondBB = llvm::BasicBlock::Create(ctx_, "tern.else", f);
+        auto *endBB = llvm::BasicBlock::Create(ctx_, "tern.end", f);
+        builder_.CreateCondBr(c.value, firstBB, secondBB);
+
+        auto lazy = [&](const Expr &e)
+        {
+            if (isConstExpr(e) || dynamic_cast<const NilLit *>(&e))
+                return true;
+            auto *a = dynamic_cast<const ArrayLit *>(&e);
+            return a && a->elems.empty();
+        };
+        bool swap = lazy(*t.thenExpr) && !lazy(*t.elseExpr);
+        const Expr &firstExpr = swap ? *t.elseExpr : *t.thenExpr;
+        const Expr &secondExpr = swap ? *t.thenExpr : *t.elseExpr;
+        if (swap)
+            std::swap(firstBB, secondBB);
+
+        struct Arm
+        {
+            llvm::Value *value;
+            llvm::BasicBlock *block;
+            bool isNil;
+        };
+        TyP result = nullptr;
+        auto arm = [&](llvm::BasicBlock *bb, const Expr &e) -> Arm
+        {
+            builder_.SetInsertPoint(bb);
+            size_t m = temps_.size();
+            Value v = genExpr(e, result ? result : hint);
+            if (v.type->is(Type::Kind::Void) || v.type->is(Type::Kind::Tuple))
+                fail("a '?:' branch needs a single value", e.line, e.col);
+            if (v.type->is(Type::Kind::Nil))
+            {
+                flushTemps(m);
+                llvm::BasicBlock *end = builder_.GetInsertBlock();
+                builder_.CreateBr(endBB);
+                return {nullptr, end, true};
+            }
+            if (!result)
+                result = v.type;
+            if (v.type != result)
+                fail("the branches of '?:' have different types: " + result->name() + " and " + v.type->name(),
+                     e.line, e.col);
+            llvm::Value *nv = take(v);
+            flushTemps(m);
+            llvm::BasicBlock *end = builder_.GetInsertBlock();
+            builder_.CreateBr(endBB);
+            return {nv, end, false};
+        };
+        Arm a = arm(firstBB, firstExpr);
+        Arm b = arm(secondBB, secondExpr);
+        if (!result)
+            fail("cannot infer the type of '?:' from two nil branches", t.line, t.col);
+        if ((a.isNil || b.isNil) && !result->isNillable())
+            fail("cannot use nil as " + result->name() + " in a '?:' branch", t.line, t.col);
+        builder_.SetInsertPoint(endBB);
+        llvm::PHINode *phi = builder_.CreatePHI(llvmType(result), 2);
+        phi->addIncoming(a.isNil ? zeroValue(result) : a.value, a.block);
+        phi->addIncoming(b.isNil ? zeroValue(result) : b.value, b.block);
+        return owned({phi, result});
+    }
+
+    std::optional<std::vector<CodeGen::Value>> CodeGen::genMapGetOk(const Index &idx)
+    {
+        Value map = genExpr(*idx.base);
+        if (!map.type->is(Type::Kind::Map))
+            return std::nullopt;
+        TyP vt = map.type->elem;
+        llvm::Value *ks = mapKeySlot(map.type, *idx.index);
+        llvm::Value *ok = builder_.CreateCall(mapsFn("Has").fn, {map.value, ks});
+        llvm::Value *vs = entryAlloca(llvmType(vt), "map.val");
+        builder_.CreateStore(zeroValue(vt), vs);
+        builder_.CreateCall(mapsFn("Get").fn, {map.value, ks, vs});
+        llvm::Value *v = builder_.CreateLoad(llvmType(vt), vs);
+        emitRetain(v, vt);
+        std::vector<Value> out;
+        out.push_back(owned(Value{v, vt}));
+        out.push_back(Value{ok, types_.boolT});
+        return out;
     }
 
 }

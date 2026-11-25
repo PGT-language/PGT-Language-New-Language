@@ -79,12 +79,14 @@ namespace pgt
         if (auto *i = dynamic_cast<const If *>(last))
             return i->hasElse && terminates(i->thenBody) && terminates(i->elseBody);
         if (auto *l = dynamic_cast<const Loop *>(last))
+        {
             if (hasBreak(l->body))
                 return false;
             if (!l->cond)
                 return true;
             auto *lit = dynamic_cast<const BoolLit *>(l->cond.get());
-            return lit && lit->value && !l->init && !l->post;
+            return lit && lit->value;
+        }
         if (auto *sw = dynamic_cast<const Switch *>(last))
         {
             if (!sw->hasDefault || !terminates(sw->defaultBody))

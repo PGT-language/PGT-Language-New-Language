@@ -6,6 +6,7 @@
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/raw_ostream.h>
 
+#include <climits>
 #include <functional>
 
 namespace pgt
@@ -62,7 +63,25 @@ namespace pgt
                 collectBlock(sw->defaultBody, out);
             }
             else if (auto *r = dynamic_cast<const Return *>(s))
+            {
                 collectExpr(r->value.get(), out);
+                for (const ExprPtr &x : r->rest)
+                    collectExpr(x.get(), out);
+            }
+            else if (auto *d = dynamic_cast<const Defer *>(s))
+                collectExpr(d->call.get(), out);
+            else if (auto *m = dynamic_cast<const MultiVarDecl *>(s))
+            {
+                for (const ExprPtr &x : m->values)
+                    collectExpr(x.get(), out);
+            }
+            else if (auto *m = dynamic_cast<const MultiAssign *>(s))
+            {
+                for (const ExprPtr &x : m->targets)
+                    collectExpr(x.get(), out);
+                for (const ExprPtr &x : m->values)
+                    collectExpr(x.get(), out);
+            }
         }
 
         void collectBlock(const Block &b, std::set<std::string> &out)
@@ -91,6 +110,12 @@ namespace pgt
             {
                 collectExpr(b->lhs.get(), out);
                 collectExpr(b->rhs.get(), out);
+            }
+            else if (auto *t = dynamic_cast<const Ternary *>(e))
+            {
+                collectExpr(t->cond.get(), out);
+                collectExpr(t->thenExpr.get(), out);
+                collectExpr(t->elseExpr.get(), out);
             }
             else if (auto *c = dynamic_cast<const Call *>(e))
             {
@@ -744,7 +769,18 @@ namespace pgt
                 pushScope();
                 TyP ty = d.type ? resolveType(*d.type) : nullptr;
                 Value init;
-                if (d.init)
+                std::optional<Wide> folded;
+                if (d.isConst && !d.type && d.init)
+                    if (auto cv = constValue(*d.init); cv && *cv >= INT64_MIN && *cv <= static_cast<Wide>(UINT64_MAX))
+                        folded = cv;
+                if (folded)
+                {
+                    ty = *folded >= INT_MIN && *folded <= INT_MAX ? types_.intT
+                         : *folded <= INT64_MAX                   ? types_.int64T
+                                                                  : types_.uint64T;
+                    init = untypedConst(*folded, ty, d.line, d.col);
+                }
+                else if (d.init)
                 {
                     init = genExpr(*d.init, ty);
                     if (ty)
@@ -768,7 +804,7 @@ namespace pgt
                     llvm::Constant::getNullValue(llvmType(ty)), mangle(pkg.importPath, d.name));
                 if (initValue)
                     builder_.CreateStore(initValue, gv);
-                pkg_->globals[d.name] = Global{gv, ty, d.isConst};
+                pkg_->globals[d.name] = Global{gv, ty, d.isConst, folded.has_value(), folded.value_or(0)};
             }
         }
         builder_.CreateRetVoid();
@@ -808,7 +844,14 @@ namespace pgt
         if (!info.ret->is(Type::Kind::Void) && !terminates(fn.body))
             fail("missing return at the end of function '" + fullName + "'", fn.line, fn.col);
 
-        genBlock(fn.body);
+        defers_.clear();
+        overrides_.clear();
+        pushScope();
+        for (const StmtPtr &stmt : fn.body)
+            genStmt(*stmt);
+        if (info.ret->is(Type::Kind::Void))
+            emitDefers();
+        popScope();
         popScope();
         temps_.clear();
 

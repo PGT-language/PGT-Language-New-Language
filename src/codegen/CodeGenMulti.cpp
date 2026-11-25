@@ -52,6 +52,10 @@ namespace pgt
         if (auto *ta = dynamic_cast<const TypeAssert *>(&e))
             if (want == 2 && !ta->isTypeKeyword)
                 return genAssertOk(*ta);
+        if (auto *idx = dynamic_cast<const Index *>(&e))
+            if (want == 2)
+                if (auto r = genMapGetOk(*idx))
+                    return *r;
         fail("assignment mismatch: " + std::to_string(want) + " variables but 1 value", line, col);
     }
 
@@ -155,6 +159,7 @@ namespace pgt
                          currentRet_->name(),
                      ret.line, ret.col);
             flushTemps();
+            emitDefers();
             emitScopeReleases(0);
             builder_.CreateRet(v.value);
             startDeadBlock();
@@ -172,6 +177,7 @@ namespace pgt
         for (size_t i = 0; i < vals.size(); ++i)
             agg = builder_.CreateInsertValue(agg, take(vals[i]), static_cast<unsigned>(i));
         flushTemps();
+        emitDefers();
         emitScopeReleases(0);
         builder_.CreateRet(agg);
         startDeadBlock();

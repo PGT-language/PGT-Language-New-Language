@@ -43,6 +43,12 @@ namespace pgt
         }
         if (auto *ret = dynamic_cast<const Return *>(&stmt))
             return genReturn(*ret);
+        if (auto *df = dynamic_cast<const Defer *>(&stmt))
+        {
+            genDefer(*df);
+            flushTemps();
+            return;
+        }
         if (auto *es = dynamic_cast<const ExprStmt *>(&stmt))
         {
             Value v = genCall(*static_cast<const Call *>(es->expr.get()), nullptr);
@@ -91,6 +97,108 @@ namespace pgt
             return;
         }
         fail("internal error: unknown statement", stmt.line, stmt.col);
+    }
+
+    llvm::AllocaInst *CodeGen::zeroedEntrySlot(llvm::Type *type, const std::string &name)
+    {
+        llvm::Function *f = builder_.GetInsertBlock()->getParent();
+        llvm::IRBuilder<> entry(&f->getEntryBlock(), f->getEntryBlock().begin());
+        llvm::AllocaInst *slot = entry.CreateAlloca(type, nullptr, name);
+        entry.CreateStore(llvm::Constant::getNullValue(type), slot);
+        return slot;
+    }
+
+    bool CodeGen::isStatelessExpr(const Expr &e)
+    {
+        if (dynamic_cast<const IntLit *>(&e) || dynamic_cast<const FloatLit *>(&e) ||
+            dynamic_cast<const CharLit *>(&e) || dynamic_cast<const BoolLit *>(&e) ||
+            dynamic_cast<const StringLit *>(&e) || dynamic_cast<const NilLit *>(&e))
+            return true;
+        if (auto *a = dynamic_cast<const ArrayLit *>(&e))
+            return a->elems.empty();
+        return isConstExpr(e);
+    }
+
+    void CodeGen::genDefer(const Defer &stmt)
+    {
+        for (const LoopTargets &l : loops_)
+            if (l.continueTo)
+                fail("'defer' cannot be used inside a loop", stmt.line, stmt.col);
+        const auto &call = static_cast<const Call &>(*stmt.call);
+        DeferSite site;
+        site.call = &call;
+
+        auto capture = [&](const Expr &e)
+        {
+            if (isStatelessExpr(e))
+                return;
+            Value v = genExpr(e);
+            llvm::Value *nv = take(v);
+            llvm::AllocaInst *slot = zeroedEntrySlot(llvmType(v.type), "defer.arg");
+            builder_.CreateStore(nv, slot);
+            site.captures.push_back({&e, Override{slot, v.type, false}});
+        };
+
+        if (auto *sel = dynamic_cast<const Selector *>(call.callee.get()))
+        {
+            auto *ref = dynamic_cast<const VarRef *>(sel->base.get());
+            bool isPackage = ref && !lookupLocal(ref->name) && !pkg_->globals.count(ref->name) &&
+                             lookupPackage(ref->name);
+            if (!isPackage)
+            {
+                std::optional<Addr> a = addressOf(*sel->base, false);
+                if (a && a->type->is(Type::Kind::Struct))
+                {
+                    llvm::AllocaInst *slot = zeroedEntrySlot(builder_.getPtrTy(), "defer.recv");
+                    builder_.CreateStore(a->addr, slot);
+                    site.captures.push_back({sel->base.get(), Override{slot, a->type, true}});
+                }
+                else
+                {
+                    capture(*sel->base);
+                }
+            }
+        }
+        auto *calleeRef = dynamic_cast<const VarRef *>(call.callee.get());
+        bool keepArgs = calleeRef && calleeRef->name == "free" && !pkg_->functions.count("free");
+        if (!keepArgs)
+            for (const ExprPtr &arg : call.args)
+                capture(*arg);
+
+        llvm::AllocaInst *flag = zeroedEntrySlot(builder_.getInt1Ty(), "defer.flag");
+        builder_.CreateStore(builder_.getInt1(true), flag);
+        site.flag = flag;
+        defers_.push_back(std::move(site));
+    }
+
+    void CodeGen::emitDefers()
+    {
+        if (defers_.empty())
+            return;
+        llvm::Function *f = builder_.GetInsertBlock()->getParent();
+        for (size_t i = defers_.size(); i-- > 0;)
+        {
+            const DeferSite &site = defers_[i];
+            auto *runBB = llvm::BasicBlock::Create(ctx_, "defer.run", f);
+            auto *nextBB = llvm::BasicBlock::Create(ctx_, "defer.next", f);
+            builder_.CreateCondBr(builder_.CreateLoad(builder_.getInt1Ty(), site.flag), runBB, nextBB);
+            builder_.SetInsertPoint(runBB);
+            for (const auto &[expr, o] : site.captures)
+                overrides_[expr] = o;
+            size_t mark = temps_.size();
+            Value v = genCall(*site.call, nullptr);
+            if (v.type->is(Type::Kind::Tuple))
+                expandTuple(v);
+            flushTemps(mark);
+            for (const auto &[expr, o] : site.captures)
+            {
+                overrides_.erase(expr);
+                if (!o.addr)
+                    emitRelease(builder_.CreateLoad(llvmType(o.type), o.slot), o.type);
+            }
+            builder_.CreateBr(nextBB);
+            builder_.SetInsertPoint(nextBB);
+        }
     }
 
     void CodeGen::genAsm(const AsmStmt &stmt)
@@ -432,6 +540,7 @@ namespace pgt
             if (ret.value)
                 fail("this function does not return a value", ret.line, ret.col);
             flushTemps();
+            emitDefers();
             emitScopeReleases(0);
             builder_.CreateRetVoid();
         }
@@ -443,6 +552,7 @@ namespace pgt
             v = coerce(v, currentRet_, ret.line, ret.col, "return");
             llvm::Value *result = take(v);
             flushTemps();
+            emitDefers();
             emitScopeReleases(0);
             builder_.CreateRet(result);
         }
