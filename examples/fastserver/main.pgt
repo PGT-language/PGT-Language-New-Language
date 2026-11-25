@@ -1,12 +1,12 @@
 package main
 
 #use (
-    "conv"
-    "time"
-    "asm"
-    "fmt"
-    "os"
-    "c"
+    "std/conv"
+    "std/time"
+    "std/asm"
+    "std/fmt"
+    "std/os"
+    "std/c"
 )
 
 asm {
@@ -111,9 +111,9 @@ typedef struct {
     int plen;
     char path[128];
     int dynamic;
-    char *resp;
-    int rlen;
-    int date_at;
+    char *resp[2];
+    int rlen[2];
+    int date_at[2];
 } FsRoute;
 
 typedef struct {
@@ -143,19 +143,19 @@ static FsConn *fs_conns[FS_MAX_FDS];
 static volatile sig_atomic_t fs_stop_flag;
 static char fs_dates[2][32];
 static _Atomic int fs_date_idx;
-static char fs_404[512];
-static int fs_404_len, fs_404_date;
+static char fs_404[2][512];
+static int fs_404_len[2], fs_404_date[2];
 static char fs_400[512];
 static int fs_400_len, fs_400_date;
 static const char fs_date_tag[] = "Date: ";
 
 static int fs_build(char *dst, int cap, int status, const char *reason, const char *ctype,
-                    const char *body, int blen, int *date_at)
+                    const char *body, int blen, int *date_at, int keep)
 {
     int n = snprintf(dst, cap, "HTTP/1.1 %d %s\r\nServer: pgt-fast\r\n%s", status, reason, fs_date_tag);
     *date_at = n;
-    n += snprintf(dst + n, cap - n, "%s\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n",
-                  fs_dates[0], ctype, blen);
+    n += snprintf(dst + n, cap - n, "%s\r\nConnection: %s\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n",
+                  "Thu, 01 Jan 1970 00:00:00 GMT", keep ? "keep-alive" : "close", ctype, blen);
     if (n + blen > cap)
         return -1;
     memcpy(dst + n, body, blen);
@@ -198,8 +198,10 @@ int fs_route_add(const char *path, int status, const char *ctype, const char *bo
     r->hash = fs_hash(path, r->plen);
     int blen = (int)strlen(body);
     int cap = blen + 512;
-    r->resp = malloc(cap);
-    r->rlen = fs_build(r->resp, cap, status, fs_reason(status), ctype, body, blen, &r->date_at);
+    for (int k = 0; k < 2; k++) {
+        r->resp[k] = malloc(cap);
+        r->rlen[k] = fs_build(r->resp[k], cap, status, fs_reason(status), ctype, body, blen, &r->date_at[k], k);
+    }
     r->dynamic = 0;
     return fs_nroutes++;
 }
@@ -365,7 +367,7 @@ static void fs_bad(FsConn *c)
     c->inlen = 0;
 }
 
-static void fs_stats_resp(FsWorker *w, FsConn *c)
+static void fs_stats_resp(FsWorker *w, FsConn *c, int keep)
 {
     char body[256];
     int blen = snprintf(body, sizeof body,
@@ -374,9 +376,9 @@ static void fs_stats_resp(FsWorker *w, FsConn *c)
                         fs_nworkers);
     char head[256];
     int hlen = snprintf(head, sizeof head,
-                        "HTTP/1.1 200 OK\r\nServer: pgt-fast\r\nDate: %s\r\nContent-Type: application/json\r\n"
-                        "Content-Length: %d\r\nCache-Control: no-store\r\n\r\n",
-                        fs_dates[atomic_load(&fs_date_idx)], blen);
+                        "HTTP/1.1 200 OK\r\nServer: pgt-fast\r\nDate: %s\r\nConnection: %s\r\n"
+                        "Content-Type: application/json\r\nContent-Length: %d\r\nCache-Control: no-store\r\n\r\n",
+                        fs_dates[atomic_load(&fs_date_idx)], keep ? "keep-alive" : "close", blen);
     fs_put(c, head, hlen, -1);
     fs_put(c, body, blen, -1);
     (void)w;
@@ -432,18 +434,19 @@ static void fs_process(FsWorker *w, FsConn *c)
                 break;
             }
         }
-        int need = hit && !hit->dynamic ? hit->rlen : 1024;
+        int keep = !want_close;
+        int need = hit && !hit->dynamic ? hit->rlen[keep] : 1024;
         if (c->outlen + need > FS_OUT_CAP) {
             int f = fs_flush(w, c);
             if (f <= 0)
                 break;
         }
         if (!hit)
-            fs_put(c, fs_404, fs_404_len, fs_404_date);
+            fs_put(c, fs_404[keep], fs_404_len[keep], fs_404_date[keep]);
         else if (hit->dynamic)
-            fs_stats_resp(w, c);
+            fs_stats_resp(w, c, keep);
         else
-            fs_put(c, hit->resp, hit->rlen, hit->date_at);
+            fs_put(c, hit->resp[keep], hit->rlen[keep], hit->date_at[keep]);
         atomic_fetch_add_explicit(&w->requests, 1, memory_order_relaxed);
         pos += hlen + (int)clen;
         if (want_close)
@@ -598,8 +601,10 @@ int fs_start(const char *host, int port, int threads)
     if (threads < 1 || threads > FS_MAX_THREADS)
         return -EINVAL;
     fs_tick();
-    fs_404_len = fs_build(fs_404, sizeof fs_404, 404, "Not Found", "text/plain", "not found\n", 10, &fs_404_date);
-    fs_400_len = fs_build(fs_400, sizeof fs_400, 400, "Bad Request", "text/plain", "bad request\n", 12, &fs_400_date);
+    for (int k = 0; k < 2; k++)
+        fs_404_len[k] = fs_build(fs_404[k], sizeof fs_404[k], 404, "Not Found", "text/plain", "not found\n", 10,
+                                 &fs_404_date[k], k);
+    fs_400_len = fs_build(fs_400, sizeof fs_400, 400, "Bad Request", "text/plain", "bad request\n", 12, &fs_400_date, 0);
     for (int i = 0; i < threads; i++) {
         FsWorker *w = &fs_workers[i];
         w->lfd = fs_listen_socket(host, port);
