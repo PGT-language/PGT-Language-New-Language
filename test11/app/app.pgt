@@ -1,0 +1,150 @@
+package app
+
+#use (
+    "test11/render"
+    "test11/score"
+    "test11/term"
+    "test11/game"
+    "std/time"
+    "std/rand"
+    "std/fmt"
+)
+
+
+const (
+    ActNone = 0
+    ActQuit = 1
+    ActPause = 2
+    ActRestart = 3
+    ActDir = 4
+)
+
+fn decode(k int) (int, int) {
+    switch k {
+        case term.KeyUp, 119, 87 { return ActDir, game.DirUp }
+        case term.KeyDown, 115, 83 { return ActDir, game.DirDown }
+        case term.KeyLeft, 97, 65 { return ActDir, game.DirLeft }
+        case term.KeyRight, 100, 68 { return ActDir, game.DirRight }
+        case 112, 80, 32 { return ActPause, 0 }
+        case 113, 81, 3, 4, term.KeyEsc { return ActQuit, 0 }
+        case 114, 82 { return ActRestart, 0 }
+        default { return ActNone, 0 }
+    }
+}
+
+struct Session {
+    G *game.Game
+    L render.Layout
+    Best int
+    Cols int
+    Rows int
+}
+
+fn (s *Session) relayout() {
+    var* cols, rows = term.Size()
+    if cols != s.Cols || rows != s.Rows {
+        s.Cols = cols
+        s.Rows = rows
+        s.L = render.MakeLayout(cols, rows, s.G.W, s.G.H)
+        term.Write("\x1b[0m\x1b[2J")
+    }
+}
+
+fn (s *Session) draw() {
+    s.relayout()
+    term.Write(s.L.Frame(s.G, s.Best))
+}
+
+fn (s *Session) finish() {
+    var* record = s.G.Score > s.Best
+    s.Best = score.Update(s.Best, s.G.Score)
+    s.draw()
+    term.Write(s.L.GameOver(s.G, s.Best, record))
+}
+
+fn waitEnd(s *Session) bool {
+    term.Drain()
+    while true {
+        var* act, d = decode(term.ReadKey())
+        if act == ActQuit {
+            return false
+        }
+        if act == ActRestart {
+            return true
+        }
+        s.relayout()
+        time.Sleep(30)
+    }
+    return false
+}
+
+fn play(s *Session) bool {
+    s.G.Reset()
+    term.Drain()
+    term.Write("\x1b[0m\x1b[2J")
+    s.Cols = 0
+    s.draw()
+    var* last = time.Ticks()
+    while true {
+        var* dirty = false
+        var* k = term.ReadKey()
+        while k != term.KeyNone {
+            var* act, d = decode(k)
+            switch act {
+                case ActQuit { return false }
+                case ActPause {
+                    s.G.Paused = !s.G.Paused
+                    last = time.Ticks()
+                    dirty = true
+                }
+                case ActDir {
+                    if !s.G.Paused && s.G.Turn(d) && time.Since(last) > int64(s.G.Delay() / 2) {
+                        last = last - int64(s.G.Delay())
+                    }
+                }
+                default { }
+            }
+            k = term.ReadKey()
+        }
+        if !s.G.Paused && time.Since(last) >= int64(s.G.Delay()) {
+            last = time.Ticks()
+            s.G.Step()
+            dirty = true
+        }
+        if dirty {
+            s.draw()
+        }
+        if s.G.Over() {
+            s.finish()
+            return waitEnd(s)
+        }
+        time.Sleep(8)
+    }
+    return false
+}
+
+fn Run() int {
+    rand.Seed(time.NowMs())
+    if !term.Init() {
+        fmt.Println("snake needs an interactive terminal (run without redirection, or use --selftest)")
+        return 1
+    }
+    var* cols, rows = term.Size()
+    if render.TooSmall(cols, rows) {
+        term.Restore()
+        fmt.Println("terminal too small: need at least ", 2 * render.MinW + 2, "x", render.MinH + 4)
+        return 1
+    }
+    var* w, h = render.Fit(cols, rows)
+    var* s = new(Session)
+    s.G = game.New(w, h)
+    s.Best = score.Load()
+    s.Cols = 0
+    s.Rows = 0
+    s.L = render.MakeLayout(cols, rows, w, h)
+    while play(s) {
+    }
+    term.Restore()
+    fmt.Println("Final best score: ", s.Best)
+    return 0
+}
