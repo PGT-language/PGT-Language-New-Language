@@ -1,0 +1,186 @@
+package render
+
+
+#use (
+    "test11/game"
+    "std/strings"
+    "std/conv"
+)
+
+const (
+    MaxW = 40
+    MaxH = 24
+    MinW = 10
+    MinH = 8
+    Reset = "\x1b[0m"
+)
+
+struct Layout {
+    W int
+    H int
+    OX int
+    OY int
+    Cols int
+    Rows int
+}
+
+fn Fit(cols int, rows int) (int, int) {
+    var* w = (cols - 2) / 2
+    var* h = rows - 4
+    if w > MaxW {
+        w = MaxW
+    }
+    if h > MaxH {
+        h = MaxH
+    }
+    if w < MinW {
+        w = MinW
+    }
+    if h < MinH {
+        h = MinH
+    }
+    return w, h
+}
+
+fn MakeLayout(cols int, rows int, w int, h int) Layout {
+    var* ox = (cols - (w * 2 + 2)) / 2 + 1
+    var* oy = (rows - (h + 4)) / 2 + 1
+    if ox < 1 {
+        ox = 1
+    }
+    if oy < 1 {
+        oy = 1
+    }
+    return Layout{W: w, H: h, OX: ox, OY: oy, Cols: cols, Rows: rows}
+}
+
+fn At(x int, y int) string {
+    return "\x1b[" + conv.Itoa(y) + ";" + conv.Itoa(x) + "H"
+}
+
+fn border(n int) string {
+    return "\x1b[46m" + strings.Repeat("  ", n) + Reset
+}
+
+fn (l Layout) cell(g *game.Game, kind int, x int, y int) string {
+    switch kind {
+        case 1 {
+            if (x + y) % 2 == 0 {
+                return "\x1b[48;5;34m  " + Reset
+            }
+            return "\x1b[48;5;28m  " + Reset
+        }
+        case 2 {
+            return "\x1b[48;5;226m\x1b[30m" + headGlyph(g.Dir) + Reset
+        }
+        case 3 {
+            return "\x1b[48;5;236m\x1b[91m\x1b[1m()" + Reset
+        }
+        default {
+            if (x + y) % 2 == 0 {
+                return "\x1b[48;5;236m  " + Reset
+            }
+            return "\x1b[48;5;235m  " + Reset
+        }
+    }
+}
+
+fn headGlyph(d int) string {
+    switch d {
+        case game.DirUp { return "^^" }
+        case game.DirDown { return "vv" }
+        case game.DirLeft { return "<<" }
+        default { return ">>" }
+    }
+}
+
+fn (l Layout) Grid(g *game.Game) []int {
+    var* grid = make([]int, l.W * l.H)
+    for p in g.Snake {
+        grid[p.Y * l.W + p.X] = 1
+    }
+    var* h = g.Head()
+    grid[h.Y * l.W + h.X] = 2
+    if !g.Over() || g.Status != game.StatusWon {
+        grid[g.Food.Y * l.W + g.Food.X] = 3
+    }
+    return grid
+}
+
+fn (l Layout) Status(g *game.Game, best int) string {
+    var* b strings.Builder
+    b.Write(At(l.OX, l.OY))
+    b.Write("\x1b[2K\x1b[1;97m SNAKE \x1b[0m")
+    b.Write("\x1b[93mScore: " + conv.Itoa(g.Score) + "\x1b[0m  ")
+    b.Write("\x1b[96mBest: " + conv.Itoa(best) + "\x1b[0m  ")
+    b.Write("\x1b[92mSpeed: " + conv.Itoa(g.Speed()) + "\x1b[0m  ")
+    b.Write("\x1b[95mLen: " + conv.Itoa(g.Length()) + "\x1b[0m")
+    if g.Paused {
+        b.Write("  \x1b[1;5;91mPAUSED\x1b[0m")
+    }
+    return b.String()
+}
+
+fn (l Layout) Frame(g *game.Game, best int) string {
+    var* b strings.Builder
+    b.Write("\x1b[?25l")
+    b.Write(l.Status(g, best))
+    var* grid = l.Grid(g)
+    b.Write(At(l.OX, l.OY + 1))
+    b.Write(border(l.W + 1))
+    for y in 0..l.H {
+        b.Write(At(l.OX, l.OY + 2 + y))
+        b.Write(border(1))
+        for x in 0..l.W {
+            b.Write(l.cell(g, grid[y * l.W + x], x, y))
+        }
+        b.Write(border(1))
+    }
+    b.Write(At(l.OX, l.OY + 2 + l.H))
+    b.Write(border(l.W + 1))
+    b.Write(At(l.OX, l.OY + 3 + l.H))
+    b.Write("\x1b[2K\x1b[2m arrows/WASD move   p pause   q quit\x1b[0m")
+    return b.String()
+}
+
+fn (l Layout) Box(lines []string, color string) string {
+    var* width = 0
+    for s in lines {
+        if len(s) > width {
+            width = len(s)
+        }
+    }
+    width += 4
+    var* x = l.OX + (l.W * 2 + 2 - width) / 2
+    var* y = l.OY + 2 + (l.H - len(lines) - 2) / 2
+    if x < 1 {
+        x = 1
+    }
+    var* b strings.Builder
+    b.Write(At(x, y))
+    b.Write(color + strings.Repeat(" ", width) + Reset)
+    for i, s in lines {
+        b.Write(At(x, y + 1 + i))
+        b.Write(color + "  " + strings.PadRight(s, width - 4, ' ') + "  " + Reset)
+    }
+    b.Write(At(x, y + 1 + len(lines)))
+    b.Write(color + strings.Repeat(" ", width) + Reset)
+    return b.String()
+}
+
+fn (l Layout) GameOver(g *game.Game, best int, record bool) string {
+    var* title = "GAME OVER"
+    if g.Status == game.StatusWon {
+        title = "YOU WIN"
+    }
+    var* lines = [title, "", "Score: " + conv.Itoa(g.Score), "Best:  " + conv.Itoa(best)]
+    if record {
+        lines = append(lines, "New record!")
+    }
+    lines = append(lines, "", "r restart   q quit")
+    return l.Box(lines, "\x1b[1;97;41m")
+}
+
+fn TooSmall(cols int, rows int) bool {
+    return cols < 2 * MinW + 2 || rows < MinH + 4
+}
