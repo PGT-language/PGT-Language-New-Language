@@ -565,37 +565,43 @@ asm.Free(f)
 
 ## c
 
-Пакет для блоков `c { }` (см. `syntax.md`, «Вставки на C»): `#use "c"` обязателен в каждом файле, где есть такой блок. Содержит помощники для работы с C-указателями; в режиме ядра пакет импортируется, а функции, которым нужна libc, перенаправлены на `pgt_kernel_rt.c`.
+Пакет для блоков `c { }` (см. `syntax.md`, «Вставки на C»): `#use "c"` обязателен в каждом файле, где есть такой блок. Это настоящий пакет из нескольких файлов, как `std/asm`: токенайзер C, набор инструментов для блоков, отображение типов и привязки к заголовкам libc, написанные на PGT. Доступные имена в режиме ядра указаны в конце раздела.
 
-| Имя | Описание |
+| Файл | Что внутри |
 |---|---|
-| `SizeofChar`, `SizeofShort`, `SizeofInt`, `SizeofLong`, `SizeofLongLong`, `SizeofPointer`, `SizeofSizeT`, `SizeofFloat`, `SizeofDouble` | Размеры C-типов в байтах (x86-64) |
-| `CharPtr(s string) *byte` | Указатель на данные строки (без копирования, действует, пока жива строка) |
-| `CString(s string) *byte` | Копия строки в C-памяти с нулевым байтом; освобождать через `Free` |
-| `GoString(p *byte) string` | Строка PGT из C-строки |
-| `Malloc(n)`, `Calloc(count, size)`, `Realloc(p, n)`, `Free(p)` | Обёртки над C-аллокатором (`Malloc` возвращает обнулённую память) |
-| `Strlen(p *byte) int64`, `Memcpy(dst, src *byte, n int64)`, `Memset(dst *byte, v int, n int64)` | Обёртки над libc |
-| `Errno() int`, `SetErrno(v int)` | Доступ к `errno` |
+| `c.pgt` | `Version`, `Prelude` (три `#include`, которые компилятор кладёт в начало `.c` файла пакета), `BlockFuncName(pkg, n)`, `LineDirective(line, file)` |
+| `errors.pgt` | `Result{Text, Err, Line, Col}`, `r.Ok()`, `r.Error()` |
+| `types.pgt` | `Sizeof*` и `Alignof*` (`Char`, `Short`, `Int`, `Long`, `LongLong`, `Pointer`, `SizeT`, `Float`, `Double`, `Bool`), `CType(pgtType)`, `PgtType(cType)`, `SizeofType`, `AlignofType`, `IsScalarType`, `IsReadOnlyType` |
+| `lexer.pgt` | `Tokenize(src) ([]Token, Result)` (без комментариев), `TokenizeAll` (с комментариями), `Token{Kind, Text, Line, Col, Value, Str}`, виды `TokIdent`, `TokKeyword`, `TokInt`, `TokFloat`, `TokChar`, `TokString`, `TokOp`, `TokPreproc`, `TokComment`, `KindName`, `IsKeyword` |
+| `block.pgt` | `FindBlockEnd(src, start) int` (парная `}` с учётом строк, символов и комментариев, `-1` если не найдена), `Placeholders(text) []string`, `CheckBlock(text, names, types) Result`, `PrepareBlock(text, names, types, file, line, fname) Result`, `TopLevelBlock(text, file, line) string` |
+| `pointers.pgt` | `CharPtr`, `GoString`, `CString`, `Null`, `IsNil`, `Add`, `Addr`, `LoadByte/Int/Int64/Ptr`, `StoreByte/Int/Int64/Ptr`, `Bytes` |
+| `stdio.pgt` | `Puts`, `Putchar`, `Printf` и варианты с одним-двумя аргументами (`PrintfInt`, `PrintfInt64`, `PrintfStr`, `PrintfFloat`, `PrintfIntInt`, `PrintfStrInt`), `FprintfStr`, `FprintfInt`, `SprintfInt`, `SprintfInt64`, `SprintfStr`, `SprintfFloat` (возвращают `string`), `Fopen`, `Fclose`, `Fread`, `Fwrite`, `Fgets`, `Fputs`, `Fputc`, `Fgetc`, `Fflush`, `Feof`, `Remove`, `Rename`, `Stdin`, `Stdout`, `Stderr` |
+| `stdlib.pgt` | `Malloc` (обнулённая память), `Calloc`, `Realloc`, `Free`, `Atoi`, `Atol`, `Atof`, `Strtol(s, base)`, `Strtod`, `Getenv`, `Setenv`, `Unsetenv`, `Exit`, `Abort`, `Rand`, `Srand`, `Abs`, `Labs`, `ZeroBytes`, `Dup` |
+| `string.pgt` | `Strlen`, `Strcmp`, `Strncmp`, `Strcpy`, `Strncpy`, `Strcat`, `Strchr`, `Strrchr`, `Strstr`, `Strdup`, `Memcpy`, `Memmove`, `Memset`, `Memcmp` |
+| `ctype.pgt` | `Isalpha`, `Isdigit`, `Isalnum`, `Isspace`, `Isupper`, `Islower`, `Ispunct`, `Isxdigit`, `Isprint`, `Toupper`, `Tolower` |
+| `cmath.pgt` | `Sqrt`, `Pow`, `Sin`, `Cos`, `Tan`, `Floor`, `Ceil`, `Fabs`, `Fmod`, `Exp`, `Log`, `Log10`, `Log2`, `Atan`, `Atan2`, `Asin`, `Acos`, `Hypot`, `Cbrt` |
+| `ctime.pgt` | `Time`, `Clock`, `Sleep`, `Usleep`, `Nanosleep(sec, nsec)`, `ClocksPerSec` |
+| `errno.pgt` | `Errno`, `SetErrno`, `Strerror`, константы `EPERM`, `ENOENT`, `EINTR`, `EIO`, `EBADF`, `EAGAIN`, `ENOMEM`, `EACCES`, `EEXIST`, `EINVAL`, `ERANGE` и др. |
+| `unistd.pgt` | `Getpid`, `Read`, `Write`, `Close`, `Lseek`, `Isatty`, `StdinFd`, `StdoutFd`, `StderrFd`, `SeekSet`, `SeekCur`, `SeekEnd` |
+| `fcntl.pgt` | `Open(path, flags, mode)`, `O_RDONLY`, `O_WRONLY`, `O_RDWR`, `O_CREAT`, `O_EXCL`, `O_TRUNC`, `O_APPEND`, `O_NONBLOCK`, `O_CLOEXEC` |
+| `signal.pgt` | `Raise`, `Ignore`, `Default`, `SIGHUP`, `SIGINT`, `SIGQUIT`, `SIGILL`, `SIGABRT`, `SIGFPE`, `SIGKILL`, `SIGUSR1`, `SIGSEGV`, `SIGUSR2`, `SIGPIPE`, `SIGALRM`, `SIGTERM`, `SIGCHLD` |
+| `shim.pgt` | Верхний блок `c { }` с обёртками для функций с переменным числом аргументов (`printf`, `open`, `nanosleep`, `signal`); сам использует `c { }` без импорта |
 
-## kernel
+Типы блока: `int`, `int64`, `uint64`, `float`, `byte`, `char`, `bool`, `string` (только чтение), указатели `*T` (в `types` пишутся как `"int"`, `"string"`, `"*byte"`). Указатели libc — `*byte`; строки передаются как `string`.
 
-Только для режима ядра (`pgt build --freestanding`, `target kernel` в `pgt.mod`). Все функции написаны на PGT с использованием блоков `asm { }` и `c { }`.
+`CheckBlock` не запускает C: он проверяет списки имён и типов, разбирает текст токенайзером (незакрытые строки, символы и комментарии, неверные цифры, пустой символ), проверяет баланс скобок и запрещает запись в переменные только для чтения (`{s} = ...`, `{s}++`). Ошибка содержит `Line` и `Col` внутри блока (первая строка — строка с `c {`). `PrepareBlock` после проверки собирает точно тот текст функции, что формирует компилятор:
 
-| Область | Функции |
-|---|---|
-| Порты | `Outb`, `Outw`, `Outl(port, value int)`, `Inb`, `Inw`, `Inl(port int) int` |
-| Процессор | `Cli`, `Sti`, `Hlt`, `Halt` (вечный цикл), `Pause`, `Int3`, `ReadCR0/CR2/CR3/CR4() uint64`, `WriteCR3(v uint64)`, `Rdmsr(msr int) uint64`, `Wrmsr(msr int, v uint64)`, `Rdtsc() uint64`, `Invlpg(addr uint64)` |
-| Память по адресу | `Peek8/16/32/64(addr uint64)`, `Poke8/16/32/64(addr, value)`, `MemFill`, `MemMove` |
-| COM1 | `SerialInit`, `SerialWriteByte(b int)`, `SerialWrite(s)`, `SerialWriteLn(s)` |
-| Консоль | `ConsoleInit() bool`, `ConsoleReady`, `ConsoleClear`, `ConsoleSetColor(fg, bg)`, `ConsoleSetCursor(col, row)`, `ConsolePutChar(c int)`, `ConsoleWrite(s)`, `ConsoleWriteAt(col, row, s)`, `ConsoleFillRect`, `ConsoleCols/Rows/Width/Height/CursorX/CursorY`, цвета `ColorWhite`, `ColorCyan` и т.д. Шрифт 8x16 встроен, прокрутка поддерживается |
-| Вывод | `Print(s)`, `Println(s)` (COM1 и консоль), `Hex(v uint64) string` |
-| Таблицы | `InitGDT()` (GDT с кодом/данными ядра и пользователя и TSS с IST1 для double fault), `InitIDT()` (векторы 0-31 и IRQ 32-47, заглушки в модульном `asm { }`) |
-| Прерывания | `PicRemap(offset1, offset2)`, `PicEOI(irq)`, `PicMask`, `PicUnmask`, `PicMaskAll`; `PitInit(hz)`, `Ticks() int64`, `TickHz`, `UptimeMs`; `Breakpoints()`, `LastException()`, `IrqCount()`, `ExceptionName(vec)` |
-| Клавиатура | `KeyboardInit()`, `KeyAvailable() bool`, `ReadKey() int` (ASCII по scancode set 1, `-1` если пусто, учитывается Shift) |
-| Страницы | `PmmInit()`, `AllocFrame() uint64` (физический адрес, `0` при нехватке), `FrameVirt(phys)`, `PmmUsableBytes()`, `PmmFramesAllocated()` |
-| Limine | `LimineOK()`, `FramebufferAvailable/Addr/Width/Height/Pitch/Bpp`, `HhdmOffset()`, `MemmapCount/Base/Length/Type(i)`, `MemmapTypeName(t)`; запросы лежат в секциях `.limine_requests*` (блок `c { }` в `limine.pgt`) |
+```
+void pgt_cblock_main_0(int32_t *v0, const char * const *v1)
+{
+#line 7 "dir/a.pgt"
+...текст блока, {имя} заменено на (*vK)...
+}
+```
 
-Обработчик `OnInterrupt` обрабатывает точку останова (счётчик `Breakpoints`), таймер, клавиатуру; прочие исключения печатают сообщение и останавливают процессор.
+`names` — переменные, которые видны блоку (остальные `{x}` остаются обычными скобками C), `types` — их типы PGT.
+
+В режиме ядра (`--freestanding`) загружаются только `c.pgt`, `types.pgt`, `errors.pgt`, `lexer.pgt`, `block.pgt`, `pointers.pgt` и `std/_freestanding/c/libc.pgt` (`Malloc`, `Calloc`, `Realloc`, `Free`, `Strlen`, `Strcmp`, `Memcpy`, `Memmove`, `Memset`, `Memcmp`, `Errno`, `SetErrno` поверх `pgt_kernel_rt.c`). Остальные привязки недоступны: `'c.Puts' needs libc and is not available in freestanding builds`.
 
 ## syscall
 

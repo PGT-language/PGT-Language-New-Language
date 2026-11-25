@@ -989,8 +989,7 @@ fn main() {
 | `time` | текущее время, паузы, форматирование дат, `Stopwatch` |
 | `memory` | блоки памяти: `Copy`, `Set`, `Zero`, `KB`, `MB` (для `var&` и `malloc`) |
 | `rand` | случайные числа: `Int`, `IntN`, `Range`, `Float`, `Shuffle`, `Pick`, воспроизводимый `Seed` |
-| `c` | помощники для блоков `c { }`: `CString`, `GoString`, `Malloc`, `Free`, `Errno`, размеры типов C |
-| `kernel` | только для режима ядра: порты, регистры, COM1, консоль на framebuffer, GDT, IDT, PIC, PIT, клавиатура, страничный аллокатор, запросы Limine |
+| `c` | блоки `c { }`: токенайзер C, `CheckBlock`/`PrepareBlock`, типы C и привязки к libc (`stdio`, `stdlib`, `string`, `ctype`, `cmath`, `ctime`, `errno`, `unistd`, `fcntl`, `signal`) |
 | `syscall/linux` | пакет `syscall_linux`: номера системных вызовов Linux x86-64 `SYS_READ`, `SYS_WRITE`, `SYS_MMAP`, `SYS_EXIT`, ... (как в Go) |
 | `syscall/purec-os` | пакет `syscall_purec_os`: номера системных вызовов PureC OS (`SYS_WRITE`, `SYS_FORK`, `SYS_DRAW_RECT`, `SYS_FILE_OPEN`, ...) |
 
@@ -1092,7 +1091,7 @@ c {
 
 Ошибки C показываются как `файл:строка:столбец: error: ...` с настоящей строкой PGT-файла (в сгенерированный C вставляются `#line`).
 
-В `std/c` лежат помощники: размеры типов C, `CString`, `GoString`, `Malloc`, `Free`, `Errno` (подробности в std/README.md).
+`std/c` — настоящий пакет на PGT (как `std/asm`): токенайзер C, `CheckBlock` и `PrepareBlock` (те же проверки и тот же текст функции, что делает компилятор), типы C, привязки к libc по файлам заголовков (`c.Puts`, `c.Atoi`, `c.Strlen`, `c.Sqrt`, `c.Open`, `c.Errno` и т.д.) и `CString`/`GoString`. Подробности — в std/README.md.
 
 ## Режим ядра (freestanding)
 
@@ -1111,9 +1110,9 @@ linker "kernel.ld"
 - `entry имя` — функция пакета `main` без параметров и результата, с которой начинается ядро (по умолчанию `kmain`). Флаг `--entry имя` переопределяет её. Компилятор сам создаёт символ `_start`, который вызывает инициализацию пакетов и затем функцию входа; `return` в конце `main` не нужен.
 - `linker "файл.ld"` — свой линкер-скрипт (путь от папки с `pgt.mod`); флаг `--linker-script файл.ld` приоритетнее. Скрипт по умолчанию (`runtime/kernel/kernel.ld`) — высокая половина `0xffffffff80000000` для Limine; секции `.limine_requests*` сохраняются.
 - Вместо `libpgtrt.a` линкуется `runtime/kernel/pgt_kernel_rt.c`: статическая куча на 16 МБ (`pgt_heap_provide(base, size)` позволяет ядру дать свою), `memcpy/memset/memcmp/strlen`, подсчёт ссылок и строки, `panic` печатает в COM1 и останавливает процессор.
-- Недоступны пакеты, которым нужна libc: `fmt`, `io`, `os`, `time`, `rand`, `flag`, `math`, `strings`, `conv`, `path`; ошибка: `package "fmt" needs libc and is not available in freestanding builds`. Доступны `kernel`, `runtime`, `maps`, `reflect`, `unsafe`, `arrays`, `sort`, `memory`, `c`, `asm` (в этом режиме `asm` — пустая заглушка, нужная только для блоков `asm { }`). Пакет `kernel` в обычном режиме не импортируется.
+- Недоступны пакеты, которым нужна libc: `fmt`, `io`, `os`, `time`, `rand`, `flag`, `math`, `strings`, `conv`, `path`; ошибка: `package "fmt" needs libc and is not available in freestanding builds`. Доступны `runtime`, `maps`, `reflect`, `unsafe`, `arrays`, `sort`, `memory`, `asm` (в этом режиме `asm` — пустая заглушка, нужная только для блоков `asm { }`) и урезанный `c`: инструменты блоков и функции поверх рантайма ядра (`Malloc`, `Free`, `Strlen`, `Memcpy`, ...), остальные привязки libc дают ошибку `'c.Puts' needs libc and is not available in freestanding builds`. Собственные пакеты ядра (порты, GDT, IDT, консоль и т.д.) пишутся в проекте, как в `pgt-os-test-kernel/`.
 
-Демонстрационное ядро лежит в `os/` (`os/build.sh` собирает `os.elf` и `os.iso` для Limine, `os/run.sh` запускает его в VirtualBox).
+Демонстрационное ядро лежит в `pgt-os-test-kernel/` (`build.sh` собирает `os.elf` и `os.iso` для Limine, `run.sh` запускает его в VirtualBox).
 
 # Компилятор
 
