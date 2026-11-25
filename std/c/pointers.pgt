@@ -1,0 +1,70 @@
+package c
+
+#use "unsafe"
+
+fn CharPtr(s string) *byte {
+    return unsafe.StringData(s)
+}
+
+fn GoString(p *byte) string {
+    return unsafe.StringAt(p)
+}
+
+fn CString(s string) *byte {
+    var* n = Strlen(unsafe.StringData(s))
+    var* p = Calloc(1, n + 1)
+    Memcpy(p, unsafe.StringData(s), n + 1)
+    return p
+}
+
+fn Null() *byte {
+    return nil
+}
+
+fn IsNil(p *byte) bool {
+    return p == nil
+}
+
+fn Add(p *byte, n int64) *byte {
+    return unsafe.Add(p, n)
+}
+
+fn Addr(p *byte) int64 {
+    return unsafe.Addr(p)
+}
+
+fn LoadByte(p *byte) byte {
+    return unsafe.LoadByte(p)
+}
+
+fn LoadInt(p *byte) int {
+    return unsafe.LoadInt(p)
+}
+
+fn LoadInt64(p *byte) int64 {
+    return unsafe.LoadInt64(p)
+}
+
+fn LoadPtr(p *byte) *byte {
+    return unsafe.LoadPtr(p)
+}
+
+fn StoreByte(p *byte, v byte) {
+    unsafe.StoreByte(p, v)
+}
+
+fn StoreInt(p *byte, v int) {
+    unsafe.StoreInt(p, v)
+}
+
+fn StoreInt64(p *byte, v int64) {
+    unsafe.StoreInt64(p, v)
+}
+
+fn StorePtr(p *byte, v *byte) {
+    unsafe.StorePtr(p, v)
+}
+
+fn Bytes(p *byte, n int) []byte {
+    return unsafe.BytesAt(p, n)
+}

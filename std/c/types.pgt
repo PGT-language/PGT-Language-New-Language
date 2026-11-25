@@ -1,0 +1,129 @@
+package c
+
+const SizeofChar = 1
+const SizeofShort = 2
+const SizeofInt = 4
+const SizeofLong = 8
+const SizeofLongLong = 8
+const SizeofPointer = 8
+const SizeofSizeT = 8
+const SizeofFloat = 4
+const SizeofDouble = 8
+const SizeofBool = 1
+
+const AlignofChar = 1
+const AlignofShort = 2
+const AlignofInt = 4
+const AlignofLong = 8
+const AlignofLongLong = 8
+const AlignofPointer = 8
+const AlignofSizeT = 8
+const AlignofFloat = 4
+const AlignofDouble = 8
+const AlignofBool = 1
+
+fn isPointerType(name string) bool {
+    return len(name) > 1 && name[0] == '*'
+}
+
+fn IsScalarType(name string) bool {
+    return CType(name) != ""
+}
+
+fn IsReadOnlyType(name string) bool {
+    return name == "string"
+}
+
+fn CType(name string) string {
+    switch name {
+        case "int" {
+            return "int32_t"
+        }
+        case "int64" {
+            return "int64_t"
+        }
+        case "uint64" {
+            return "uint64_t"
+        }
+        case "float" {
+            return "double"
+        }
+        case "char" {
+            return "char"
+        }
+        case "byte" {
+            return "uint8_t"
+        }
+        case "bool" {
+            return "bool"
+        }
+        case "string" {
+            return "const char *"
+        }
+    }
+    if isPointerType(name) {
+        return "void *"
+    }
+    return ""
+}
+
+fn PgtType(ctype string) string {
+    switch ctype {
+        case "int32_t", "int" {
+            return "int"
+        }
+        case "int64_t", "long", "long long" {
+            return "int64"
+        }
+        case "uint64_t", "unsigned long", "size_t", "unsigned long long" {
+            return "uint64"
+        }
+        case "double", "float" {
+            return "float"
+        }
+        case "char" {
+            return "char"
+        }
+        case "uint8_t", "unsigned char" {
+            return "byte"
+        }
+        case "bool", "_Bool" {
+            return "bool"
+        }
+        case "const char *", "char *" {
+            return "string"
+        }
+    }
+    if len(ctype) > 0 && ctype[len(ctype) - 1] == '*' {
+        return "*byte"
+    }
+    return ""
+}
+
+fn SizeofType(name string) int {
+    switch name {
+        case "int" {
+            return SizeofInt
+        }
+        case "int64", "uint64" {
+            return SizeofLong
+        }
+        case "float" {
+            return SizeofDouble
+        }
+        case "char", "byte", "bool" {
+            return 1
+        }
+        case "string" {
+            return SizeofPointer
+        }
+    }
+    if isPointerType(name) {
+        return SizeofPointer
+    }
+    return 0
+}
+
+fn AlignofType(name string) int {
+    return SizeofType(name)
+}

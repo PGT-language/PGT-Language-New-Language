@@ -1,72 +1,32 @@
 package c
 
-#use "unsafe"
+const Version = 1
 
-extern fn calloc(count int64, size int64) *byte
-extern fn realloc(p *byte, n int64) *byte
-extern fn free(p *byte)
-extern fn strlen(p *byte) int64
-extern fn memcpy(dst *byte, src *byte, n int64) *byte
-extern fn memset(dst *byte, v int, n int64) *byte
-extern fn __errno_location() *int
+const Prelude = "#include <stdint.h>\n#include <stddef.h>\n#include <stdbool.h>\n"
 
-const SizeofChar = 1
-const SizeofShort = 2
-const SizeofInt = 4
-const SizeofLong = 8
-const SizeofLongLong = 8
-const SizeofPointer = 8
-const SizeofSizeT = 8
-const SizeofFloat = 4
-const SizeofDouble = 8
-
-fn Malloc(n int64) *byte {
-    return calloc(1, n)
+fn sanitize(s string) string {
+    var* out = ""
+    for ch in s {
+        if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') {
+            out = out + string(ch)
+        } else {
+            out = out + "_"
+        }
+    }
+    return out
 }
 
-fn Calloc(count int64, size int64) *byte {
-    return calloc(count, size)
+fn BlockFuncName(pkg string, n int) string {
+    return "pgt_cblock_" + sanitize(pkg) + "_" + n
 }
 
-fn Realloc(p *byte, n int64) *byte {
-    return realloc(p, n)
-}
-
-fn Free(p *byte) {
-    free(p)
-}
-
-fn Strlen(p *byte) int64 {
-    return strlen(p)
-}
-
-fn Memcpy(dst *byte, src *byte, n int64) {
-    memcpy(dst, src, n)
-}
-
-fn Memset(dst *byte, v int, n int64) {
-    memset(dst, v, n)
-}
-
-fn CharPtr(s string) *byte {
-    return unsafe.StringData(s)
-}
-
-fn CString(s string) *byte {
-    var* n = strlen(unsafe.StringData(s))
-    var* p = calloc(1, n + 1)
-    memcpy(p, unsafe.StringData(s), n + 1)
-    return p
-}
-
-fn GoString(p *byte) string {
-    return unsafe.StringAt(p)
-}
-
-fn Errno() int {
-    return *__errno_location()
-}
-
-fn SetErrno(v int) {
-    *__errno_location() = v
+fn LineDirective(line int, file string) string {
+    var* f = ""
+    for ch in file {
+        if ch == '\\' || ch == '"' {
+            f = f + "\\"
+        }
+        f = f + string(ch)
+    }
+    return "#line " + line + " \"" + f + "\"\n"
 }

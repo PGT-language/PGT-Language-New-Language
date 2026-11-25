@@ -1,0 +1,430 @@
+package c
+
+const (
+    TokEnd = 0
+    TokIdent = 1
+    TokKeyword = 2
+    TokInt = 3
+    TokFloat = 4
+    TokChar = 5
+    TokString = 6
+    TokOp = 7
+    TokPreproc = 8
+    TokComment = 9
+)
+
+struct Token {
+    Kind int
+    Text string
+    Line int
+    Col int
+    Value int64
+    Str string
+}
+
+var* keywords = ["auto", "break", "case", "char", "const", "continue", "default", "do", "double", "else", "enum", "extern", "float", "for", "goto", "if", "inline", "int", "long", "register", "restrict", "return", "short", "signed", "sizeof", "static", "struct", "switch", "typedef", "union", "unsigned", "void", "volatile", "while", "_Bool", "_Alignas", "_Alignof", "_Atomic", "_Generic", "_Noreturn", "_Static_assert", "_Thread_local"]
+
+var* ops3 = ["<<=", ">>=", "..."]
+var* ops2 = ["->", "++", "--", "<<", ">>", "<=", ">=", "==", "!=", "&&", "||", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "##"]
+const ops1 = "{}()[];,.?:~!+-*/%&|^<>=#"
+
+fn KindName(kind int) string {
+    switch kind {
+        case 0 {
+            return "end"
+        }
+        case 1 {
+            return "identifier"
+        }
+        case 2 {
+            return "keyword"
+        }
+        case 3 {
+            return "integer"
+        }
+        case 4 {
+            return "float"
+        }
+        case 5 {
+            return "char"
+        }
+        case 6 {
+            return "string"
+        }
+        case 7 {
+            return "operator"
+        }
+        case 8 {
+            return "preprocessor"
+        }
+        case 9 {
+            return "comment"
+        }
+    }
+    return "unknown"
+}
+
+fn IsKeyword(word string) bool {
+    for k in keywords {
+        if k == word {
+            return true
+        }
+    }
+    return false
+}
+
+fn isDigit(ch char) bool {
+    return ch >= '0' && ch <= '9'
+}
+
+fn isAlpha(ch char) bool {
+    return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_'
+}
+
+fn isAlnum(ch char) bool {
+    return isAlpha(ch) || isDigit(ch)
+}
+
+fn hexValue(ch char) int {
+    if ch >= '0' && ch <= '9' {
+        return int(ch) - int('0')
+    }
+    if ch >= 'a' && ch <= 'f' {
+        return int(ch) - int('a') + 10
+    }
+    if ch >= 'A' && ch <= 'F' {
+        return int(ch) - int('A') + 10
+    }
+    return -1
+}
+
+fn escapeValue(cs []char, i int) (int, int) {
+    var* n = len(cs)
+    var* ch = cs[i]
+    if ch == 'n' {
+        return 10, i + 1
+    }
+    if ch == 't' {
+        return 9, i + 1
+    }
+    if ch == 'r' {
+        return 13, i + 1
+    }
+    if ch == 'a' {
+        return 7, i + 1
+    }
+    if ch == 'b' {
+        return 8, i + 1
+    }
+    if ch == 'f' {
+        return 12, i + 1
+    }
+    if ch == 'v' {
+        return 11, i + 1
+    }
+    if ch == 'x' {
+        var* v = 0
+        var* j = i + 1
+        var* digits = 0
+        for j < n && hexValue(cs[j]) >= 0 {
+            v = (v * 16 + hexValue(cs[j])) & 255
+            j++
+            digits++
+        }
+        if digits == 0 {
+            return -1, j
+        }
+        return v, j
+    }
+    if ch >= '0' && ch <= '7' {
+        var* v = 0
+        var* j = i
+        var* count = 0
+        for j < n && count < 3 && cs[j] >= '0' && cs[j] <= '7' {
+            v = v * 8 + (int(cs[j]) - int('0'))
+            j++
+            count++
+        }
+        return v & 255, j
+    }
+    if ch == '\\' || ch == '\'' || ch == '"' || ch == '?' {
+        return int(ch), i + 1
+    }
+    return -1, i + 1
+}
+
+fn lexNumber(cs []char, start int) (int, int, int64) {
+    var* n = len(cs)
+    var* i = start
+    var* isFloat = false
+    var* base = 10
+    if cs[i] == '0' && i + 1 < n && (cs[i + 1] == 'x' || cs[i + 1] == 'X') {
+        base = 16
+        i += 2
+        for i < n && (hexValue(cs[i]) >= 0 || cs[i] == '.') {
+            if cs[i] == '.' {
+                isFloat = true
+            }
+            i++
+        }
+        if i < n && (cs[i] == 'p' || cs[i] == 'P') {
+            isFloat = true
+            i++
+            if i < n && (cs[i] == '+' || cs[i] == '-') {
+                i++
+            }
+            for i < n && isDigit(cs[i]) {
+                i++
+            }
+        }
+    } else if cs[i] == '0' && i + 1 < n && (cs[i + 1] == 'b' || cs[i + 1] == 'B') {
+        base = 2
+        i += 2
+        for i < n && (cs[i] == '0' || cs[i] == '1') {
+            i++
+        }
+    } else {
+        for i < n && isDigit(cs[i]) {
+            i++
+        }
+        if i < n && cs[i] == '.' {
+            isFloat = true
+            i++
+            for i < n && isDigit(cs[i]) {
+                i++
+            }
+        }
+        if i < n && (cs[i] == 'e' || cs[i] == 'E') {
+            var* j = i + 1
+            if j < n && (cs[j] == '+' || cs[j] == '-') {
+                j++
+            }
+            if j < n && isDigit(cs[j]) {
+                isFloat = true
+                i = j
+                for i < n && isDigit(cs[i]) {
+                    i++
+                }
+            }
+        }
+        if !isFloat && i - start > 1 && cs[start] == '0' {
+            base = 8
+        }
+    }
+    var* digitsEnd = i
+    for i < n && (cs[i] == 'u' || cs[i] == 'U' || cs[i] == 'l' || cs[i] == 'L' || (isFloat && (cs[i] == 'f' || cs[i] == 'F'))) {
+        i++
+    }
+    var* kind = TokInt
+    if isFloat {
+        kind = TokFloat
+    }
+    var* value int64 = 0
+    if kind == TokInt {
+        var* from = start
+        if base == 16 || base == 2 {
+            from = start + 2
+        }
+        for k in from..digitsEnd {
+            var* d = hexValue(cs[k])
+            if d < 0 || d >= base {
+                return -1, i, 0
+            }
+            value = value * int64(base) + int64(d)
+        }
+    }
+    return kind, i, value
+}
+
+fn Tokenize(src string) ([]Token, Result) {
+    return lex(src, false)
+}
+
+fn TokenizeAll(src string) ([]Token, Result) {
+    return lex(src, true)
+}
+
+fn lex(src string, keepComments bool) ([]Token, Result) {
+    resetErrors()
+    var* out = make([]Token, 0)
+    var* cs = chars(src)
+    var* n = len(cs)
+    var* i = 0
+    var* line = 1
+    var* lineStart = 0
+    var* atLineStart = true
+    for i < n {
+        var* ch = cs[i]
+        var* col = i - lineStart + 1
+        if ch == '\n' {
+            line++
+            i++
+            lineStart = i
+            atLineStart = true
+            continue
+        }
+        if ch == ' ' || ch == '\t' || ch == '\r' || int(ch) == 12 || int(ch) == 11 {
+            i++
+            continue
+        }
+        if ch == '/' && i + 1 < n && cs[i + 1] == '/' {
+            var* j = i
+            for j < n && cs[j] != '\n' {
+                j++
+            }
+            if keepComments {
+                out = append(out, Token{Kind: TokComment, Text: substr(src, i, j - i), Line: line, Col: col, Value: 0, Str: ""})
+            }
+            i = j
+            continue
+        }
+        if ch == '/' && i + 1 < n && cs[i + 1] == '*' {
+            var* j = i + 2
+            var* startLine = line
+            var* startCol = col
+            var* closed = false
+            for j + 1 < n {
+                if cs[j] == '*' && cs[j + 1] == '/' {
+                    closed = true
+                    break
+                }
+                if cs[j] == '\n' {
+                    line++
+                    lineStart = j + 1
+                }
+                j++
+            }
+            if !closed {
+                fail("unterminated comment", startLine, startCol)
+                return out, errorResult()
+            }
+            j += 2
+            if keepComments {
+                out = append(out, Token{Kind: TokComment, Text: substr(src, i, j - i), Line: startLine, Col: startCol, Value: 0, Str: ""})
+            }
+            i = j
+            continue
+        }
+        if ch == '#' && atLineStart {
+            var* j = i
+            var* startLine = line
+            for j < n && cs[j] != '\n' {
+                if cs[j] == '\\' && j + 1 < n && cs[j + 1] == '\n' {
+                    j += 2
+                    line++
+                    lineStart = j
+                    continue
+                }
+                j++
+            }
+            out = append(out, Token{Kind: TokPreproc, Text: substr(src, i, j - i), Line: startLine, Col: col, Value: 0, Str: ""})
+            i = j
+            continue
+        }
+        atLineStart = false
+        if isAlpha(ch) {
+            var* j = i
+            for j < n && isAlnum(cs[j]) {
+                j++
+            }
+            var* word = substr(src, i, j - i)
+            var* kind = TokIdent
+            if IsKeyword(word) {
+                kind = TokKeyword
+            }
+            out = append(out, Token{Kind: kind, Text: word, Line: line, Col: col, Value: 0, Str: ""})
+            i = j
+            continue
+        }
+        if isDigit(ch) || (ch == '.' && i + 1 < n && isDigit(cs[i + 1])) {
+            var* kind, next, value = lexNumber(cs, i)
+            if kind < 0 {
+                fail("invalid digit in numeric constant '" + substr(src, i, next - i) + "'", line, col)
+                return out, errorResult()
+            }
+            out = append(out, Token{Kind: kind, Text: substr(src, i, next - i), Line: line, Col: col, Value: value, Str: ""})
+            i = next
+            continue
+        }
+        if ch == '"' || ch == '\'' {
+            var* quote = ch
+            var* j = i + 1
+            var* decoded = ""
+            var* last = 0
+            var* count = 0
+            var* closed = false
+            for j < n && cs[j] != '\n' {
+                if cs[j] == quote {
+                    closed = true
+                    break
+                }
+                if cs[j] == '\\' {
+                    if j + 1 >= n {
+                        break
+                    }
+                    var* v, next = escapeValue(cs, j + 1)
+                    if v < 0 {
+                        fail("invalid escape sequence", line, j - lineStart + 1)
+                        return out, errorResult()
+                    }
+                    decoded = decoded + string(char(v))
+                    last = v
+                    count++
+                    j = next
+                    continue
+                }
+                decoded = decoded + string(cs[j])
+                last = int(cs[j])
+                count++
+                j++
+            }
+            if !closed {
+                if quote == '"' {
+                    fail("unterminated string literal", line, col)
+                } else {
+                    fail("unterminated character literal", line, col)
+                }
+                return out, errorResult()
+            }
+            j++
+            if quote == '"' {
+                out = append(out, Token{Kind: TokString, Text: substr(src, i, j - i), Line: line, Col: col, Value: 0, Str: decoded})
+            } else {
+                if count == 0 {
+                    fail("empty character constant", line, col)
+                    return out, errorResult()
+                }
+                out = append(out, Token{Kind: TokChar, Text: substr(src, i, j - i), Line: line, Col: col, Value: int64(last), Str: decoded})
+            }
+            i = j
+            continue
+        }
+        var* matched = ""
+        if i + 3 <= n {
+            var* w3 = substr(src, i, 3)
+            for o in ops3 {
+                if o == w3 {
+                    matched = o
+                }
+            }
+        }
+        if matched == "" && i + 2 <= n {
+            var* w2 = substr(src, i, 2)
+            for o in ops2 {
+                if o == w2 {
+                    matched = o
+                }
+            }
+        }
+        if matched == "" && indexOf(ops1, string(ch)) >= 0 {
+            matched = string(ch)
+        }
+        if matched == "" {
+            fail("unexpected character '" + string(ch) + "'", line, col)
+            return out, errorResult()
+        }
+        out = append(out, Token{Kind: TokOp, Text: matched, Line: line, Col: col, Value: 0, Str: ""})
+        i += len(matched)
+    }
+    return out, okResult("")
+}

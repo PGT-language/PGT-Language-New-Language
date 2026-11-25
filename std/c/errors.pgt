@@ -1,0 +1,46 @@
+package c
+
+struct Result {
+    Text string
+    Err string
+    Line int
+    Col int
+}
+
+fn (r Result) Ok() bool {
+    return r.Err == ""
+}
+
+fn (r Result) Error() string {
+    return "c: line " + r.Line + ": " + r.Err
+}
+
+var* errMsg = ""
+var* errLine = 0
+var* errCol = 0
+
+fn fail(msg string, line int, col int) {
+    if errMsg == "" {
+        errMsg = msg
+        errLine = line
+        errCol = col
+    }
+}
+
+fn failed() bool {
+    return errMsg != ""
+}
+
+fn resetErrors() {
+    errMsg = ""
+    errLine = 0
+    errCol = 0
+}
+
+fn errorResult() Result {
+    return Result{Text: "", Err: errMsg, Line: errLine, Col: errCol}
+}
+
+fn okResult(text string) Result {
+    return Result{Text: text, Err: "", Line: 0, Col: 0}
+}
