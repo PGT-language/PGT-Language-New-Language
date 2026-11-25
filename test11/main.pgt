@@ -15,7 +15,7 @@ fn main() {
         imul rax, rax
         mov {n}, rax
     }
-    var& := n = malloc(free[byte] 1)
+    var& := n = malloc(free[byte] 8)
     fmt.Println(a)
     fmt.Println(n)
 }
