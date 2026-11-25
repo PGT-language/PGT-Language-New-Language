@@ -1,0 +1,8 @@
+// error: cannot call function value: it has type int, not a function
+package main
+
+fn main() {
+    var* hs = [1, 2]
+    hs[0](5)
+}
+return 0

@@ -315,7 +315,7 @@ fn (p *Parser) readImport(prog *ast.Program, prev string) string {
 }
 
 fn (p *Parser) atTypeStart() bool {
-    return p.check(token.Ident) || p.check(token.LBracket) || p.check(token.Star) || p.check(token.KwMap)
+    return p.check(token.Ident) || p.check(token.LBracket) || p.check(token.Star) || p.check(token.KwMap) || p.check(token.KwFn)
 }
 
 fn (p *Parser) parseType(context string) *ast.TypeExpr {
@@ -335,6 +335,28 @@ fn (p *Parser) parseType(context string) *ast.TypeExpr {
         p.expect(token.RBracket, "after the map key type")
         m.Elem = p.parseType("as the map value type")
         return m
+    }
+    if p.check(token.KwFn) {
+        p.advance()
+        var* fun = &ast.TypeExpr{Kind: ast.TypeFunc, Line: t.Line, Col: t.Col}
+        p.expect(token.LParen, "after 'fn' in a function type")
+        while !p.check(token.RParen) {
+            if p.check(token.Ident) {
+                var* next = p.peekKind(1)
+                if next == token.Ident || next == token.Star || next == token.LBracket || next == token.KwMap || next == token.KwFn {
+                    p.advance()
+                }
+            }
+            fun.Elems = append(fun.Elems, p.parseType("as a parameter type"))
+            if !p.accept(token.Comma) {
+                break
+            }
+        }
+        p.expect(token.RParen, "after the parameter types of a function type")
+        if !p.atLineStart() && (p.atTypeStart() || p.check(token.LParen)) {
+            fun.Elem = p.parseResult()
+        }
+        return fun
     }
     if p.check(token.Star) {
         p.advance()

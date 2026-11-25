@@ -1,0 +1,8 @@
+// error: 'f' takes 2 argument(s), got 1
+package main
+
+fn main() {
+    var* f fn(int, int) int = nil
+    f(1)
+}
+return 0

@@ -1,0 +1,12 @@
+// error: cannot use fn(int) int as fn(int, int) int
+package main
+
+fn one(a int) int {
+    return a
+}
+
+fn main() {
+    var* f fn(int, int) int = one
+    f(1, 2)
+}
+return 0

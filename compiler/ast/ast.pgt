@@ -44,6 +44,7 @@ const (
     TypePointer
     TypeMap
     TypeTuple
+    TypeFunc
 )
 
 const (
@@ -66,6 +67,7 @@ const (
     ExprMalloc
     ExprTypeAssert
     ExprTernary
+    ExprFuncLit
 )
 
 const (
@@ -163,6 +165,20 @@ fn (t *TypeExpr) Text() string {
             }
             return out + ")"
         }
+        case TypeFunc {
+            var* out = "fn("
+            for i, e in t.Elems {
+                if i > 0 {
+                    out = out + ", "
+                }
+                out = out + e.Text()
+            }
+            out = out + ")"
+            if t.Elem != nil {
+                out = out + " " + t.Elem.Text()
+            }
+            return out
+        }
     }
     if len(t.Qualifier) == 0 {
         return t.Name
@@ -205,6 +221,9 @@ struct Expr {
     Keys []*Expr
     Values []*Expr
     Count *Expr
+    Params []*Param
+    Ret *TypeExpr
+    Body []*Stmt
     IsTypeKeyword bool
     OvSlot string
     OvAddr bool

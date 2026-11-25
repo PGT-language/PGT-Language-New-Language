@@ -1,0 +1,9 @@
+// error: function literal cannot capture 'x' yet
+package main
+
+fn main() {
+    var* x = 5
+    var* f = fn(a int) int { return a + x }
+    f(1)
+}
+return 0

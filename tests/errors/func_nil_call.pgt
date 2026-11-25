@@ -1,0 +1,12 @@
+// panic: call of nil function value
+package main
+
+struct Box {
+    cb fn(int)
+}
+
+fn main() {
+    var* b = Box{}
+    b.cb(1)
+}
+return 0
