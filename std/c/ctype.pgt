@@ -1,0 +1,57 @@
+package c
+
+extern fn isalpha(ch int) int
+extern fn isdigit(ch int) int
+extern fn isalnum(ch int) int
+extern fn isspace(ch int) int
+extern fn isupper(ch int) int
+extern fn islower(ch int) int
+extern fn ispunct(ch int) int
+extern fn isxdigit(ch int) int
+extern fn isprint(ch int) int
+extern fn toupper(ch int) int
+extern fn tolower(ch int) int
+
+fn Isalpha(ch int) bool {
+    return isalpha(ch) != 0
+}
+
+fn Isdigit(ch int) bool {
+    return isdigit(ch) != 0
+}
+
+fn Isalnum(ch int) bool {
+    return isalnum(ch) != 0
+}
+
+fn Isspace(ch int) bool {
+    return isspace(ch) != 0
+}
+
+fn Isupper(ch int) bool {
+    return isupper(ch) != 0
+}
+
+fn Islower(ch int) bool {
+    return islower(ch) != 0
+}
+
+fn Ispunct(ch int) bool {
+    return ispunct(ch) != 0
+}
+
+fn Isxdigit(ch int) bool {
+    return isxdigit(ch) != 0
+}
+
+fn Isprint(ch int) bool {
+    return isprint(ch) != 0
+}
+
+fn Toupper(ch int) int {
+    return toupper(ch)
+}
+
+fn Tolower(ch int) int {
+    return tolower(ch)
+}

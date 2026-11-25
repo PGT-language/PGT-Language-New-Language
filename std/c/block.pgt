@@ -1,0 +1,275 @@
+package c
+
+const supportedTypes = "int, int64, uint64, float, byte, char, bool, string and pointers (*T)"
+
+fn skipQuoted(cs []char, i int) int {
+    var* n = len(cs)
+    var* quote = cs[i]
+    i++
+    for i < n && cs[i] != quote && cs[i] != '\n' {
+        if cs[i] == '\\' {
+            i++
+        }
+        i++
+    }
+    return i + 1
+}
+
+fn skipLineComment(cs []char, i int) int {
+    var* n = len(cs)
+    for i < n && cs[i] != '\n' {
+        i++
+    }
+    return i
+}
+
+fn skipBlockComment(cs []char, i int) int {
+    var* n = len(cs)
+    i += 2
+    for i + 1 < n && !(cs[i] == '*' && cs[i + 1] == '/') {
+        i++
+    }
+    return i + 2
+}
+
+fn FindBlockEnd(src string, start int) int {
+    var* cs = chars(src)
+    var* n = len(cs)
+    var* depth = 1
+    var* i = start
+    for i < n {
+        var* ch = cs[i]
+        if ch == '"' || ch == '\'' {
+            i = skipQuoted(cs, i)
+        } else if ch == '/' && i + 1 < n && cs[i + 1] == '/' {
+            i = skipLineComment(cs, i)
+        } else if ch == '/' && i + 1 < n && cs[i + 1] == '*' {
+            if !hasBlockEnd(cs, i) {
+                return -1
+            }
+            i = skipBlockComment(cs, i)
+        } else {
+            if ch == '{' {
+                depth++
+            } else if ch == '}' {
+                depth--
+                if depth == 0 {
+                    return i
+                }
+            }
+            i++
+        }
+    }
+    return -1
+}
+
+fn hasBlockEnd(cs []char, i int) bool {
+    var* n = len(cs)
+    var* j = i + 2
+    for j + 1 < n {
+        if cs[j] == '*' && cs[j + 1] == '/' {
+            return true
+        }
+        j++
+    }
+    return false
+}
+
+fn findPlaceholders(text string) ([]int, []int) {
+    var* begins = make([]int, 0)
+    var* ends = make([]int, 0)
+    var* cs = chars(text)
+    var* n = len(cs)
+    var* i = 0
+    for i < n {
+        var* ch = cs[i]
+        if ch == '"' || ch == '\'' {
+            i = skipQuoted(cs, i)
+        } else if ch == '/' && i + 1 < n && cs[i + 1] == '/' {
+            i = skipLineComment(cs, i)
+        } else if ch == '/' && i + 1 < n && cs[i + 1] == '*' {
+            i = skipBlockComment(cs, i)
+        } else if ch == '{' && i + 1 < n && isAlpha(cs[i + 1]) {
+            var* p = i + 1
+            for p < n && isAlnum(cs[p]) {
+                p++
+            }
+            if p < n && cs[p] == '}' {
+                begins = append(begins, i)
+                ends = append(ends, p)
+                i = p + 1
+            } else {
+                i++
+            }
+        } else {
+            i++
+        }
+    }
+    return begins, ends
+}
+
+fn Placeholders(text string) []string {
+    var* names = make([]string, 0)
+    var* begins, ends = findPlaceholders(text)
+    for k in 0..len(begins) {
+        var* name = substr(text, begins[k] + 1, ends[k] - begins[k] - 1)
+        var* seen = false
+        for x in names {
+            if x == name {
+                seen = true
+            }
+        }
+        if !seen {
+            names = append(names, name)
+        }
+    }
+    return names
+}
+
+fn lineCol(text string, index int) (int, int) {
+    var* cs = chars(text)
+    var* line = 1
+    var* start = 0
+    for i in 0..index {
+        if cs[i] == '\n' {
+            line++
+            start = i + 1
+        }
+    }
+    return line, index - start + 1
+}
+
+fn indexOfName(names []string, name string) int {
+    for k in 0..len(names) {
+        if names[k] == name {
+            return k
+        }
+    }
+    return -1
+}
+
+fn isAssignOp(text string) bool {
+    switch text {
+        case "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", "++", "--" {
+            return true
+        }
+    }
+    return false
+}
+
+fn checkBalance(toks []Token) {
+    var* stack = make([]Token, 0)
+    for t in toks {
+        if t.Kind != TokOp {
+            continue
+        }
+        if t.Text == "(" || t.Text == "[" || t.Text == "{" {
+            stack = append(stack, t)
+        } else if t.Text == ")" || t.Text == "]" || t.Text == "}" {
+            if len(stack) == 0 {
+                fail("unmatched '" + t.Text + "'", t.Line, t.Col)
+                return
+            }
+            var* open = stack[len(stack) - 1]
+            stack = stack[:len(stack) - 1]
+            var* want = ")"
+            if open.Text == "[" {
+                want = "]"
+            }
+            if open.Text == "{" {
+                want = "}"
+            }
+            if want != t.Text {
+                fail("'" + open.Text + "' opened at line " + open.Line + " is closed by '" + t.Text + "'", t.Line, t.Col)
+                return
+            }
+        }
+    }
+    if len(stack) > 0 {
+        var* open = stack[len(stack) - 1]
+        fail("unclosed '" + open.Text + "'", open.Line, open.Col)
+    }
+}
+
+fn CheckBlock(text string, names []string, types []string) Result {
+    resetErrors()
+    if len(names) != len(types) {
+        return Result{Text: "", Err: "names and types differ in length", Line: 1, Col: 1}
+    }
+    for k in 0..len(names) {
+        for j in 0..k {
+            if names[j] == names[k] {
+                return Result{Text: "", Err: "duplicate variable '" + names[k] + "'", Line: 1, Col: 1}
+            }
+        }
+    }
+    var* begins, ends = findPlaceholders(text)
+    for k in 0..len(names) {
+        if CType(types[k]) == "" {
+            var* line = 1
+            var* col = 1
+            for p in 0..len(begins) {
+                if substr(text, begins[p] + 1, ends[p] - begins[p] - 1) == names[k] {
+                    line, col = lineCol(text, begins[p])
+                    break
+                }
+            }
+            return Result{Text: "", Err: "variable '" + names[k] + "' has type " + types[k] + "; c blocks accept only " + supportedTypes, Line: line, Col: col}
+        }
+    }
+    var* toks, r = Tokenize(text)
+    if !r.Ok() {
+        return r
+    }
+    checkBalance(toks)
+    if failed() {
+        return errorResult()
+    }
+    for i in 0..len(toks) {
+        if i + 3 < len(toks) && toks[i].Kind == TokOp && toks[i].Text == "{" && toks[i + 1].Kind == TokIdent && toks[i + 2].Text == "}" && toks[i + 3].Kind == TokOp {
+            var* idx = indexOfName(names, toks[i + 1].Text)
+            if idx >= 0 && IsReadOnlyType(types[idx]) && isAssignOp(toks[i + 3].Text) {
+                return Result{Text: "", Err: "variable '" + names[idx] + "' is read-only (" + types[idx] + ")", Line: toks[i].Line, Col: toks[i].Col}
+            }
+        }
+    }
+    return okResult("")
+}
+
+fn TopLevelBlock(text string, file string, line int) string {
+    return LineDirective(line, file) + text + "\n"
+}
+
+fn PrepareBlock(text string, names []string, types []string, file string, line int, fname string) Result {
+    var* r = CheckBlock(text, names, types)
+    if !r.Ok() {
+        return r
+    }
+    var* body = ""
+    var* last = 0
+    var* begins, ends = findPlaceholders(text)
+    for k in 0..len(begins) {
+        var* name = substr(text, begins[k] + 1, ends[k] - begins[k] - 1)
+        var* idx = indexOfName(names, name)
+        if idx >= 0 {
+            body = body + substr(text, last, begins[k] - last) + "(*v" + idx + ")"
+            last = ends[k] + 1
+        }
+    }
+    body = body + substr(text, last, len(chars(text)) - last)
+    var* sig = ""
+    for k in 0..len(names) {
+        if k > 0 {
+            sig = sig + ", "
+        }
+        var* ro = ""
+        if IsReadOnlyType(types[k]) {
+            ro = " const"
+        }
+        sig = sig + CType(types[k]) + ro + " *v" + k
+    }
+    if len(names) == 0 {
+        sig = "void"
+    }
+    return okResult("void " + fname + "(" + sig + ")\n{\n" + LineDirective(line, file) + body + "\n}\n")
+}

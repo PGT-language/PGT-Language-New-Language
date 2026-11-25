@@ -1,0 +1,29 @@
+package c
+
+extern fn time(t *byte) int64
+extern fn clock() int64
+extern fn sleep(seconds int) int
+extern fn usleep(micros int) int
+extern fn pgt_c_nanosleep(sec int64, nsec int64) int
+
+const ClocksPerSec = 1000000
+
+fn Time() int64 {
+    return time(nil)
+}
+
+fn Clock() int64 {
+    return clock()
+}
+
+fn Sleep(seconds int) {
+    sleep(seconds)
+}
+
+fn Usleep(micros int) {
+    usleep(micros)
+}
+
+fn Nanosleep(sec int64, nsec int64) {
+    pgt_c_nanosleep(sec, nsec)
+}

@@ -1,0 +1,154 @@
+package c
+
+#use "unsafe"
+
+extern fn puts(s string) int
+extern fn putchar(ch int) int
+extern fn fopen(path string, mode string) *byte
+extern fn fclose(f *byte) int
+extern fn fread(buf *byte, size int64, count int64, f *byte) int64
+extern fn fwrite(buf *byte, size int64, count int64, f *byte) int64
+extern fn fgets(buf *byte, n int, f *byte) *byte
+extern fn fputs(s string, f *byte) int
+extern fn fputc(ch int, f *byte) int
+extern fn fgetc(f *byte) int
+extern fn fflush(f *byte) int
+extern fn feof(f *byte) int
+extern fn remove(path string) int
+extern fn rename(from string, to string) int
+extern fn pgt_c_stdin() *byte
+extern fn pgt_c_stdout() *byte
+extern fn pgt_c_stderr() *byte
+extern fn pgt_c_printf0(format string) int
+extern fn pgt_c_printf_int(format string, v int) int
+extern fn pgt_c_printf_int64(format string, v int64) int
+extern fn pgt_c_printf_str(format string, v string) int
+extern fn pgt_c_printf_float(format string, v float) int
+extern fn pgt_c_printf_int_int(format string, a int, b int) int
+extern fn pgt_c_printf_str_int(format string, a string, b int) int
+extern fn pgt_c_fprintf_str(f *byte, format string, v string) int
+extern fn pgt_c_fprintf_int(f *byte, format string, v int) int
+extern fn pgt_c_sprintf_int(format string, v int) *byte
+extern fn pgt_c_sprintf_int64(format string, v int64) *byte
+extern fn pgt_c_sprintf_str(format string, v string) *byte
+extern fn pgt_c_sprintf_float(format string, v float) *byte
+
+fn Stdin() *byte {
+    return pgt_c_stdin()
+}
+
+fn Stdout() *byte {
+    return pgt_c_stdout()
+}
+
+fn Stderr() *byte {
+    return pgt_c_stderr()
+}
+
+fn Puts(s string) int {
+    return puts(s)
+}
+
+fn Putchar(ch int) int {
+    return putchar(ch)
+}
+
+fn Fopen(path string, mode string) *byte {
+    return fopen(path, mode)
+}
+
+fn Fclose(f *byte) int {
+    return fclose(f)
+}
+
+fn Fread(buf *byte, size int64, count int64, f *byte) int64 {
+    return fread(buf, size, count, f)
+}
+
+fn Fwrite(buf *byte, size int64, count int64, f *byte) int64 {
+    return fwrite(buf, size, count, f)
+}
+
+fn Fgets(buf *byte, n int, f *byte) *byte {
+    return fgets(buf, n, f)
+}
+
+fn Fputs(s string, f *byte) int {
+    return fputs(s, f)
+}
+
+fn Fputc(ch int, f *byte) int {
+    return fputc(ch, f)
+}
+
+fn Fgetc(f *byte) int {
+    return fgetc(f)
+}
+
+fn Fflush(f *byte) int {
+    return fflush(f)
+}
+
+fn Feof(f *byte) bool {
+    return feof(f) != 0
+}
+
+fn Remove(path string) bool {
+    return remove(path) == 0
+}
+
+fn Rename(from string, to string) bool {
+    return rename(from, to) == 0
+}
+
+fn Printf(format string) int {
+    return pgt_c_printf0(format)
+}
+
+fn PrintfInt(format string, v int) int {
+    return pgt_c_printf_int(format, v)
+}
+
+fn PrintfInt64(format string, v int64) int {
+    return pgt_c_printf_int64(format, v)
+}
+
+fn PrintfStr(format string, v string) int {
+    return pgt_c_printf_str(format, v)
+}
+
+fn PrintfFloat(format string, v float) int {
+    return pgt_c_printf_float(format, v)
+}
+
+fn PrintfIntInt(format string, a int, b int) int {
+    return pgt_c_printf_int_int(format, a, b)
+}
+
+fn PrintfStrInt(format string, a string, b int) int {
+    return pgt_c_printf_str_int(format, a, b)
+}
+
+fn FprintfStr(f *byte, format string, v string) int {
+    return pgt_c_fprintf_str(f, format, v)
+}
+
+fn FprintfInt(f *byte, format string, v int) int {
+    return pgt_c_fprintf_int(f, format, v)
+}
+
+fn SprintfInt(format string, v int) string {
+    return unsafe.StringAt(pgt_c_sprintf_int(format, v))
+}
+
+fn SprintfInt64(format string, v int64) string {
+    return unsafe.StringAt(pgt_c_sprintf_int64(format, v))
+}
+
+fn SprintfStr(format string, v string) string {
+    return unsafe.StringAt(pgt_c_sprintf_str(format, v))
+}
+
+fn SprintfFloat(format string, v float) string {
+    return unsafe.StringAt(pgt_c_sprintf_float(format, v))
+}

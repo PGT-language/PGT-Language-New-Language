@@ -1,0 +1,60 @@
+package c
+
+extern fn calloc(count int64, size int64) *byte
+extern fn realloc(p *byte, n int64) *byte
+extern fn free(p *byte)
+extern fn strlen(p *byte) int64
+extern fn strcmp(a string, b string) int
+extern fn memcpy(dst *byte, src *byte, n int64) *byte
+extern fn memmove(dst *byte, src *byte, n int64) *byte
+extern fn memset(dst *byte, v int, n int64) *byte
+extern fn memcmp(a *byte, b *byte, n int64) int
+extern fn __errno_location() *int
+
+fn Malloc(n int64) *byte {
+    return calloc(1, n)
+}
+
+fn Calloc(count int64, size int64) *byte {
+    return calloc(count, size)
+}
+
+fn Realloc(p *byte, n int64) *byte {
+    return realloc(p, n)
+}
+
+fn Free(p *byte) {
+    free(p)
+}
+
+fn Strlen(p *byte) int64 {
+    return strlen(p)
+}
+
+fn Strcmp(a string, b string) int {
+    return strcmp(a, b)
+}
+
+fn Memcpy(dst *byte, src *byte, n int64) *byte {
+    return memcpy(dst, src, n)
+}
+
+fn Memmove(dst *byte, src *byte, n int64) *byte {
+    return memmove(dst, src, n)
+}
+
+fn Memset(dst *byte, v int, n int64) *byte {
+    return memset(dst, v, n)
+}
+
+fn Memcmp(a *byte, b *byte, n int64) int {
+    return memcmp(a, b, n)
+}
+
+fn Errno() int {
+    return *__errno_location()
+}
+
+fn SetErrno(v int) {
+    *__errno_location() = v
+}

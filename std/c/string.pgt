@@ -1,0 +1,72 @@
+package c
+
+extern fn strlen(p *byte) int64
+extern fn strcmp(a string, b string) int
+extern fn strncmp(a string, b string, n int64) int
+extern fn strcpy(dst *byte, src string) *byte
+extern fn strncpy(dst *byte, src string, n int64) *byte
+extern fn strcat(dst *byte, src string) *byte
+extern fn strchr(s string, ch int) *byte
+extern fn strrchr(s string, ch int) *byte
+extern fn strstr(hay string, needle string) *byte
+extern fn strdup(s string) *byte
+extern fn memcpy(dst *byte, src *byte, n int64) *byte
+extern fn memmove(dst *byte, src *byte, n int64) *byte
+extern fn memset(dst *byte, v int, n int64) *byte
+extern fn memcmp(a *byte, b *byte, n int64) int
+
+fn Strlen(p *byte) int64 {
+    return strlen(p)
+}
+
+fn Strcmp(a string, b string) int {
+    return strcmp(a, b)
+}
+
+fn Strncmp(a string, b string, n int64) int {
+    return strncmp(a, b, n)
+}
+
+fn Strcpy(dst *byte, src string) *byte {
+    return strcpy(dst, src)
+}
+
+fn Strncpy(dst *byte, src string, n int64) *byte {
+    return strncpy(dst, src, n)
+}
+
+fn Strcat(dst *byte, src string) *byte {
+    return strcat(dst, src)
+}
+
+fn Strchr(s string, ch int) *byte {
+    return strchr(s, ch)
+}
+
+fn Strrchr(s string, ch int) *byte {
+    return strrchr(s, ch)
+}
+
+fn Strstr(hay string, needle string) *byte {
+    return strstr(hay, needle)
+}
+
+fn Strdup(s string) *byte {
+    return strdup(s)
+}
+
+fn Memcpy(dst *byte, src *byte, n int64) *byte {
+    return memcpy(dst, src, n)
+}
+
+fn Memmove(dst *byte, src *byte, n int64) *byte {
+    return memmove(dst, src, n)
+}
+
+fn Memset(dst *byte, v int, n int64) *byte {
+    return memset(dst, v, n)
+}
+
+fn Memcmp(a *byte, b *byte, n int64) int {
+    return memcmp(a, b, n)
+}

@@ -1,0 +1,105 @@
+package c
+
+extern fn calloc(count int64, size int64) *byte
+extern fn realloc(p *byte, n int64) *byte
+extern fn free(p *byte)
+extern fn atoi(s string) int
+extern fn atol(s string) int64
+extern fn atof(s string) float
+extern fn strtol(s string, end *byte, base int) int64
+extern fn strtod(s string, end *byte) float
+extern fn getenv(name string) string
+extern fn setenv(name string, value string, overwrite int) int
+extern fn unsetenv(name string) int
+extern fn abort()
+extern fn exit(code int)
+extern fn rand() int
+extern fn srand(seed int)
+extern fn abs(v int) int
+extern fn labs(v int64) int64
+
+fn Malloc(n int64) *byte {
+    return calloc(1, n)
+}
+
+fn Calloc(count int64, size int64) *byte {
+    return calloc(count, size)
+}
+
+fn Realloc(p *byte, n int64) *byte {
+    return realloc(p, n)
+}
+
+fn Free(p *byte) {
+    free(p)
+}
+
+fn Atoi(s string) int {
+    return atoi(s)
+}
+
+fn Atol(s string) int64 {
+    return atol(s)
+}
+
+fn Atof(s string) float {
+    return atof(s)
+}
+
+fn Strtol(s string, base int) int64 {
+    return strtol(s, nil, base)
+}
+
+fn Strtod(s string) float {
+    return strtod(s, nil)
+}
+
+fn Getenv(name string) string {
+    return getenv(name)
+}
+
+fn Setenv(name string, value string, overwrite bool) bool {
+    var* o = 0
+    if overwrite {
+        o = 1
+    }
+    return setenv(name, value, o) == 0
+}
+
+fn Unsetenv(name string) bool {
+    return unsetenv(name) == 0
+}
+
+fn Exit(code int) {
+    exit(code)
+}
+
+fn Abort() {
+    abort()
+}
+
+fn Rand() int {
+    return rand()
+}
+
+fn Srand(seed int) {
+    srand(seed)
+}
+
+fn Abs(v int) int {
+    return abs(v)
+}
+
+fn Labs(v int64) int64 {
+    return labs(v)
+}
+
+fn ZeroBytes(p *byte, n int64) {
+    Memset(p, 0, n)
+}
+
+fn Dup(p *byte, n int64) *byte {
+    var* q = calloc(1, n + 1)
+    Memcpy(q, p, n)
+    return q
+}

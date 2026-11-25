@@ -1,0 +1,32 @@
+package c
+
+extern fn raise(sig int) int
+extern fn pgt_c_signal_ignore(sig int)
+extern fn pgt_c_signal_default(sig int)
+
+const SIGHUP = 1
+const SIGINT = 2
+const SIGQUIT = 3
+const SIGILL = 4
+const SIGABRT = 6
+const SIGFPE = 8
+const SIGKILL = 9
+const SIGUSR1 = 10
+const SIGSEGV = 11
+const SIGUSR2 = 12
+const SIGPIPE = 13
+const SIGALRM = 14
+const SIGTERM = 15
+const SIGCHLD = 17
+
+fn Raise(sig int) bool {
+    return raise(sig) == 0
+}
+
+fn Ignore(sig int) {
+    pgt_c_signal_ignore(sig)
+}
+
+fn Default(sig int) {
+    pgt_c_signal_default(sig)
+}

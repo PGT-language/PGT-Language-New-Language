@@ -1,0 +1,35 @@
+package c
+
+extern fn __errno_location() *int
+extern fn strerror(code int) string
+
+const EPERM = 1
+const ENOENT = 2
+const ESRCH = 3
+const EINTR = 4
+const EIO = 5
+const EBADF = 9
+const ECHILD = 10
+const EAGAIN = 11
+const ENOMEM = 12
+const EACCES = 13
+const EEXIST = 17
+const ENOTDIR = 20
+const EISDIR = 21
+const EINVAL = 22
+const EMFILE = 24
+const ENOSPC = 28
+const EPIPE = 32
+const ERANGE = 34
+
+fn Errno() int {
+    return *__errno_location()
+}
+
+fn SetErrno(v int) {
+    *__errno_location() = v
+}
+
+fn Strerror(code int) string {
+    return strerror(code)
+}

@@ -1,0 +1,97 @@
+package c
+
+extern fn sqrt(x float) float
+extern fn pow(x float, y float) float
+extern fn sin(x float) float
+extern fn cos(x float) float
+extern fn tan(x float) float
+extern fn floor(x float) float
+extern fn ceil(x float) float
+extern fn fabs(x float) float
+extern fn fmod(x float, y float) float
+extern fn exp(x float) float
+extern fn log(x float) float
+extern fn log10(x float) float
+extern fn log2(x float) float
+extern fn atan(x float) float
+extern fn atan2(y float, x float) float
+extern fn asin(x float) float
+extern fn acos(x float) float
+extern fn hypot(x float, y float) float
+extern fn cbrt(x float) float
+
+fn Sqrt(x float) float {
+    return sqrt(x)
+}
+
+fn Pow(x float, y float) float {
+    return pow(x, y)
+}
+
+fn Sin(x float) float {
+    return sin(x)
+}
+
+fn Cos(x float) float {
+    return cos(x)
+}
+
+fn Tan(x float) float {
+    return tan(x)
+}
+
+fn Floor(x float) float {
+    return floor(x)
+}
+
+fn Ceil(x float) float {
+    return ceil(x)
+}
+
+fn Fabs(x float) float {
+    return fabs(x)
+}
+
+fn Fmod(x float, y float) float {
+    return fmod(x, y)
+}
+
+fn Exp(x float) float {
+    return exp(x)
+}
+
+fn Log(x float) float {
+    return log(x)
+}
+
+fn Log10(x float) float {
+    return log10(x)
+}
+
+fn Log2(x float) float {
+    return log2(x)
+}
+
+fn Atan(x float) float {
+    return atan(x)
+}
+
+fn Atan2(y float, x float) float {
+    return atan2(y, x)
+}
+
+fn Asin(x float) float {
+    return asin(x)
+}
+
+fn Acos(x float) float {
+    return acos(x)
+}
+
+fn Hypot(x float, y float) float {
+    return hypot(x, y)
+}
+
+fn Cbrt(x float) float {
+    return cbrt(x)
+}

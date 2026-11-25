@@ -1,0 +1,44 @@
+package c
+
+c {
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <string.h>
+    #include <fcntl.h>
+    #include <signal.h>
+    #include <time.h>
+
+    static char pgt_c_buffer[4096];
+
+    void *pgt_c_stdin(void) { return stdin; }
+    void *pgt_c_stdout(void) { return stdout; }
+    void *pgt_c_stderr(void) { return stderr; }
+
+    int32_t pgt_c_printf0(const char *f) { return fputs(f, stdout) < 0 ? -1 : (int32_t)strlen(f); }
+    int32_t pgt_c_printf_int(const char *f, int32_t v) { return printf(f, v); }
+    int32_t pgt_c_printf_int64(const char *f, int64_t v) { return printf(f, v); }
+    int32_t pgt_c_printf_str(const char *f, const char *v) { return printf(f, v); }
+    int32_t pgt_c_printf_float(const char *f, double v) { return printf(f, v); }
+    int32_t pgt_c_printf_int_int(const char *f, int32_t a, int32_t b) { return printf(f, a, b); }
+    int32_t pgt_c_printf_str_int(const char *f, const char *a, int32_t b) { return printf(f, a, b); }
+    int32_t pgt_c_fprintf_str(void *fp, const char *f, const char *v) { return fprintf((FILE *)fp, f, v); }
+    int32_t pgt_c_fprintf_int(void *fp, const char *f, int32_t v) { return fprintf((FILE *)fp, f, v); }
+
+    void *pgt_c_sprintf_int(const char *f, int32_t v) { snprintf(pgt_c_buffer, sizeof pgt_c_buffer, f, v); return pgt_c_buffer; }
+    void *pgt_c_sprintf_int64(const char *f, int64_t v) { snprintf(pgt_c_buffer, sizeof pgt_c_buffer, f, v); return pgt_c_buffer; }
+    void *pgt_c_sprintf_str(const char *f, const char *v) { snprintf(pgt_c_buffer, sizeof pgt_c_buffer, f, v); return pgt_c_buffer; }
+    void *pgt_c_sprintf_float(const char *f, double v) { snprintf(pgt_c_buffer, sizeof pgt_c_buffer, f, v); return pgt_c_buffer; }
+
+    int32_t pgt_c_open(const char *path, int32_t flags, int32_t mode) { return open(path, flags, mode); }
+
+    int32_t pgt_c_nanosleep(int64_t sec, int64_t nsec)
+    {
+        struct timespec ts;
+        ts.tv_sec = sec;
+        ts.tv_nsec = nsec;
+        return nanosleep(&ts, NULL);
+    }
+
+    void pgt_c_signal_ignore(int32_t sig) { signal(sig, SIG_IGN); }
+    void pgt_c_signal_default(int32_t sig) { signal(sig, SIG_DFL); }
+}

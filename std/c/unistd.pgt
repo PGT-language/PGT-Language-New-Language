@@ -1,0 +1,39 @@
+package c
+
+extern fn getpid() int
+extern fn read(fd int, buf *byte, n int64) int64
+extern fn write(fd int, buf *byte, n int64) int64
+extern fn close(fd int) int
+extern fn lseek(fd int, offset int64, whence int) int64
+extern fn isatty(fd int) int
+
+const StdinFd = 0
+const StdoutFd = 1
+const StderrFd = 2
+const SeekSet = 0
+const SeekCur = 1
+const SeekEnd = 2
+
+fn Getpid() int {
+    return getpid()
+}
+
+fn Read(fd int, buf *byte, n int64) int64 {
+    return read(fd, buf, n)
+}
+
+fn Write(fd int, buf *byte, n int64) int64 {
+    return write(fd, buf, n)
+}
+
+fn Close(fd int) int {
+    return close(fd)
+}
+
+fn Lseek(fd int, offset int64, whence int) int64 {
+    return lseek(fd, offset, whence)
+}
+
+fn Isatty(fd int) bool {
+    return isatty(fd) != 0
+}
