@@ -6,3 +6,4 @@ compiler/compiler
 pgt-os-test-kernel/*
 h.md
 examples/httpdemo/httpdemo
+examples/fastserver/fastserver

@@ -1,0 +1,755 @@
+package main
+
+#use (
+    "conv"
+    "time"
+    "asm"
+    "fmt"
+    "os"
+    "c"
+)
+
+asm {
+    .text
+    .global fs_hdr_end
+fs_hdr_end:
+    xor eax, eax
+    mov r8, rsi
+    sub r8, 3
+    jle .Lhe_none
+    mov ecx, 0x0d0d0d0d
+    movd xmm1, ecx
+    pshufd xmm1, xmm1, 0
+.Lhe_vec:
+    lea rdx, [rax + 16]
+    cmp rdx, r8
+    ja .Lhe_tail
+    movdqu xmm0, [rdi + rax]
+    pcmpeqb xmm0, xmm1
+    pmovmskb ecx, xmm0
+.Lhe_bit:
+    test ecx, ecx
+    jz .Lhe_next
+    bsf edx, ecx
+    add rdx, rax
+    cmp dword ptr [rdi + rdx], 0x0a0d0a0d
+    je .Lhe_found
+    lea r9d, [rcx - 1]
+    and ecx, r9d
+    jmp .Lhe_bit
+.Lhe_next:
+    add rax, 16
+    jmp .Lhe_vec
+.Lhe_tail:
+    cmp rax, r8
+    jge .Lhe_none
+    cmp dword ptr [rdi + rax], 0x0a0d0a0d
+    je .Lhe_found_rax
+    inc rax
+    jmp .Lhe_tail
+.Lhe_found_rax:
+    mov rdx, rax
+.Lhe_found:
+    lea rax, [rdx + 4]
+    ret
+.Lhe_none:
+    mov rax, -1
+    ret
+
+    .global fs_hash
+fs_hash:
+    mov eax, 0xffffffff
+.Lh_q:
+    cmp rsi, 8
+    jb .Lh_b
+    crc32 rax, qword ptr [rdi]
+    add rdi, 8
+    sub rsi, 8
+    jmp .Lh_q
+.Lh_b:
+    test rsi, rsi
+    jz .Lh_done
+    crc32 eax, byte ptr [rdi]
+    inc rdi
+    dec rsi
+    jmp .Lh_b
+.Lh_done:
+    not eax
+    ret
+}
+
+c {
+#define _GNU_SOURCE
+#include <stdint.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <errno.h>
+#include <signal.h>
+#include <pthread.h>
+#include <time.h>
+#include <stdatomic.h>
+#include <sys/socket.h>
+#include <sys/epoll.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
+
+extern int accept4(int fd, struct sockaddr *addr, socklen_t *len, int flags);
+extern long fs_hdr_end(const char *p, long n);
+extern uint32_t fs_hash(const char *p, long n);
+
+#define FS_MAX_ROUTES 64
+#define FS_MAX_THREADS 64
+#define FS_IN_CAP 16384
+#define FS_OUT_CAP 65536
+#define FS_MAX_FDS 262144
+
+typedef struct {
+    uint32_t hash;
+    int plen;
+    char path[128];
+    int dynamic;
+    char *resp;
+    int rlen;
+    int date_at;
+} FsRoute;
+
+typedef struct {
+    int fd;
+    int inlen;
+    int outlen;
+    int outoff;
+    int closing;
+    char in[FS_IN_CAP];
+    char out[FS_OUT_CAP];
+} FsConn;
+
+typedef struct {
+    _Alignas(64) _Atomic uint64_t requests;
+    _Atomic uint64_t bytes;
+    _Atomic int64_t conns;
+    int lfd;
+    int epfd;
+    pthread_t tid;
+} FsWorker;
+
+static FsRoute fs_routes[FS_MAX_ROUTES];
+static int fs_nroutes;
+static FsWorker fs_workers[FS_MAX_THREADS];
+static int fs_nworkers;
+static FsConn *fs_conns[FS_MAX_FDS];
+static volatile sig_atomic_t fs_stop_flag;
+static char fs_dates[2][32];
+static _Atomic int fs_date_idx;
+static char fs_404[512];
+static int fs_404_len, fs_404_date;
+static char fs_400[512];
+static int fs_400_len, fs_400_date;
+static const char fs_date_tag[] = "Date: ";
+
+static int fs_build(char *dst, int cap, int status, const char *reason, const char *ctype,
+                    const char *body, int blen, int *date_at)
+{
+    int n = snprintf(dst, cap, "HTTP/1.1 %d %s\r\nServer: pgt-fast\r\n%s", status, reason, fs_date_tag);
+    *date_at = n;
+    n += snprintf(dst + n, cap - n, "%s\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n",
+                  fs_dates[0], ctype, blen);
+    if (n + blen > cap)
+        return -1;
+    memcpy(dst + n, body, blen);
+    return n + blen;
+}
+
+static const char *fs_reason(int status)
+{
+    switch (status) {
+    case 200: return "OK";
+    case 201: return "Created";
+    case 204: return "No Content";
+    case 301: return "Moved Permanently";
+    case 302: return "Found";
+    case 400: return "Bad Request";
+    case 403: return "Forbidden";
+    case 404: return "Not Found";
+    case 500: return "Internal Server Error";
+    }
+    return "OK";
+}
+
+void fs_tick(void)
+{
+    time_t t = time(NULL);
+    struct tm g;
+    gmtime_r(&t, &g);
+    int next = 1 - atomic_load(&fs_date_idx);
+    strftime(fs_dates[next], sizeof fs_dates[next], "%a, %d %b %Y %H:%M:%S GMT", &g);
+    atomic_store(&fs_date_idx, next);
+}
+
+int fs_route_add(const char *path, int status, const char *ctype, const char *body)
+{
+    if (fs_nroutes == FS_MAX_ROUTES || strlen(path) >= 128)
+        return -1;
+    FsRoute *r = &fs_routes[fs_nroutes];
+    r->plen = (int)strlen(path);
+    memcpy(r->path, path, r->plen + 1);
+    r->hash = fs_hash(path, r->plen);
+    int blen = (int)strlen(body);
+    int cap = blen + 512;
+    r->resp = malloc(cap);
+    r->rlen = fs_build(r->resp, cap, status, fs_reason(status), ctype, body, blen, &r->date_at);
+    r->dynamic = 0;
+    return fs_nroutes++;
+}
+
+int fs_route_stats(const char *path)
+{
+    if (fs_nroutes == FS_MAX_ROUTES || strlen(path) >= 128)
+        return -1;
+    FsRoute *r = &fs_routes[fs_nroutes];
+    r->plen = (int)strlen(path);
+    memcpy(r->path, path, r->plen + 1);
+    r->hash = fs_hash(path, r->plen);
+    r->dynamic = 1;
+    return fs_nroutes++;
+}
+
+int64_t fs_requests(void)
+{
+    int64_t s = 0;
+    for (int i = 0; i < fs_nworkers; i++)
+        s += (int64_t)atomic_load(&fs_workers[i].requests);
+    return s;
+}
+
+int64_t fs_bytes(void)
+{
+    int64_t s = 0;
+    for (int i = 0; i < fs_nworkers; i++)
+        s += (int64_t)atomic_load(&fs_workers[i].bytes);
+    return s;
+}
+
+int64_t fs_conns_open(void)
+{
+    int64_t s = 0;
+    for (int i = 0; i < fs_nworkers; i++)
+        s += atomic_load(&fs_workers[i].conns);
+    return s;
+}
+
+static void fs_on_signal(int sig)
+{
+    (void)sig;
+    fs_stop_flag = 1;
+}
+
+void fs_signals(void)
+{
+    struct sigaction sa;
+    memset(&sa, 0, sizeof sa);
+    sa.sa_handler = fs_on_signal;
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+    signal(SIGPIPE, SIG_IGN);
+}
+
+int fs_stopping(void)
+{
+    return fs_stop_flag != 0;
+}
+
+int fs_is_root(void)
+{
+    return geteuid() == 0;
+}
+
+const char *fs_strerror(int e)
+{
+    return strerror(e);
+}
+
+static void fs_put(FsConn *c, const char *src, int n, int date_at)
+{
+    memcpy(c->out + c->outlen, src, n);
+    if (date_at >= 0)
+        memcpy(c->out + c->outlen + date_at, fs_dates[atomic_load(&fs_date_idx)], 29);
+    c->outlen += n;
+}
+
+static void fs_close(FsWorker *w, FsConn *c)
+{
+    epoll_ctl(w->epfd, EPOLL_CTL_DEL, c->fd, NULL);
+    close(c->fd);
+    fs_conns[c->fd] = NULL;
+    atomic_fetch_sub(&w->conns, 1);
+    free(c);
+}
+
+static int fs_flush(FsWorker *w, FsConn *c)
+{
+    while (c->outoff < c->outlen) {
+        ssize_t n = send(c->fd, c->out + c->outoff, c->outlen - c->outoff, MSG_NOSIGNAL);
+        if (n > 0) {
+            c->outoff += (int)n;
+            atomic_fetch_add_explicit(&w->bytes, (uint64_t)n, memory_order_relaxed);
+            continue;
+        }
+        if (n < 0 && errno == EINTR)
+            continue;
+        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+            return 0;
+        return -1;
+    }
+    c->outlen = 0;
+    c->outoff = 0;
+    return 1;
+}
+
+static int fs_ieq(const char *a, const char *b, int n)
+{
+    for (int i = 0; i < n; i++) {
+        char x = a[i];
+        if (x >= 'A' && x <= 'Z')
+            x += 32;
+        if (x != b[i])
+            return 0;
+    }
+    return 1;
+}
+
+static long fs_header_num(const char *h, int len, const char *name, int nlen, int *found)
+{
+    *found = 0;
+    for (int i = 0; i + nlen < len; i++) {
+        if ((i == 0 || h[i - 1] == '\n') && fs_ieq(h + i, name, nlen)) {
+            int j = i + nlen;
+            while (j < len && h[j] == ' ')
+                j++;
+            long v = 0;
+            int digits = 0;
+            while (j < len && h[j] >= '0' && h[j] <= '9') {
+                v = v * 10 + (h[j] - '0');
+                j++;
+                digits++;
+                if (v > 1000000000L)
+                    return -1;
+            }
+            *found = 1;
+            return digits ? v : -1;
+        }
+    }
+    return 0;
+}
+
+static int fs_header_has(const char *h, int len, const char *name, int nlen, const char *val, int vlen)
+{
+    for (int i = 0; i + nlen < len; i++) {
+        if ((i == 0 || h[i - 1] == '\n') && fs_ieq(h + i, name, nlen)) {
+            int j = i + nlen;
+            while (j < len && h[j] == ' ')
+                j++;
+            return j + vlen <= len && fs_ieq(h + j, val, vlen);
+        }
+    }
+    return 0;
+}
+
+static void fs_bad(FsConn *c)
+{
+    if (c->outlen + fs_400_len <= FS_OUT_CAP)
+        fs_put(c, fs_400, fs_400_len, fs_400_date);
+    c->closing = 1;
+    c->inlen = 0;
+}
+
+static void fs_stats_resp(FsWorker *w, FsConn *c)
+{
+    char body[256];
+    int blen = snprintf(body, sizeof body,
+                        "{\"requests\":%lld,\"bytes\":%lld,\"connections\":%lld,\"threads\":%d}",
+                        (long long)fs_requests(), (long long)fs_bytes(), (long long)fs_conns_open(),
+                        fs_nworkers);
+    char head[256];
+    int hlen = snprintf(head, sizeof head,
+                        "HTTP/1.1 200 OK\r\nServer: pgt-fast\r\nDate: %s\r\nContent-Type: application/json\r\n"
+                        "Content-Length: %d\r\nCache-Control: no-store\r\n\r\n",
+                        fs_dates[atomic_load(&fs_date_idx)], blen);
+    fs_put(c, head, hlen, -1);
+    fs_put(c, body, blen, -1);
+    (void)w;
+}
+
+static void fs_process(FsWorker *w, FsConn *c)
+{
+    int pos = 0;
+    while (!c->closing && pos < c->inlen) {
+        long end = fs_hdr_end(c->in + pos, c->inlen - pos);
+        if (end < 0) {
+            if (c->inlen - pos >= FS_IN_CAP)
+                fs_bad(c);
+            break;
+        }
+        const char *req = c->in + pos;
+        int hlen = (int)end;
+        const char *sp1 = memchr(req, ' ', hlen);
+        if (!sp1 || sp1 == req) {
+            fs_bad(c);
+            break;
+        }
+        const char *path = sp1 + 1;
+        const char *lim = req + hlen;
+        const char *sp2 = memchr(path, ' ', lim - path);
+        if (!sp2 || *path != '/' || lim - sp2 < 9 || memcmp(sp2 + 1, "HTTP/1.", 7) != 0) {
+            fs_bad(c);
+            break;
+        }
+        int http10 = sp2[8] == '0';
+        const char *q = memchr(path, '?', sp2 - path);
+        int plen = (int)((q ? q : sp2) - path);
+        int found = 0;
+        long clen = fs_header_num(req, hlen, "content-length:", 15, &found);
+        if (clen < 0) {
+            fs_bad(c);
+            break;
+        }
+        if (hlen + clen > FS_IN_CAP) {
+            fs_bad(c);
+            break;
+        }
+        if (pos + hlen + clen > c->inlen)
+            break;
+        int want_close = fs_header_has(req, hlen, "connection:", 11, "close", 5) ||
+                         (http10 && !fs_header_has(req, hlen, "connection:", 11, "keep-alive", 10));
+        uint32_t h = fs_hash(path, plen);
+        FsRoute *hit = NULL;
+        for (int i = 0; i < fs_nroutes; i++) {
+            FsRoute *r = &fs_routes[i];
+            if (r->hash == h && r->plen == plen && memcmp(r->path, path, plen) == 0) {
+                hit = r;
+                break;
+            }
+        }
+        int need = hit && !hit->dynamic ? hit->rlen : 1024;
+        if (c->outlen + need > FS_OUT_CAP) {
+            int f = fs_flush(w, c);
+            if (f <= 0)
+                break;
+        }
+        if (!hit)
+            fs_put(c, fs_404, fs_404_len, fs_404_date);
+        else if (hit->dynamic)
+            fs_stats_resp(w, c);
+        else
+            fs_put(c, hit->resp, hit->rlen, hit->date_at);
+        atomic_fetch_add_explicit(&w->requests, 1, memory_order_relaxed);
+        pos += hlen + (int)clen;
+        if (want_close)
+            c->closing = 1;
+    }
+    if (pos > 0) {
+        memmove(c->in, c->in + pos, c->inlen - pos);
+        c->inlen -= pos;
+    }
+}
+
+static void fs_serve(FsWorker *w, FsConn *c, uint32_t ev)
+{
+    if (ev & (EPOLLERR | EPOLLHUP)) {
+        fs_close(w, c);
+        return;
+    }
+    int eof = 0;
+    if (ev & EPOLLIN) {
+        for (;;) {
+            if (c->inlen == FS_IN_CAP) {
+                fs_process(w, c);
+                if (c->inlen == FS_IN_CAP || c->closing)
+                    break;
+            }
+            ssize_t n = recv(c->fd, c->in + c->inlen, FS_IN_CAP - c->inlen, 0);
+            if (n > 0) {
+                c->inlen += (int)n;
+                continue;
+            }
+            if (n == 0) {
+                eof = 1;
+                break;
+            }
+            if (errno == EINTR)
+                continue;
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+                break;
+            fs_close(w, c);
+            return;
+        }
+    }
+    for (;;) {
+        fs_process(w, c);
+        int f = fs_flush(w, c);
+        if (f < 0) {
+            fs_close(w, c);
+            return;
+        }
+        if (f == 0)
+            return;
+        if (c->closing || c->inlen == 0 || fs_hdr_end(c->in, c->inlen) < 0)
+            break;
+    }
+    if (c->closing || eof)
+        fs_close(w, c);
+}
+
+static void fs_accept(FsWorker *w)
+{
+    for (;;) {
+        int fd = accept4(w->lfd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
+        if (fd < 0) {
+            if (errno == EINTR)
+                continue;
+            return;
+        }
+        if (fd >= FS_MAX_FDS) {
+            close(fd);
+            continue;
+        }
+        int one = 1;
+        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
+        FsConn *c = malloc(sizeof *c);
+        if (!c) {
+            close(fd);
+            continue;
+        }
+        c->fd = fd;
+        c->inlen = c->outlen = c->outoff = c->closing = 0;
+        fs_conns[fd] = c;
+        struct epoll_event e;
+        e.events = EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP;
+        e.data.fd = fd;
+        if (epoll_ctl(w->epfd, EPOLL_CTL_ADD, fd, &e) < 0) {
+            fs_conns[fd] = NULL;
+            free(c);
+            close(fd);
+            continue;
+        }
+        atomic_fetch_add(&w->conns, 1);
+    }
+}
+
+static void *fs_worker(void *arg)
+{
+    FsWorker *w = arg;
+    struct epoll_event evs[512];
+    while (!fs_stop_flag) {
+        int n = epoll_wait(w->epfd, evs, 512, 100);
+        for (int i = 0; i < n; i++) {
+            int fd = evs[i].data.fd;
+            if (fd == w->lfd) {
+                fs_accept(w);
+                continue;
+            }
+            FsConn *c = fs_conns[fd];
+            if (c)
+                fs_serve(w, c, evs[i].events);
+        }
+    }
+    for (int fd = 0; fd < FS_MAX_FDS; fd++) {
+        FsConn *c = fs_conns[fd];
+        if (c && epoll_ctl(w->epfd, EPOLL_CTL_DEL, fd, NULL) == 0) {
+            close(fd);
+            fs_conns[fd] = NULL;
+            atomic_fetch_sub(&w->conns, 1);
+            free(c);
+        }
+    }
+    close(w->epfd);
+    close(w->lfd);
+    return NULL;
+}
+
+static int fs_listen_socket(const char *host, int port)
+{
+    int fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+    if (fd < 0)
+        return -errno;
+    int one = 1;
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+    setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof one);
+    struct sockaddr_in a;
+    memset(&a, 0, sizeof a);
+    a.sin_family = AF_INET;
+    a.sin_port = htons((uint16_t)port);
+    if (inet_pton(AF_INET, host, &a.sin_addr) != 1) {
+        close(fd);
+        return -EINVAL;
+    }
+    if (bind(fd, (struct sockaddr *)&a, sizeof a) < 0 || listen(fd, 4096) < 0) {
+        int e = errno;
+        close(fd);
+        return -e;
+    }
+    return fd;
+}
+
+int fs_start(const char *host, int port, int threads)
+{
+    if (threads < 1 || threads > FS_MAX_THREADS)
+        return -EINVAL;
+    fs_tick();
+    fs_404_len = fs_build(fs_404, sizeof fs_404, 404, "Not Found", "text/plain", "not found\n", 10, &fs_404_date);
+    fs_400_len = fs_build(fs_400, sizeof fs_400, 400, "Bad Request", "text/plain", "bad request\n", 12, &fs_400_date);
+    for (int i = 0; i < threads; i++) {
+        FsWorker *w = &fs_workers[i];
+        w->lfd = fs_listen_socket(host, port);
+        if (w->lfd < 0) {
+            int e = -w->lfd;
+            for (int j = 0; j < i; j++) {
+                close(fs_workers[j].lfd);
+                close(fs_workers[j].epfd);
+            }
+            return -e;
+        }
+        w->epfd = epoll_create1(EPOLL_CLOEXEC);
+        struct epoll_event e;
+        e.events = EPOLLIN | EPOLLET;
+        e.data.fd = w->lfd;
+        epoll_ctl(w->epfd, EPOLL_CTL_ADD, w->lfd, &e);
+    }
+    fs_nworkers = threads;
+    for (int i = 0; i < threads; i++)
+        pthread_create(&fs_workers[i].tid, NULL, fs_worker, &fs_workers[i]);
+    return 0;
+}
+
+void fs_stop(void)
+{
+    fs_stop_flag = 1;
+    for (int i = 0; i < fs_nworkers; i++)
+        pthread_join(fs_workers[i].tid, NULL);
+}
+}
+
+extern fn fs_route_add(path string, status int, ctype string, body string) int
+extern fn fs_route_stats(path string) int
+extern fn fs_start(host string, port int, threads int) int
+extern fn fs_strerror(e int) string
+extern fn fs_conns_open() int64
+extern fn fs_requests() int64
+extern fn fs_stopping() int
+extern fn fs_is_root() int
+extern fn fs_bytes() int64
+extern fn fs_signals()
+extern fn fs_tick()
+extern fn fs_stop()
+
+struct Config {
+    Host string
+    Port int
+    Threads int
+    Quiet bool
+}
+
+fn usage() {
+    fmt.Eprintln("usage: fastserver [-host 127.0.0.1] [-port 9090] [-threads 4] [-quiet]")
+}
+
+fn parseArgs() (Config, bool) {
+    var* cfg = Config{Host: "127.0.0.1", Port: 9090, Threads: 4, Quiet: false}
+    var* i = 1
+    while i <= os.NumArgs() {
+        var* a = os.Arg(i)
+        var* hasNext = i + 1 <= os.NumArgs()
+        if a == "-quiet" {
+            cfg.Quiet = true
+        } else if a == "-host" && hasNext {
+            cfg.Host = os.Arg(i + 1)
+            i++
+        } else if (a == "-port" || a == "-threads") && hasNext && conv.IsInt(os.Arg(i + 1)) {
+            var* n = conv.Atoi(os.Arg(i + 1))
+            if a == "-port" {
+                cfg.Port = n
+            } else {
+                cfg.Threads = n
+            }
+            i++
+        } else {
+            usage()
+            return cfg, false
+        }
+        i++
+    }
+    return cfg, true
+}
+
+fn checkPort(port int) string {
+    if port < 1 || port > 65535 {
+        return "port " + port + " is out of range 1-65535"
+    }
+    if port < 1024 && fs_is_root() == 0 {
+        return "port " + port + " needs root: ports below 1024 are privileged, use 1024-65535"
+    }
+    return ""
+}
+
+fn registerRoutes() {
+    fs_route_add("/", 200, "text/html; charset=utf-8", "<!doctype html><title>pgt-fast</title><h1>PGT + C + asm</h1><p>Try /plaintext, /json, /stats</p>\n")
+    fs_route_add("/plaintext", 200, "text/plain", "Hello, World!")
+    fs_route_add("/json", 200, "application/json", "{\"message\":\"Hello, World!\"}")
+    fs_route_stats("/stats")
+}
+
+fn mb(bytes int64) string {
+    return conv.FormatFloat(float(bytes) / 1048576.0, 2)
+}
+
+fn main() {
+    var* cfg, ok = parseArgs()
+    if !ok {
+        os.Exit(2)
+    }
+    var* bad = checkPort(cfg.Port)
+    if bad != "" {
+        fmt.Eprintln("fastserver: " + bad)
+        os.Exit(1)
+    }
+    fs_signals()
+    registerRoutes()
+    var* rc = fs_start(cfg.Host, cfg.Port, cfg.Threads)
+    if rc != 0 {
+        var* msg = fs_strerror(-rc)
+        if rc == -98 {
+            msg = "port " + cfg.Port + " is already in use"
+        }
+        if rc == -13 {
+            msg = "port " + cfg.Port + " needs root: ports below 1024 are privileged, use 1024-65535"
+        }
+        fmt.Eprintln("fastserver: " + msg)
+        os.Exit(1)
+    }
+    fmt.Println("fastserver on http://" + cfg.Host + ":" + cfg.Port + " with " + cfg.Threads + " threads")
+    var* start = time.NowMs()
+    var* lastReq int64 = 0
+    var* lastBytes int64 = 0
+    var* ticks = 0
+    while fs_stopping() == 0 {
+        time.Sleep(100)
+        fs_tick()
+        ticks++
+        if ticks % 10 == 0 && !cfg.Quiet {
+            var* req = fs_requests()
+            var* bytes = fs_bytes()
+            fmt.Println("rps " + (req - lastReq) + "  total " + req + "  conns " + fs_conns_open() + "  MB/s " + mb(bytes - lastBytes))
+            lastReq = req
+            lastBytes = bytes
+        }
+    }
+    fs_stop()
+    var* secs = float(time.NowMs() - start) / 1000.0
+    var* total = fs_requests()
+    fmt.Println("")
+    fmt.Println("stopped after " + conv.FormatFloat(secs, 1) + " s: " + total + " requests, " + mb(fs_bytes()) + " MB sent, avg " + conv.FormatFloat(float(total) / secs, 0) + " req/s")
+}
+
+return 0
