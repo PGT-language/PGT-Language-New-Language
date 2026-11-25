@@ -1,0 +1,986 @@
+package irgen
+
+#use "compiler/ast"
+#use "strings"
+
+fn isIntConst(v string) bool {
+    if len(v) == 0 {
+        return false
+    }
+    return (v[0] >= '0' && v[0] <= '9') || v[0] == '-'
+}
+
+fn bitsOf(t *Type) int {
+    switch t.Kind {
+        case KChar, KByte { return 8 }
+        case KBool { return 1 }
+        case KInt { return 32 }
+    }
+    return 64
+}
+
+fn (g *Gen) intCast(v string, from *Type, to *Type) string {
+    var* fb = bitsOf(from)
+    var* tb = bitsOf(to)
+    if fb == tb {
+        return v
+    }
+    if tb > fb {
+        if from.IsUnsigned() || from.Kind == KBool {
+            return g.inst("zext " + g.llvmType(from) + " " + v + " to " + g.llvmType(to))
+        }
+        return g.inst("sext " + g.llvmType(from) + " " + v + " to " + g.llvmType(to))
+    }
+    return g.inst("trunc " + g.llvmType(from) + " " + v + " to " + g.llvmType(to))
+}
+
+fn (g *Gen) genIntLit(e *ast.Expr, hint *Type) Value {
+    var* t = g.tt.intT
+    if hint != nil && (hint.Kind == KInt64 || hint.Kind == KUint64 || hint.Kind == KFloat || hint.Kind == KChar || hint.Kind == KByte) {
+        t = hint
+    }
+    var* v = e.IntVal
+    switch t.Kind {
+        case KInt64 {
+            if v > 9223372036854775807 {
+                g.fail("constant " + str(v) + " overflows int64", e.Line, e.Col)
+            }
+            return Value{V: str(v), T: t}
+        }
+        case KUint64 {
+            return Value{V: str(v), T: t}
+        }
+        case KFloat {
+            return Value{V: floatText(float(v)), T: t}
+        }
+        case KChar, KByte {
+            if v > 255 {
+                g.fail("constant " + str(v) + " overflows " + t.Name(), e.Line, e.Col)
+            }
+            return Value{V: str(v), T: t}
+        }
+    }
+    if v > 2147483647 {
+        g.fail("integer literal does not fit into 'int' (32 bits); use int64", e.Line, e.Col)
+    }
+    return Value{V: str(v), T: g.tt.intT}
+}
+
+fn (g *Gen) genExpr(e *ast.Expr, hint *Type) Value {
+    if g.failed {
+        return g.dummy()
+    }
+    var* h = hint
+    if h != nil && h.Kind == KAny {
+        h = nil
+    }
+    switch e.Kind {
+        case ast.ExprIntLit { return g.genIntLit(e, h) }
+        case ast.ExprFloatLit { return Value{V: floatText(e.FloatVal), T: g.tt.floatT} }
+        case ast.ExprCharLit { return Value{V: str(int(e.CharVal)), T: g.tt.charT} }
+        case ast.ExprBoolLit {
+            if e.BoolVal {
+                return Value{V: "true", T: g.tt.boolT}
+            }
+            return Value{V: "false", T: g.tt.boolT}
+        }
+        case ast.ExprStringLit { return Value{V: g.strLit(e.Str), T: g.tt.stringT} }
+        case ast.ExprNilLit { return Value{V: "null", T: g.tt.nilT} }
+        case ast.ExprVarRef {
+            var* v = g.lookupVar(e.Name)
+            if v != nil {
+                return Value{V: g.load(v.T, v.Addr), T: v.T}
+            }
+            if g.lookupPackage(e.Name) != nil {
+                g.fail("package '" + e.Name + "' is not a value; use " + e.Name + ".Name", e.Line, e.Col)
+                return g.dummy()
+            }
+            if has(g.pkg.Functions, e.Name) {
+                g.fail("function '" + e.Name + "' is not a value; call it: " + e.Name + "(...)", e.Line, e.Col)
+                return g.dummy()
+            }
+            if e.Name == "iota" {
+                g.fail("'iota' can only be used inside a const block", e.Line, e.Col)
+                return g.dummy()
+            }
+            g.fail("undefined variable '" + e.Name + "'", e.Line, e.Col)
+            return g.dummy()
+        }
+        case ast.ExprUnary { return g.genUnary(e, h) }
+        case ast.ExprBinary { return g.genBinary(e, h) }
+        case ast.ExprCall {
+            var* v = g.genCall(e, h)
+            if g.failed {
+                return g.dummy()
+            }
+            if v.T.Kind == KVoid {
+                g.fail("this call does not return a value", e.Line, e.Col)
+                return g.dummy()
+            }
+            if v.T.Kind == KTuple {
+                g.fail("multi-value call (returns " + v.T.Name() + ") used in a single-value context (a multi-value call can only be the sole argument of a call)", e.Line, e.Col)
+                return g.dummy()
+            }
+            return v
+        }
+        case ast.ExprSelector { return g.genSelector(e) }
+        case ast.ExprIndex { return g.genIndex(e) }
+        case ast.ExprSlice { return g.genSlice(e) }
+        case ast.ExprArrayLit { return g.genArrayLit(e, h) }
+        case ast.ExprStructLit { return g.genStructLit(e) }
+    }
+    g.fail("this expression is not supported by the self-hosted compiler yet", e.Line, e.Col)
+    return g.dummy()
+}
+
+fn (g *Gen) genCond(e *ast.Expr) Value {
+    var* v = g.genExpr(e, nil)
+    if !g.failed && v.T.Kind != KBool {
+        g.fail("condition must be bool, found " + v.T.Name(), e.Line, e.Col)
+    }
+    return v
+}
+
+fn (g *Gen) coerce(v Value, to *Type, line int, col int, what string) Value {
+    if g.failed || v.T == to {
+        return v
+    }
+    if v.T.Kind == KNil && to.IsNillable() {
+        return Value{V: g.zeroValue(to), T: to}
+    }
+    if to.Kind == KAny && v.T.Kind != KVoid {
+        return g.makeAny(v)
+    }
+    if to.Kind == KIface && v.T.Kind != KVoid && v.T.Kind != KNil && v.T.Kind != KIface && v.T.Kind != KAny {
+        return g.makeIface(v, to, line, col)
+    }
+    if v.T.Kind == KVoid {
+        g.fail("a call that returns nothing cannot be used in " + what, line, col)
+        return v
+    }
+    g.fail("cannot use " + v.T.Name() + " as " + to.Name() + " in " + what, line, col)
+    return v
+}
+
+fn (g *Gen) convert(v Value, to *Type, line int, col int) Value {
+    if g.failed || v.T == to {
+        return v
+    }
+    var* from = v.T
+    if to.Kind == KString {
+        return g.toStringValue(v, line, col)
+    }
+    if from.IsIntegral() && to.IsIntegral() {
+        return Value{V: g.intCast(v.V, from, to), T: to}
+    }
+    if from.IsIntegral() && to.Kind == KFloat {
+        if from.IsUnsigned() {
+            return Value{V: g.inst("uitofp " + g.llvmType(from) + " " + v.V + " to double"), T: to}
+        }
+        return Value{V: g.inst("sitofp " + g.llvmType(from) + " " + v.V + " to double"), T: to}
+    }
+    if from.Kind == KFloat && to.IsIntegral() {
+        if to.IsUnsigned() {
+            return Value{V: g.inst("fptoui double " + v.V + " to " + g.llvmType(to)), T: to}
+        }
+        return Value{V: g.inst("fptosi double " + v.V + " to " + g.llvmType(to)), T: to}
+    }
+    if from.Kind == KBool && to.IsIntegral() {
+        return Value{V: g.inst("zext i1 " + v.V + " to " + g.llvmType(to)), T: to}
+    }
+    if from.IsIntegral() && to.Kind == KBool {
+        return Value{V: g.inst("icmp ne " + g.llvmType(from) + " " + v.V + ", 0"), T: to}
+    }
+    if from.Kind == KFloat && to.Kind == KBool {
+        return Value{V: g.inst("fcmp une double " + v.V + ", 0.0"), T: to}
+    }
+    if from.Kind == KBool && to.Kind == KFloat {
+        return Value{V: g.inst("uitofp i1 " + v.V + " to double"), T: to}
+    }
+    if from.Kind == KString && to.IsNumeric() {
+        g.fail("cannot convert string to " + to.Name() + "; use parseInt or parseFloat", line, col)
+        return v
+    }
+    g.fail("cannot convert " + from.Name() + " to " + to.Name(), line, col)
+    return v
+}
+
+fn (g *Gen) arrayToPtr(arr string) string {
+    var* tmp = g.entryAlloca(g.tt.arrayOf(g.tt.intT), "arr")
+    g.emit("store %pgt.array " + arr + ", ptr " + tmp)
+    return tmp
+}
+
+fn (g *Gen) toStringValue(v Value, line int, col int) Value {
+    var* s = g.tt.stringT
+    switch v.T.Kind {
+        case KString { return v }
+        case KInt { return Value{V: g.callRt("pgt_str_int", "ptr", "i32", "i32 " + v.V), T: s} }
+        case KUint64 { return Value{V: g.callRt("pgt_str_uint64", "ptr", "i64", "i64 " + v.V), T: s} }
+        case KInt64 { return Value{V: g.callRt("pgt_str_int64", "ptr", "i64", "i64 " + v.V), T: s} }
+        case KFloat { return Value{V: g.callRt("pgt_str_float", "ptr", "double", "double " + v.V), T: s} }
+        case KChar { return Value{V: g.callRt("pgt_str_char", "ptr", "i8 zeroext", "i8 zeroext " + v.V), T: s} }
+        case KByte {
+            var* wide = g.inst("zext i8 " + v.V + " to i32")
+            return Value{V: g.callRt("pgt_str_int", "ptr", "i32", "i32 " + wide), T: s}
+        }
+        case KBool { return Value{V: g.callRt("pgt_str_bool", "ptr", "i1 zeroext", "i1 zeroext " + v.V), T: s} }
+        case KArray {
+            if v.T.Elem.Kind == KChar {
+                return Value{V: g.callRt("pgt_from_chars", "ptr", "ptr", "ptr " + g.arrayToPtr(v.V)), T: s}
+            }
+        }
+    }
+    g.fail("cannot convert " + v.T.Name() + " to string", line, col)
+    return v
+}
+
+fn (g *Gen) genOperands(lhs *ast.Expr, rhs *ast.Expr, hint *Type) (Value, Value) {
+    var* lc = isConstExpr(lhs)
+    var* rc = isConstExpr(rhs)
+    if lc && rc {
+        var* h = hint
+        if h == nil && (hasFloatLit(lhs) || hasFloatLit(rhs)) {
+            h = g.tt.floatT
+        }
+        var* l = g.genExpr(lhs, h)
+        var* r = g.genExpr(rhs, h)
+        return l, r
+    }
+    if lc {
+        var* r = g.genExpr(rhs, nil)
+        var* l = g.genExpr(lhs, r.T)
+        return l, r
+    }
+    var* l = g.genExpr(lhs, nil)
+    var* r = g.genExpr(rhs, l.T)
+    return l, r
+}
+
+fn (g *Gen) genUnary(e *ast.Expr, hint *Type) Value {
+    switch e.Op {
+        case ast.UnNeg {
+            var* v = g.genExpr(e.Operand, hint)
+            if g.failed {
+                return v
+            }
+            if v.T.Kind == KFloat {
+                return Value{V: g.inst("fneg double " + v.V), T: v.T}
+            }
+            if v.T.Kind != KInt && v.T.Kind != KInt64 {
+                g.fail("unary '-' is not defined for " + v.T.Name(), e.Line, e.Col)
+                return v
+            }
+            return Value{V: g.inst("sub " + g.llvmType(v.T) + " 0, " + v.V), T: v.T}
+        }
+        case ast.UnNot {
+            var* v = g.genExpr(e.Operand, nil)
+            if g.failed {
+                return v
+            }
+            if v.T.Kind != KBool {
+                g.fail("'!' needs a bool operand", e.Line, e.Col)
+                return v
+            }
+            return Value{V: g.inst("xor i1 " + v.V + ", true"), T: v.T}
+        }
+        case ast.UnBitNot {
+            var* v = g.genExpr(e.Operand, hint)
+            if g.failed {
+                return v
+            }
+            if !v.T.IsIntegral() {
+                g.fail("'~' needs an integer operand", e.Line, e.Col)
+                return v
+            }
+            return Value{V: g.inst("xor " + g.llvmType(v.T) + " " + v.V + ", -1"), T: v.T}
+        }
+        case ast.UnDeref {
+            var* v = g.genExpr(e.Operand, nil)
+            if g.failed {
+                return v
+            }
+            if v.T.Kind != KPointer {
+                g.fail("cannot dereference " + v.T.Name() + " (it is not a pointer)", e.Line, e.Col)
+                return v
+            }
+            g.nilCheck(v.V)
+            return Value{V: g.load(v.T.Elem, v.V), T: v.T.Elem}
+        }
+        case ast.UnAddrOf {
+            if e.Operand.Kind == ast.ExprStructLit {
+                var* v = g.genStructLit(e.Operand)
+                if g.failed {
+                    return v
+                }
+                var* p = g.callRt("pgt_alloc", "ptr", "i64, ptr", "i64 " + g.sizeOf(v.T) + ", ptr null")
+                g.store(v.T, v.V, p)
+                return Value{V: p, T: g.tt.pointerTo(v.T)}
+            }
+            var* a = g.requireAddress(e.Operand, true)
+            if g.failed {
+                return g.dummy()
+            }
+            return Value{V: a.A, T: g.tt.pointerTo(a.T)}
+        }
+    }
+    g.fail("internal error: unknown unary operator", e.Line, e.Col)
+    return g.dummy()
+}
+
+fn (g *Gen) genLogical(e *ast.Expr) Value {
+    var* isAnd = e.Op == ast.BinAnd
+    var* name = "or"
+    if isAnd {
+        name = "and"
+    }
+    var* lhs = g.genExpr(e.Lhs, nil)
+    if g.failed {
+        return lhs
+    }
+    if lhs.T.Kind != KBool {
+        g.fail("operator '" + ast.BinOpText(e.Op) + "' needs bool operands", e.Line, e.Col)
+        return lhs
+    }
+    var* lhsEnd = g.newLabel(name + ".lhs")
+    g.br(lhsEnd)
+    g.label(lhsEnd)
+    var* rhsBB = g.newLabel(name + ".rhs")
+    var* endBB = g.newLabel(name + ".end")
+    if isAnd {
+        g.condBr(lhs.V, rhsBB, endBB)
+    } else {
+        g.condBr(lhs.V, endBB, rhsBB)
+    }
+    g.label(rhsBB)
+    var* rhs = g.genExpr(e.Rhs, nil)
+    if g.failed {
+        return rhs
+    }
+    if rhs.T.Kind != KBool {
+        g.fail("operator '" + ast.BinOpText(e.Op) + "' needs bool operands", e.Line, e.Col)
+        return rhs
+    }
+    var* rhsEnd = g.newLabel(name + ".rend")
+    g.br(rhsEnd)
+    g.label(rhsEnd)
+    g.br(endBB)
+    g.label(endBB)
+    var* shortVal = "true"
+    if isAnd {
+        shortVal = "false"
+    }
+    var* phi = g.inst("phi i1 [ " + shortVal + ", %" + lhsEnd + " ], [ " + rhs.V + ", %" + rhsEnd + " ]")
+    return Value{V: phi, T: g.tt.boolT}
+}
+
+fn (g *Gen) genCompare(e *ast.Expr) Value {
+    var* l, r = g.genOperands(e.Lhs, e.Rhs, nil)
+    if g.failed {
+        return l
+    }
+    return g.compareValues(e.Op, l, r, e.Line, e.Col)
+}
+
+fn (g *Gen) boolResult(op int, isEqual string) Value {
+    if op == ast.BinEq {
+        return Value{V: isEqual, T: g.tt.boolT}
+    }
+    return Value{V: g.inst("xor i1 " + isEqual + ", true"), T: g.tt.boolT}
+}
+
+fn (g *Gen) compareValues(op int, l Value, r Value, line int, col int) Value {
+    var* equality = op == ast.BinEq || op == ast.BinNe
+    if l.T.Kind == KNil || r.T.Kind == KNil {
+        var* v = l
+        if l.T.Kind == KNil {
+            v = r
+        }
+        if !equality {
+            g.fail("operator '" + ast.BinOpText(op) + "' cannot be used with nil", line, col)
+            return l
+        }
+        switch v.T.Kind {
+            case KNil { return g.boolResult(op, "true") }
+            case KPointer, KMap { return g.boolResult(op, g.inst("icmp eq ptr " + v.V + ", null")) }
+            case KString {
+                var* n = g.callRt("pgt_strlen", "i32", "ptr", "ptr " + v.V)
+                return g.boolResult(op, g.inst("icmp eq i32 " + n + ", 0"))
+            }
+            case KArray {
+                var* n = g.extract(v.T, v.V, 1)
+                return g.boolResult(op, g.inst("icmp eq i64 " + n + ", 0"))
+            }
+            case KIface, KAny {
+                var* n = g.extract(v.T, v.V, 1)
+                return g.boolResult(op, g.inst("icmp eq ptr " + n + ", null"))
+            }
+        }
+        g.fail("cannot compare " + v.T.Name() + " with nil", line, col)
+        return l
+    }
+    if l.T != r.T {
+        g.fail("cannot compare " + l.T.Name() + " with " + r.T.Name() + " (use an explicit conversion)", line, col)
+        return l
+    }
+    var* t = l.T
+    if t.Kind == KString {
+        var* c = g.callRt("pgt_strcmp", "i32", "ptr, ptr", "ptr " + l.V + ", ptr " + r.V)
+        var* cc = "eq"
+        switch op {
+            case ast.BinEq { cc = "eq" }
+            case ast.BinNe { cc = "ne" }
+            case ast.BinLt { cc = "slt" }
+            case ast.BinGt { cc = "sgt" }
+            case ast.BinLe { cc = "sle" }
+            case ast.BinGe { cc = "sge" }
+        }
+        return Value{V: g.inst("icmp " + cc + " i32 " + c + ", 0"), T: g.tt.boolT}
+    }
+    if t.Kind == KBool || t.Kind == KPointer {
+        if !equality {
+            g.fail("operator '" + ast.BinOpText(op) + "' cannot compare " + t.Name() + " values", line, col)
+            return l
+        }
+        return g.boolResult(op, g.inst("icmp eq " + g.llvmType(t) + " " + l.V + ", " + r.V))
+    }
+    if !t.IsNumeric() {
+        g.fail(t.Name() + " values can only be compared with nil", line, col)
+        return l
+    }
+    if t.Kind == KFloat {
+        var* cc = "oeq"
+        switch op {
+            case ast.BinEq { cc = "oeq" }
+            case ast.BinNe { cc = "une" }
+            case ast.BinLt { cc = "olt" }
+            case ast.BinGt { cc = "ogt" }
+            case ast.BinLe { cc = "ole" }
+            case ast.BinGe { cc = "oge" }
+        }
+        return Value{V: g.inst("fcmp " + cc + " double " + l.V + ", " + r.V), T: g.tt.boolT}
+    }
+    var* sg = "s"
+    if t.IsUnsigned() {
+        sg = "u"
+    }
+    var* cc = "eq"
+    switch op {
+        case ast.BinEq { cc = "eq" }
+        case ast.BinNe { cc = "ne" }
+        case ast.BinLt { cc = sg + "lt" }
+        case ast.BinGt { cc = sg + "gt" }
+        case ast.BinLe { cc = sg + "le" }
+        case ast.BinGe { cc = sg + "ge" }
+    }
+    return Value{V: g.inst("icmp " + cc + " " + g.llvmType(t) + " " + l.V + ", " + r.V), T: g.tt.boolT}
+}
+
+fn (g *Gen) genArith(op int, l Value, r Value, line int, col int) Value {
+    if g.failed {
+        return l
+    }
+    if op == ast.BinAdd && (l.T.Kind == KString || r.T.Kind == KString) {
+        var* ls = g.toStringValue(l, line, col)
+        var* rs = g.toStringValue(r, line, col)
+        if g.failed {
+            return l
+        }
+        return Value{V: g.callRt("pgt_concat", "ptr", "ptr, ptr", "ptr " + ls.V + ", ptr " + rs.V), T: g.tt.stringT}
+    }
+    if op == ast.BinShl || op == ast.BinShr {
+        if !l.T.IsIntegral() || !r.T.IsIntegral() {
+            g.fail("operator '" + ast.BinOpText(op) + "' needs integer operands", line, col)
+            return l
+        }
+        var* amount = g.intCast(r.V, r.T, l.T)
+        var* lt = g.llvmType(l.T)
+        if op == ast.BinShl {
+            return Value{V: g.inst("shl " + lt + " " + l.V + ", " + amount), T: l.T}
+        }
+        if l.T.IsUnsigned() {
+            return Value{V: g.inst("lshr " + lt + " " + l.V + ", " + amount), T: l.T}
+        }
+        return Value{V: g.inst("ashr " + lt + " " + l.V + ", " + amount), T: l.T}
+    }
+    if l.T != r.T {
+        g.fail("mismatched types " + l.T.Name() + " and " + r.T.Name() + " for operator '" + ast.BinOpText(op) + "' (use an explicit conversion)", line, col)
+        return l
+    }
+    var* t = l.T
+    var* lt = g.llvmType(t)
+    if op == ast.BinBitAnd || op == ast.BinBitOr || op == ast.BinBitXor {
+        if !t.IsIntegral() {
+            g.fail("operator '" + ast.BinOpText(op) + "' needs integer operands, found " + t.Name(), line, col)
+            return l
+        }
+        var* name = "and"
+        if op == ast.BinBitOr {
+            name = "or"
+        }
+        if op == ast.BinBitXor {
+            name = "xor"
+        }
+        return Value{V: g.inst(name + " " + lt + " " + l.V + ", " + r.V), T: t}
+    }
+    if !t.IsNumeric() {
+        g.fail("operator '" + ast.BinOpText(op) + "' is not defined for " + t.Name(), line, col)
+        return l
+    }
+    if t.Kind == KFloat {
+        switch op {
+            case ast.BinAdd { return Value{V: g.inst("fadd double " + l.V + ", " + r.V), T: t} }
+            case ast.BinSub { return Value{V: g.inst("fsub double " + l.V + ", " + r.V), T: t} }
+            case ast.BinMul { return Value{V: g.inst("fmul double " + l.V + ", " + r.V), T: t} }
+            case ast.BinDiv { return Value{V: g.inst("fdiv double " + l.V + ", " + r.V), T: t} }
+        }
+        g.fail("operator '%' needs integer operands", line, col)
+        return l
+    }
+    switch op {
+        case ast.BinAdd { return Value{V: g.inst("add " + lt + " " + l.V + ", " + r.V), T: t} }
+        case ast.BinSub { return Value{V: g.inst("sub " + lt + " " + l.V + ", " + r.V), T: t} }
+        case ast.BinMul { return Value{V: g.inst("mul " + lt + " " + l.V + ", " + r.V), T: t} }
+        case ast.BinDiv, ast.BinMod {
+            if !isIntConst(r.V) || r.V == "0" {
+                var* z = g.inst("icmp eq " + lt + " " + r.V + ", 0")
+                g.panicIf(z, "panicDiv", "")
+            }
+            var* name = "sdiv"
+            if t.IsUnsigned() {
+                name = "udiv"
+            }
+            if op == ast.BinMod {
+                name = "srem"
+                if t.IsUnsigned() {
+                    name = "urem"
+                }
+            }
+            return Value{V: g.inst(name + " " + lt + " " + l.V + ", " + r.V), T: t}
+        }
+    }
+    g.fail("internal error: unknown operator", line, col)
+    return l
+}
+
+fn (g *Gen) genBinary(e *ast.Expr, hint *Type) Value {
+    switch e.Op {
+        case ast.BinAnd, ast.BinOr { return g.genLogical(e) }
+        case ast.BinEq, ast.BinNe, ast.BinLt, ast.BinGt, ast.BinLe, ast.BinGe { return g.genCompare(e) }
+        case ast.BinShl, ast.BinShr {
+            var* l = g.genExpr(e.Lhs, hint)
+            var* r = g.genExpr(e.Rhs, nil)
+            return g.genArith(e.Op, l, r, e.Line, e.Col)
+        }
+    }
+    var* l, r = g.genOperands(e.Lhs, e.Rhs, hint)
+    return g.genArith(e.Op, l, r, e.Line, e.Col)
+}
+
+fn (g *Gen) packageMember(e *ast.Expr) Addr {
+    var* base = e.Base
+    if base.Kind != ast.ExprVarRef || g.lookupVar(base.Name) != nil {
+        return Addr{}
+    }
+    var* p = g.lookupPackage(base.Name)
+    if p == nil {
+        return Addr{}
+    }
+    var* full = base.Name + "." + e.Name
+    if !isPublic(e.Name) {
+        g.fail("'" + full + "' is not exported (lowercase names are private)", e.Line, e.Col)
+        return Addr{}
+    }
+    if !has(p.Globals, e.Name) {
+        if has(p.Functions, e.Name) {
+            g.fail("function '" + full + "' is not a value; call it: " + full + "(...)", e.Line, e.Col)
+            return Addr{}
+        }
+        g.fail("package '" + base.Name + "' has no constant or variable '" + e.Name + "'", e.Line, e.Col)
+        return Addr{}
+    }
+    var* gl = p.Globals[e.Name]
+    return Addr{A: gl.Sym, T: gl.T, IsConst: gl.IsConst, Ok: true}
+}
+
+fn (g *Gen) elementAddr(arr Value, index *ast.Expr) string {
+    var* i = g.genExpr(index, g.tt.intT)
+    if g.failed {
+        return "null"
+    }
+    if !i.T.IsIntegral() {
+        g.fail("an index must be an integer, found " + i.T.Name(), index.Line, index.Col)
+        return "null"
+    }
+    var* idx = i.V
+    if bitsOf(i.T) != 64 {
+        idx = g.intCast(i.V, i.T, g.tt.int64T)
+    }
+    var* n = g.extract(arr.T, arr.V, 1)
+    var* bad = g.inst("icmp uge i64 " + idx + ", " + n)
+    g.panicIf(bad, "panicIndex", "i64 " + idx + ", i64 " + n)
+    var* data = g.extract(arr.T, arr.V, 0)
+    return g.inst("getelementptr " + g.llvmType(arr.T.Elem) + ", ptr " + data + ", i64 " + idx)
+}
+
+fn (g *Gen) fieldAddr(structPtr string, st *StructInfo, name string, line int, col int) Addr {
+    var* i = st.FieldIndex(name)
+    if i < 0 {
+        if has(st.Methods, name) {
+            g.fail("'" + name + "' is a method of " + st.Name + "; call it: ." + name + "(...)", line, col)
+            return Addr{}
+        }
+        g.fail(st.Name + " has no field '" + name + "'", line, col)
+        return Addr{}
+    }
+    if st.PkgPath != g.pkg.Pkg.ImportPath && !isPublic(name) {
+        g.fail("field '" + name + "' of " + st.Name + " is not exported (lowercase names are private)", line, col)
+        return Addr{}
+    }
+    var* a = g.inst("getelementptr inbounds " + st.Llvm + ", ptr " + structPtr + ", i32 0, i32 " + i)
+    return Addr{A: a, T: st.Fields[i].Type, IsConst: false, Ok: true}
+}
+
+fn (g *Gen) addressOf(e *ast.Expr, forWrite bool) Addr {
+    if g.failed {
+        return Addr{}
+    }
+    switch e.Kind {
+        case ast.ExprVarRef {
+            var* v = g.lookupVar(e.Name)
+            if v == nil {
+                return Addr{}
+            }
+            if v.IsConst && forWrite {
+                g.fail("cannot modify the constant '" + e.Name + "'", e.Line, e.Col)
+                return Addr{}
+            }
+            return Addr{A: v.Addr, T: v.T, IsConst: v.IsConst, Ok: true}
+        }
+        case ast.ExprSelector {
+            var* member = g.packageMember(e)
+            if g.failed {
+                return Addr{}
+            }
+            if member.Ok {
+                if member.IsConst && forWrite {
+                    g.fail("cannot modify the constant '" + e.Name + "'", e.Line, e.Col)
+                    return Addr{}
+                }
+                return member
+            }
+            var* base = g.addressOf(e.Base, forWrite)
+            if g.failed {
+                return Addr{}
+            }
+            if base.Ok {
+                if base.T.Kind == KStruct {
+                    var* fa = g.fieldAddr(base.A, base.T.St, e.Name, e.Line, e.Col)
+                    fa.IsConst = base.IsConst
+                    return fa
+                }
+                if base.T.IsPtrToStruct() {
+                    var* p = g.load(base.T, base.A)
+                    g.nilCheck(p)
+                    return g.fieldAddr(p, base.T.Elem.St, e.Name, e.Line, e.Col)
+                }
+                g.fail(base.T.Name() + " has no fields (looking for '" + e.Name + "')", e.Line, e.Col)
+                return Addr{}
+            }
+            if !forWrite {
+                return Addr{}
+            }
+            var* v = g.genExpr(e.Base, nil)
+            if g.failed {
+                return Addr{}
+            }
+            if v.T.IsPtrToStruct() {
+                g.nilCheck(v.V)
+                return g.fieldAddr(v.V, v.T.Elem.St, e.Name, e.Line, e.Col)
+            }
+            if v.T.Kind == KStruct {
+                g.fail("cannot modify a field of a temporary value", e.Line, e.Col)
+                return Addr{}
+            }
+            g.fail(v.T.Name() + " has no fields (looking for '" + e.Name + "')", e.Line, e.Col)
+            return Addr{}
+        }
+        case ast.ExprIndex {
+            var* base = Value{}
+            var* a = g.addressOf(e.Base, false)
+            if g.failed {
+                return Addr{}
+            }
+            if a.Ok {
+                base = Value{V: g.load(a.T, a.A), T: a.T}
+            } else {
+                base = g.genExpr(e.Base, nil)
+            }
+            if g.failed {
+                return Addr{}
+            }
+            if base.T.Kind == KMap {
+                g.fail("maps are not supported by the self-hosted compiler yet", e.Line, e.Col)
+                return Addr{}
+            }
+            if base.T.Kind == KString {
+                g.fail("strings are immutable; build a new string instead", e.Line, e.Col)
+                return Addr{}
+            }
+            if base.T.Kind != KArray {
+                g.fail("cannot index " + base.T.Name(), e.Line, e.Col)
+                return Addr{}
+            }
+            var* ea = g.elementAddr(base, e.Index)
+            return Addr{A: ea, T: base.T.Elem, IsConst: false, Ok: true}
+        }
+        case ast.ExprUnary {
+            if e.Op == ast.UnDeref {
+                var* v = g.genExpr(e.Operand, nil)
+                if g.failed {
+                    return Addr{}
+                }
+                if v.T.Kind != KPointer {
+                    g.fail("cannot dereference " + v.T.Name() + " (it is not a pointer)", e.Line, e.Col)
+                    return Addr{}
+                }
+                g.nilCheck(v.V)
+                return Addr{A: v.V, T: v.T.Elem, IsConst: false, Ok: true}
+            }
+        }
+    }
+    return Addr{}
+}
+
+fn (g *Gen) requireAddress(e *ast.Expr, forWrite bool) Addr {
+    var* a = g.addressOf(e, forWrite)
+    if g.failed || a.Ok {
+        return a
+    }
+    if e.Kind == ast.ExprVarRef {
+        g.genExpr(e, nil)
+        return a
+    }
+    if forWrite {
+        g.fail("cannot assign to this expression", e.Line, e.Col)
+    } else {
+        g.fail("cannot take the address of this expression", e.Line, e.Col)
+    }
+    return a
+}
+
+fn (g *Gen) genSelector(e *ast.Expr) Value {
+    var* a = g.addressOf(e, false)
+    if g.failed {
+        return g.dummy()
+    }
+    if a.Ok {
+        return Value{V: g.load(a.T, a.A), T: a.T}
+    }
+    var* v = g.genExpr(e.Base, nil)
+    if g.failed {
+        return v
+    }
+    if v.T.IsPtrToStruct() {
+        g.nilCheck(v.V)
+        var* fa = g.fieldAddr(v.V, v.T.Elem.St, e.Name, e.Line, e.Col)
+        if g.failed {
+            return v
+        }
+        return Value{V: g.load(fa.T, fa.A), T: fa.T}
+    }
+    if v.T.Kind == KStruct {
+        var* i = v.T.St.FieldIndex(e.Name)
+        if i < 0 {
+            g.fail(v.T.Name() + " has no field '" + e.Name + "'", e.Line, e.Col)
+            return v
+        }
+        if v.T.St.PkgPath != g.pkg.Pkg.ImportPath && !isPublic(e.Name) {
+            g.fail("field '" + e.Name + "' of " + v.T.Name() + " is not exported", e.Line, e.Col)
+            return v
+        }
+        return Value{V: g.extract(v.T, v.V, i), T: v.T.St.Fields[i].Type}
+    }
+    g.fail(v.T.Name() + " has no fields (looking for '" + e.Name + "')", e.Line, e.Col)
+    return v
+}
+
+fn (g *Gen) genIndex(e *ast.Expr) Value {
+    var* base = g.genExpr(e.Base, nil)
+    if g.failed {
+        return base
+    }
+    if base.T.Kind == KArray {
+        var* p = g.elementAddr(base, e.Index)
+        return Value{V: g.load(base.T.Elem, p), T: base.T.Elem}
+    }
+    if base.T.Kind == KString {
+        var* i = g.genExpr(e.Index, g.tt.intT)
+        if g.failed {
+            return base
+        }
+        if !i.T.IsIntegral() {
+            g.fail("an index must be an integer, found " + i.T.Name(), e.Index.Line, e.Index.Col)
+            return base
+        }
+        var* at = g.intCast(i.V, i.T, g.tt.int64T)
+        var* n32 = g.callRt("pgt_strlen", "i32", "ptr", "ptr " + base.V)
+        var* n = g.inst("sext i32 " + n32 + " to i64")
+        var* bad = g.inst("icmp uge i64 " + at + ", " + n)
+        g.panicIf(bad, "panicIndex", "i64 " + at + ", i64 " + n)
+        var* p = g.inst("getelementptr i8, ptr " + base.V + ", i64 " + at)
+        return Value{V: g.inst("load i8, ptr " + p), T: g.tt.charT}
+    }
+    if base.T.Kind == KMap {
+        g.fail("maps are not supported by the self-hosted compiler yet", e.Line, e.Col)
+        return base
+    }
+    g.fail("cannot index " + base.T.Name(), e.Line, e.Col)
+    return base
+}
+
+fn (g *Gen) sliceBound(e *ast.Expr, dflt string) string {
+    if e == nil {
+        return dflt
+    }
+    var* v = g.genExpr(e, g.tt.intT)
+    if g.failed {
+        return dflt
+    }
+    if !v.T.IsIntegral() {
+        g.fail("a slice bound must be an integer, found " + v.T.Name(), e.Line, e.Col)
+        return dflt
+    }
+    return g.intCast(v.V, v.T, g.tt.int64T)
+}
+
+fn (g *Gen) genSlice(e *ast.Expr) Value {
+    var* base = g.genExpr(e.Base, nil)
+    if g.failed {
+        return base
+    }
+    var* isArray = base.T.Kind == KArray
+    if !isArray && base.T.Kind != KString {
+        g.fail("cannot slice " + base.T.Name(), e.Line, e.Col)
+        return base
+    }
+    var* n = ""
+    var* limit = ""
+    if isArray {
+        n = g.extract(base.T, base.V, 1)
+        limit = g.extract(base.T, base.V, 2)
+    } else {
+        var* n32 = g.callRt("pgt_strlen", "i32", "ptr", "ptr " + base.V)
+        n = g.inst("sext i32 " + n32 + " to i64")
+        limit = n
+    }
+    var* lo = g.sliceBound(e.Lo, "0")
+    var* hi = g.sliceBound(e.Hi, n)
+    if g.failed {
+        return base
+    }
+    var* c1 = g.inst("icmp ugt i64 " + hi + ", " + limit)
+    var* c2 = g.inst("icmp ugt i64 " + lo + ", " + hi)
+    var* bad = g.inst("or i1 " + c1 + ", " + c2)
+    var* args = "i64 " + lo + ", i64 " + hi + ", i64 " + limit
+    if isArray {
+        g.panicIf(bad, "panicSliceCap", args)
+    } else {
+        g.panicIf(bad, "panicSlice", args)
+    }
+    var* cnt = g.inst("sub i64 " + hi + ", " + lo)
+    if !isArray {
+        var* lo32 = g.inst("trunc i64 " + lo + " to i32")
+        var* n32 = g.inst("trunc i64 " + cnt + " to i32")
+        return Value{V: g.callRt("pgt_substr", "ptr", "ptr, i32, i32", "ptr " + base.V + ", i32 " + lo32 + ", i32 " + n32), T: g.tt.stringT}
+    }
+    var* data = g.extract(base.T, base.V, 0)
+    var* np = g.inst("getelementptr " + g.llvmType(base.T.Elem) + ", ptr " + data + ", i64 " + lo)
+    var* r1 = g.insert(base.T, base.V, g.tt.stringT, np, 0)
+    var* r2 = g.insert(base.T, r1, g.tt.int64T, cnt, 1)
+    var* ncap = g.inst("sub i64 " + limit + ", " + lo)
+    var* r3 = g.insert(base.T, r2, g.tt.int64T, ncap, 2)
+    return Value{V: r3, T: base.T}
+}
+
+fn (g *Gen) genArrayLit(e *ast.Expr, hint *Type) Value {
+    var* elemTy *Type = nil
+    if hint != nil && hint.Kind == KArray {
+        elemTy = hint.Elem
+    } else if len(e.Elems) == 0 {
+        g.fail("cannot infer the type of an empty array; write it: var* a []int = []", e.Line, e.Col)
+        return g.dummy()
+    }
+    var* values + {[]Value} = []
+    for x in e.Elems {
+        var* v = g.genExpr(x, elemTy)
+        if g.failed {
+            return v
+        }
+        if elemTy == nil {
+            if v.T.Kind == KNil || v.T.Kind == KVoid {
+                g.fail("cannot infer the element type of this array", x.Line, x.Col)
+                return v
+            }
+            elemTy = v.T
+        }
+        values = append(values, g.coerce(v, elemTy, x.Line, x.Col, "an array element"))
+    }
+    return g.packArray(elemTy, values)
+}
+
+fn (g *Gen) packArray(elemTy *Type, values []Value) Value {
+    var* arrTy = g.tt.arrayOf(elemTy)
+    if len(values) == 0 {
+        return Value{V: "zeroinitializer", T: arrTy}
+    }
+    var* n = len(values)
+    var* data = g.callRt("pgt_alloc_n", "ptr", "i64, i64, ptr", "i64 " + n + ", i64 " + g.sizeOf(elemTy) + ", ptr null")
+    var* lt = g.llvmType(elemTy)
+    for i, v in values {
+        var* p = g.inst("getelementptr " + lt + ", ptr " + data + ", i64 " + i)
+        g.store(elemTy, v.V, p)
+    }
+    var* a1 = g.inst("insertvalue %pgt.array undef, ptr " + data + ", 0")
+    var* a2 = g.inst("insertvalue %pgt.array " + a1 + ", i64 " + n + ", 1")
+    var* a3 = g.inst("insertvalue %pgt.array " + a2 + ", i64 " + n + ", 2")
+    var* a4 = g.inst("insertvalue %pgt.array " + a3 + ", ptr " + data + ", 3")
+    return Value{V: a4, T: arrTy}
+}
+
+fn (g *Gen) genStructLit(e *ast.Expr) Value {
+    var* t = g.resolveType(e.Type, false)
+    if g.failed {
+        return g.dummy()
+    }
+    if t.Kind != KStruct {
+        g.fail("'" + e.Type.Text() + "' is not a struct", e.Line, e.Col)
+        return g.dummy()
+    }
+    var* st = t.St
+    var* agg = "zeroinitializer"
+    var* seen = map[string]bool{}
+    for f in e.Fields {
+        var* i = st.FieldIndex(f.Name)
+        if i < 0 {
+            g.fail(t.Name() + " has no field '" + f.Name + "'", f.Line, f.Col)
+            return g.dummy()
+        }
+        if has(seen, f.Name) {
+            g.fail("field '" + f.Name + "' is set twice", f.Line, f.Col)
+            return g.dummy()
+        }
+        seen[f.Name] = true
+        if st.PkgPath != g.pkg.Pkg.ImportPath && !isPublic(f.Name) {
+            g.fail("field '" + f.Name + "' of " + t.Name() + " is not exported", f.Line, f.Col)
+            return g.dummy()
+        }
+        var* ft = st.Fields[i].Type
+        var* v = g.coerce(g.genExpr(f.Value, ft), ft, f.Line, f.Col, "field '" + f.Name + "'")
+        if g.failed {
+            return v
+        }
+        agg = g.insert(t, agg, ft, v.V, i)
+    }
+    return Value{V: agg, T: t}
+}
