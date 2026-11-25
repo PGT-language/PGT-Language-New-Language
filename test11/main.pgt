@@ -1,13 +1,16 @@
 package main
 
-#use "test11/term"
-#use "fmt"
+#use (
+    "test11/selftest"
+    "test11/app"
+    "std/os"
+)
 
 fn main() {
-    var* ok = term.Init()
-    fmt.Println(ok)
-    var* w, h = term.Size()
-    fmt.Println(w, " ", h)
-    term.Restore()
+    if os.NumArgs() > 0 && os.Arg(1) == "--selftest" {
+        os.Exit(selftest.Run())
+    }
+    os.Exit(app.Run())
 }
+
 return 0
