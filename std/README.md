@@ -633,24 +633,50 @@ TCP-сокеты (только IPv4), написаны на PGT поверх lib
 
 ## http
 
-HTTP/1.1 с `Connection: close`, один поток, поверх `net`. Подключается как `#use "http"`. Пример: `examples/httpdemo`.
+HTTP/1.1 в стиле Go `net/http`: `Connection: close`, один поток, поверх `net`. Подключается как `#use "http"`. Пример: `examples/httpdemo`. Исходники в `std/http`: `status.pgt` (все коды статусов Go с ссылками на RFC и `StatusText`), `method.pgt`, `header.pgt` (`Header`, `Values`, `URL`), `handler.pgt`, `request.pgt`, `response.pgt`, `mux.pgt`, `files.pgt`, `server.pgt`, `client.pgt`. Комментарии в `std/http` допускаются только со ссылкой на точный раздел RFC.
+
+```pgt
+#use (
+    "http"
+    "fmt"
+)
+
+fn hello(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintf(w, "hello, %s", r.PathValue("name"))
+}
+
+fn main() {
+    http.HandleFunc("GET /hello/{name}", hello)
+    http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+    fmt.Println(http.ListenAndServe(":8080", nil))
+}
+return 0
+```
+
+Типы и интерфейсы:
+
+- `interface Handler { ServeHTTP(w ResponseWriter, r *Request) }`; `HandlerFunc(f fn(ResponseWriter, *Request)) Handler` превращает функцию в `Handler` (у типов-функций нет методов, поэтому `HandlerFunc` здесь функция, а не тип).
+- `interface ResponseWriter { Header() *Header; Write(s string) int; WriteBytes(b []byte) int; WriteHeader(code int) }`. Ответ буферизуется и отправляется после возврата из обработчика; `Content-Length` считается сам, `Content-Type` определяется по началу тела (`text/html` или `text/plain`), если не задан. `WriteHeader` после первой записи игнорируется.
+- `*Header`: `NewHeader()`, `Set`, `Add`, `Get`, `Values`, `Has`, `Del`, `Keys`; ключи приводятся к виду `Content-Type` (`CanonicalHeaderKey`, RFC 9110, 5.1).
+- `Values` (запрос и форма): `NewValues()`, `Set`, `Add`, `Get`, `All`, `Has`, `Del`, `Encode()` (ключи по алфавиту), `ParseQuery(raw)`, `QueryEscape`, `QueryUnescape`, `PathEscape`, `PathUnescape`.
+- `*URL{Scheme, Host, Path, RawQuery}`: `Query() Values`, `String()`. `Path` декодирован.
+- `*Request{Method, URL, Proto, Header, Body, Host, RemoteAddr, ContentLength, RequestURI}`: `FormValue(key)` (тело `application/x-www-form-urlencoded` и строка запроса), `ParseForm()`, `PathValue(name)`, `SetPathValue`, `Cookie(name) string` (значение или `""`), `UserAgent()`, `Referer()`. Тело в виде строки; `Transfer-Encoding` у запроса даёт 501, тело больше 8 МБ даёт 413.
+
+Константы: все коды статусов Go `StatusContinue` (100) ... `StatusNetworkAuthenticationRequired` (511) и `StatusText(code) string`; методы `MethodGet`, `MethodHead`, `MethodPost`, `MethodPut`, `MethodPatch`, `MethodDelete`, `MethodConnect`, `MethodOptions`, `MethodTrace`.
+
+Маршрутизация:
+
+- `NewServeMux()`, `mux.Handle(pattern, h)`, `mux.HandleFunc(pattern, f)`, `mux.ServeHTTP`. Глобальные `DefaultServeMux`, `http.Handle`, `http.HandleFunc`.
+- Шаблоны Go 1.22: `"GET /api/items"` (метод необязателен; `GET` покрывает и `HEAD`), `"/static/"` (поддерево), `"/users/{id}"`, `"/files/{path...}"` (остаток пути), `"/{$}"` (только `/`). Побеждает самый специфичный шаблон: литерал сильнее `{id}`, `{id}` сильнее `{rest...}`, точный путь сильнее поддерева, шаблон с методом сильнее шаблона без метода. Нет подходящего пути: 404; путь есть, метода нет: 405 с `Allow`. Повторная регистрация шаблона и неверный шаблон вызывают `panic`. Путь не очищается от `..` и не редиректится, шаблоны с хостом не поддерживаются.
 
 Сервер:
 
-```pgt
-var* s = http.NewServer()
-s.File("/", "static/index.html")
-s.Dir("/static/", "static")
-s.Text("/ping", "pong")
-var* err = s.Listen("127.0.0.1", 8080)
-while true {
-    var* req, err = s.Next()
-    req.Json(200, "{\"name\": \"" + req.Query("name") + "\"}")
-}
-```
+- `ListenAndServe(addr, h) string`: `addr` вида `":8080"` или `"127.0.0.1:8080"`; `nil` вместо `h` — `DefaultServeMux`; возвращает текст ошибки, пока работает, блокирует. `Server{Addr, Handler}` с `srv.ListenAndServe()` и `srv.Close()` (можно вызвать из обработчика). Лог выключен. Порт ниже 1024 без root: `port N needs root: ports below 1024 are privileged, use 1024-65535`, занятый: `port N is already in use`.
+- `Error(w, msg, code)`, `NotFound(w, r)`, `NotFoundHandler()`, `Redirect(w, r, url, code)`, `RedirectHandler(url, code)`, `StripPrefix(prefix, h)`.
+- `ServeFile(w, r, path)` (для папки отдаётся `index.html`; файл отдаётся потоком, бинарные безопасны), `FileServer(http.Dir(root))`: `index.html`, `..` или `\` в пути дают 403, нет файла 404. `Mime(path)`.
 
-- Статические маршруты: `File(path, file)`, `Dir(prefix, dir)` (`..` даёт 403, для папки отдаётся `index.html`), `Text`, `Html`, `Json` (готовая JSON-строка), `Route(method, path, contentType, body)` (только для одного метода, остальные методы уходят в `Next`). Обычные маршруты отвечают на GET и HEAD, остальные методы получают 405. Файлы отдаются потоком, поэтому бинарные (png, wasm) безопасны. MIME по расширению: html, css, js, json, png, jpg, svg, ico, txt, wasm.
-- `s.Listen(host, port) string`, `s.Next() (*Request, string)` принимает соединения, сам отвечает на статические маршруты и возвращает первый запрос без маршрута. Неотвеченный запрос получает 500 при следующем `Next`. `s.Quiet()` отключает лог `METHOD PATH STATUS` в stderr, `s.Close()`.
-- `*Request`: поля `Method`, `Path` (с декодированием `%XX`), `RawQuery`, `Body` (по `Content-Length`); `Query(key)`, `Header(name)` (без учёта регистра), `SetHeader(k, v)`, `Send(status, contentType, body)`, `Text`, `Html`, `Json`, `NotFound()`.
-- Клиент: `Get(url) (Response, string)`, `Post(url, contentType, body) (Response, string)` только для `http://` (для `https://` ошибка `https is not supported yet`). `Response{Status, Headers, Body}` и `r.Header(name)`; `Transfer-Encoding: chunked` разбирается.
-- Помощники без сокетов: `ParseHead`, `ParseQuery`, `URLDecode`, `ParseURL`, `ParseResponse`, `Mime`, `StatusText`.
+fmt: `fmt.Fprint`, `fmt.Fprintln`, `fmt.Fprintf` принимают первым аргументом `any` с методом `Write(s string) int` (интерфейс `fmt.Writer`); интерфейс нельзя передать в параметр другого интерфейса, поэтому параметр имеет тип `any`, а проверка выполняется утверждением типа; без метода — `panic`.
+
+Клиент (только `http://`, для `https://` ошибка `https is not supported yet`):
+
+- `Get(url)`, `Head(url)`, `Delete(url)`, `Post(url, contentType, body)`, `Put(url, contentType, body)` возвращают `(*Response, string)`; `Response{StatusCode, Status, Header, Body}`, `Status` вида `200 OK`. `Transfer-Encoding: chunked` разбирается.

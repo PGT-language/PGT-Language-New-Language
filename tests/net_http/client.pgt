@@ -9,11 +9,13 @@ package main
 fn main() {
     var* base = "http://127.0.0.1:" + os.Arg(1)
     var* r, err = http.Get(base + "/api/hello?name=PGT")
-    fmt.Println(err, "|", r.Status, "|", r.Header("Content-Type"), "|", r.Body)
+    fmt.Println(err, "|", r.StatusCode, "|", r.Status, "|", r.Header.Get("content-type"), "|", r.Body)
     var* p, perr = http.Post(base + "/api/echo", "text/plain", "client body")
-    fmt.Println(perr, "|", p.Status, "|", p.Body)
+    fmt.Println(perr, "|", p.StatusCode, "|", p.Body)
     var* m, merr = http.Get(base + "/missing")
-    fmt.Println(merr, "|", m.Status)
+    fmt.Println(merr, "|", m.StatusCode, "|", m.Status)
+    var* c, cerr = http.Get(base + "/headers")
+    fmt.Println(cerr, "|", c.StatusCode, "|", c.Header.Get("X-Custom"), "|", len(c.Header.Values("x-multi")))
     var* _, serr = http.Get("https://example.com/")
     fmt.Println(serr)
 }

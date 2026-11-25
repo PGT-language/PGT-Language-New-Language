@@ -785,6 +785,39 @@ API `reflect`: `TypeOf(a) *Type`, `Kind(a) int`, `TypeName(a) string`, `Int`, `F
 
 Использование `print`, `println`, `input`, `inputln` без пакета `fmt` — ошибка компиляции: `undefined: println (use fmt.Println from #use "fmt")`.
 
+## Значения-функции
+
+Тип функции записывается как `fn(типы параметров) результат`; имена параметров необязательны: `fn(int, string) bool`, `fn(w ResponseWriter, r *Request)`, `fn(int) (int, string)`. Такой тип можно использовать для переменной, параметра, результата, поля структуры, элемента массива и значения `map`.
+
+```pgt
+#use "fmt"
+
+struct Server {
+    onReq fn(int, string) bool
+}
+
+fn add(a int, b int) int { return a + b }
+
+fn apply(f fn(int, int) int, x int) int { return f(x, x) }
+
+fn main() {
+    var* f = add                                    // имя функции без вызова — значение
+    var* g fn(int, int) int = fn(a int, b int) int { return a * b }
+    var* hs = [add, g]
+    var* m = map[string]fn(int, int) int{"add": add}
+    var* s = Server{onReq: nil}
+    fmt.Println(f(1, 2), apply(g, 5), hs[1](3, 4), m["add"](7, 8))
+}
+return 0
+```
+
+- Значением служит имя функции верхнего уровня или `пакет.Функция` без вызова. Присваивание допустимо только при точном совпадении типов параметров и результата (`cannot use fn(int) int as fn(int, int) int`). Вариативные и `extern` функции значениями быть не могут, методы как значения не поддерживаются.
+- Вызов: `f(1, "a")`, `s.onReq(w, r)`, `handlers[i](x)`, `makeHandler()(x)`, `пакет.Переменная(x)`. Число и типы аргументов проверяются, как у обычной функции, `f(g())` с несколькими результатами работает так же.
+- Нулевое значение — `nil`; сравнивать с `nil` можно (`f == nil`), две функции между собой сравнивать нельзя. Вызов `nil` завершает программу с `panic: call of nil function value`.
+- Литерал `fn(x int) int { ... }` создаёт обычную функцию без замыкания: он не может использовать локальные переменные и параметры внешней функции (ошибка `function literal cannot capture 'x' yet`); глобальные переменные и константы доступны. Параметры литерала всегда с именами, без вариативных.
+- Значение — обычный указатель на функцию, подсчёт ссылок на него не ведётся. Самохостинговый компилятор (`compiler/`) разбирает эти конструкции, но генерация кода для них отвечает `function values are not supported yet`.
+- Именованных типов-функций (`type`) нет: чтобы превратить функцию в `Handler`, используется `http.HandlerFunc(f)` — функция, возвращающая интерфейс.
+
 ## Отображения map
 
 Временный синтаксис: он нужен, пока компилятор на C++ не заменён самохостингом. Вся логика (хеш-таблица) написана на PGT в `std/maps`, компилятор только разбирает синтаксис и раскладывает его в вызовы этого пакета.
@@ -991,7 +1024,7 @@ fn main() {
 | `rand` | случайные числа: `Int`, `IntN`, `Range`, `Float`, `Shuffle`, `Pick`, воспроизводимый `Seed` |
 | `c` | блоки `c { }`: токенайзер C, `CheckBlock`/`PrepareBlock`, типы C и привязки к libc (`stdio`, `stdlib`, `string`, `ctype`, `cmath`, `ctime`, `errno`, `unistd`, `fcntl`, `signal`) |
 | `net` | TCP-сокеты на чистом PGT (IPv4): `Listen`, `Dial`, `Accept`, `Conn.Read`/`Write`; порты ниже 1024 без root отклоняются понятной ошибкой |
-| `http` | HTTP/1.1 сервер (`NewServer`, статические маршруты `File`/`Dir`/`Text`/`Html`/`Json`, динамические запросы через `Next`) и клиент `Get`/`Post`; пример `examples/httpdemo` |
+| `http` | HTTP/1.1 в стиле Go `net/http`: `Handler`, `ServeMux` с шаблонами Go 1.22, `ListenAndServe`, `FileServer`, `StripPrefix`, клиент `Get`/`Post`, все коды статусов; пример `examples/httpdemo` |
 | `syscall/linux` | пакет `syscall_linux`: номера системных вызовов Linux x86-64 `SYS_READ`, `SYS_WRITE`, `SYS_MMAP`, `SYS_EXIT`, ... (как в Go) |
 | `syscall/purec-os` | пакет `syscall_purec_os`: номера системных вызовов PureC OS (`SYS_WRITE`, `SYS_FORK`, `SYS_DRAW_RECT`, `SYS_FILE_OPEN`, ...) |
 

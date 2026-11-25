@@ -1,4 +1,5 @@
-|200|application/json; charset=utf-8|{"hello": "PGT"}
+|200|200 OK|application/json; charset=utf-8|{"hello": "PGT"}
 |200|client body
-|404
+|404|404 Not Found
+|201|one|2
 https is not supported yet

@@ -1,0 +1,28 @@
+GET / -> 200 [root] allow=
+GET /anything/here -> 200 [root] allow=
+GET /api/items -> 200 [api GET] allow=
+HEAD /api/items -> 200 [api HEAD] allow=
+POST /api/items -> 200 [post] allow=
+DELETE /api/items -> 200 [root] allow=
+GET /users/42 -> 200 [id=42] allow=
+GET /users/me -> 200 [me] allow=
+PUT /users/me -> 200 [id=me] allow=
+GET /static/a/b.css -> 200 [static a/b.css] allow=
+GET /static/ -> 200 [static ] allow=
+GET /exact/ -> 200 [exact] allow=
+GET /exact/x -> 200 [root] allow=
+DELETE /only -> 405 [Method Not Allowed
+] allow=GET, HEAD, POST
+GET /only -> 200 [exact] allow=
+GET /multi -> 405 [Method Not Allowed
+] allow=PUT
+GET /other -> 404 [404 page not found
+] allow=
+text/plain text/plain true 2 true
+false Accept-Encoding X-Forwarded-For
+1|two words|x y|true|false|2|true
+q=a+b%26c&z=1&z=2
+v /p?k=v&k=w
+I'm a teapot|Network Authentication Required|true
+GET PATCH 425 308
+bob xyz true
