@@ -2,6 +2,9 @@
 
 #include "ast/Analysis.h"
 #include "common/Error.h"
+#include "common/Paths.h"
+
+#include <filesystem>
 
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/raw_ostream.h>
@@ -293,7 +296,7 @@ namespace pgt
             t = types_.uint64T;
         else if (n == "float")
         {
-            if (freestanding_)
+            if (freestanding_ && !inStdFile())
                 fail("'float' is not supported in freestanding builds", type.line, type.col);
             t = types_.floatT;
         }
@@ -866,6 +869,17 @@ namespace pgt
             builder_.CreateRetVoid();
         else
             builder_.CreateUnreachable();
+    }
+
+    bool CodeGen::inStdFile() const
+    {
+        static std::string prefix = [] {
+            auto d = findStdDir();
+            std::error_code ec;
+            return d ? std::filesystem::weakly_canonical(*d, ec).string() + "/" : std::string("\1");
+        }();
+        std::error_code ec;
+        return std::filesystem::weakly_canonical(currentFile_, ec).string().rfind(prefix, 0) == 0;
     }
 
     void CodeGen::genKernelEntry()

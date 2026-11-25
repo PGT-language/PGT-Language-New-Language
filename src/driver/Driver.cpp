@@ -65,7 +65,7 @@ namespace pgt
                                   std::to_string(level);
                 if (kernel)
                     cmd += " -target x86_64-unknown-none-elf -ffreestanding -fno-stack-protector -mno-red-zone "
-                           "-mcmodel=kernel -fno-pic -mgeneral-regs-only -fno-builtin";
+                           "-mcmodel=kernel -fno-pic -mgeneral-regs-only -fno-builtin -ffunction-sections -fdata-sections";
                 else
                     cmd += " -fPIC";
                 if (std::system(cmd.c_str()) != 0)
@@ -250,7 +250,7 @@ namespace pgt
                     std::cerr << "pgt: error: " << e.what() << "\n";
                     return 1;
                 }
-                std::string lcmd = "ld.lld -nostdlib -static -z max-page-size=0x1000 -T " + shellQuote(script) + " " +
+                std::string lcmd = "ld.lld -nostdlib -static --gc-sections -z max-page-size=0x1000 -T " + shellQuote(script) + " " +
                                    shellQuote(kobj);
                 for (const std::string &o : objs)
                     lcmd += " " + shellQuote(o);

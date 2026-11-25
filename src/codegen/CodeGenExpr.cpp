@@ -252,7 +252,7 @@ namespace pgt
         }
         if (auto *lit = dynamic_cast<const FloatLit *>(&expr))
         {
-            if (freestanding_)
+            if (freestanding_ && !inStdFile())
                 fail("floating-point literals are not supported in freestanding builds", lit->line, lit->col);
             return {llvm::ConstantFP::get(builder_.getDoubleTy(), lit->value), types_.floatT};
         }

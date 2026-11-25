@@ -57,6 +57,7 @@ namespace pgt
         bool freestanding_ = false;
         std::string entryName_ = "kmain";
         void genKernelEntry();
+        bool inStdFile() const;
         struct Value
         {
             llvm::Value *value = nullptr;

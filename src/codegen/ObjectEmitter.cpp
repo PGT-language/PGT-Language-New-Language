@@ -71,6 +71,11 @@ namespace pgt
                 throw std::runtime_error("cannot find LLVM target: " + err);
 
             llvm::TargetOptions opts;
+            if (g_freestanding)
+            {
+                opts.FunctionSections = true;
+                opts.DataSections = true;
+            }
             std::unique_ptr<llvm::TargetMachine> tm(target->createTargetMachine(
                 triple, "generic", g_freestanding ? "-mmx,-sse,-sse2,-sse3,-ssse3,-sse4.1,-sse4.2,-avx,-avx2,+soft-float" : "",
                 opts, g_freestanding ? llvm::Reloc::Static : llvm::Reloc::PIC_,
