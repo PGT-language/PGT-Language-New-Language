@@ -1,0 +1,163 @@
+package scaffold
+
+struct TemplateFile {
+    Path string
+    Content string
+}
+
+struct Template {
+    Name string
+    Description string
+    Files []TemplateFile
+}
+
+fn joinLines(lines []string) string {
+    var* out = ""
+    for l in lines {
+        out = out + l + "\n"
+    }
+    return out
+}
+
+fn Templates() []Template {
+    var* all + {[]Template} = []
+    var* thello = Template{Name: "hello", Description: "prints Hello, World!"}
+    var* hello_main_pgt = [
+        "package main",
+        "",
+        "#use \"fmt\"",
+        "",
+        "fn main() {",
+        "    fmt.Println(\"Hello, World!\")",
+        "}",
+        "",
+        "return 0"
+    ]
+    thello.Files = append(thello.Files, TemplateFile{Path: "main.pgt", Content: joinLines(hello_main_pgt)})
+    all = append(all, thello)
+    var* tcalc = Template{Name: "calc", Description: "reads two numbers and prints the results of the arithmetic operations"}
+    var* calc_main_pgt = [
+        "package main",
+        "",
+        "#use \"fmt\"",
+        "",
+        "fn main() {",
+        "    var* a = 0",
+        "    var* b = 0",
+        "    fmt.Input(\"First number: \", &a)",
+        "    fmt.Input(\"Second number: \", &b)",
+        "",
+        "    fmt.Println(a, \" + \", b, \" = \", a + b)",
+        "    fmt.Println(a, \" - \", b, \" = \", a - b)",
+        "    fmt.Println(a, \" * \", b, \" = \", a * b)",
+        "",
+        "    if b == 0 {",
+        "        fmt.Println(\"Division by zero is not allowed\")",
+        "    } else {",
+        "        fmt.Println(a, \" / \", b, \" = \", a / b)",
+        "        fmt.Println(a, \" % \", b, \" = \", a % b)",
+        "    }",
+        "}",
+        "",
+        "return 0"
+    ]
+    tcalc.Files = append(tcalc.Files, TemplateFile{Path: "main.pgt", Content: joinLines(calc_main_pgt)})
+    all = append(all, tcalc)
+    var* tfizzbuzz = Template{Name: "fizzbuzz", Description: "classic FizzBuzz: loops, conditions and the remainder operator"}
+    var* fizzbuzz_main_pgt = [
+        "package main",
+        "",
+        "#use \"fmt\"",
+        "",
+        "fn main() {",
+        "    for i in 1..101 {",
+        "        if i % 15 == 0 {",
+        "            fmt.Println(\"FizzBuzz\")",
+        "        } else if i % 3 == 0 {",
+        "            fmt.Println(\"Fizz\")",
+        "        } else if i % 5 == 0 {",
+        "            fmt.Println(\"Buzz\")",
+        "        } else {",
+        "            fmt.Println(i)",
+        "        }",
+        "    }",
+        "}",
+        "",
+        "return 0"
+    ]
+    tfizzbuzz.Files = append(tfizzbuzz.Files, TemplateFile{Path: "main.pgt", Content: joinLines(fizzbuzz_main_pgt)})
+    all = append(all, tfizzbuzz)
+    var* tstdlib = Template{Name: "stdlib", Description: "word statistics with structs, arrays and the standard library"}
+    var* stdlib_main_pgt = [
+        "package main",
+        "",
+        "#use (",
+        "    \"fmt\"",
+        "    \"strings\"",
+        "    \"arrays\"",
+        "    \"io\"",
+        ")",
+        "",
+        "struct Stats {",
+        "    Lines int",
+        "    Words []string",
+        "}",
+        "",
+        "fn (s *Stats) Add(line string) {",
+        "    s.Lines++",
+        "    for w in strings.Fields(strings.Lower(line)) {",
+        "        s.Words = append(s.Words, strings.Trim(w, \".,!?;:\"))",
+        "    }",
+        "}",
+        "",
+        "fn main() {",
+        "    fmt.Println(\"Type some text, finish with Ctrl+D:\")",
+        "    var* stats Stats",
+        "    for line in io.ReadLines() {",
+        "        stats.Add(line)",
+        "    }",
+        "    arrays.SortStrings(stats.Words)",
+        "    fmt.Println(\"lines: \", stats.Lines, \", words: \", len(stats.Words))",
+        "    fmt.Println(\"sorted: \", strings.Join(stats.Words, \" \"))",
+        "}",
+        "",
+        "return 0"
+    ]
+    tstdlib.Files = append(tstdlib.Files, TemplateFile{Path: "main.pgt", Content: joinLines(stdlib_main_pgt)})
+    all = append(all, tstdlib)
+    var* tpackages = Template{Name: "packages", Description: "a module with its own package imported through #use"}
+    var* packages_main_pgt = [
+        "package main",
+        "",
+        "#use \"{{module}}/greet\"",
+        "",
+        "fn main() {",
+        "    greet.Hello()",
+        "}",
+        "",
+        "return 0"
+    ]
+    tpackages.Files = append(tpackages.Files, TemplateFile{Path: "main.pgt", Content: joinLines(packages_main_pgt)})
+    var* packages_greet_greet_pgt = [
+        "package greet",
+        "",
+        "#use \"fmt\"",
+        "",
+        "fn Hello() {",
+        "    fmt.Println(\"Hello from the greet package!\")",
+        "}"
+    ]
+    tpackages.Files = append(tpackages.Files, TemplateFile{Path: "greet/greet.pgt", Content: joinLines(packages_greet_greet_pgt)})
+    all = append(all, tpackages)
+    return all
+}
+
+fn Find(name string) *Template {
+    var* all = Templates()
+    for i in 0..len(all) {
+        if all[i].Name == name {
+            return &all[i]
+        }
+    }
+    return nil
+}

@@ -1,0 +1,47 @@
+package main
+
+#use (
+    "arrays"
+    "asm"
+    "conv"
+    "flag"
+    "fmt"
+    "io"
+    "math"
+    "memory"
+    "os"
+    "path"
+    "rand"
+    "reflect"
+    "sort"
+    "strings"
+    "syscall/linux"
+    "time"
+    "unsafe"
+)
+
+fn keep() {
+    var* a = [1]
+    arrays.Sort(a)
+    asm.Hex(memory.Malloc(1))
+    conv.Itoa(1)
+    flag.Parse()
+    fmt.Println("")
+    io.ReadLine()
+    math.Sqrt(1.0)
+    memory.Live()
+    os.Exit(0)
+    path.Base("")
+    rand.Int()
+    reflect.Kind(1)
+    sort.Ints(a)
+    strings.Upper("")
+    var* sys = syscall_linux.SYS_READ
+    time.Now()
+    unsafe.Addr(nil)
+}
+
+fn main() {
+}
+
+return 0
