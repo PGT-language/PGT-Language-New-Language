@@ -1,0 +1,73 @@
+package c
+
+#use "unsafe"
+
+extern fn malloc(n int64) *byte
+extern fn calloc(count int64, size int64) *byte
+extern fn realloc(p *byte, n int64) *byte
+extern fn free(p *byte)
+extern fn strlen(p *byte) int64
+extern fn memcpy(dst *byte, src *byte, n int64) *byte
+extern fn memset(dst *byte, v int, n int64) *byte
+extern fn __errno_location() *int
+
+const SizeofChar = 1
+const SizeofShort = 2
+const SizeofInt = 4
+const SizeofLong = 8
+const SizeofLongLong = 8
+const SizeofPointer = 8
+const SizeofSizeT = 8
+const SizeofFloat = 4
+const SizeofDouble = 8
+
+fn Malloc(n int64) *byte {
+    return malloc(n)
+}
+
+fn Calloc(count int64, size int64) *byte {
+    return calloc(count, size)
+}
+
+fn Realloc(p *byte, n int64) *byte {
+    return realloc(p, n)
+}
+
+fn Free(p *byte) {
+    free(p)
+}
+
+fn Strlen(p *byte) int64 {
+    return strlen(p)
+}
+
+fn Memcpy(dst *byte, src *byte, n int64) {
+    memcpy(dst, src, n)
+}
+
+fn Memset(dst *byte, v int, n int64) {
+    memset(dst, v, n)
+}
+
+fn CharPtr(s string) *byte {
+    return unsafe.StringData(s)
+}
+
+fn CString(s string) *byte {
+    var* n = strlen(unsafe.StringData(s))
+    var* p = malloc(n + 1)
+    memcpy(p, unsafe.StringData(s), n + 1)
+    return p
+}
+
+fn GoString(p *byte) string {
+    return unsafe.StringAt(p)
+}
+
+fn Errno() int {
+    return *__errno_location()
+}
+
+fn SetErrno(v int) {
+    *__errno_location() = v
+}

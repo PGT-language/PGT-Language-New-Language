@@ -47,11 +47,13 @@ target_include_directories(pgt PRIVATE src)
 target_compile_definitions(pgt PRIVATE
     PGT_VERSION="${PROJECT_VERSION}"
     PGT_STD_DIR="${CMAKE_SOURCE_DIR}/std"
+    PGT_KERNEL_DIR="${CMAKE_SOURCE_DIR}/runtime/kernel"
     PGT_RUNTIME_LIB="$<TARGET_FILE:pgtrt>")
 add_dependencies(pgt pgtrt)
 
 install(TARGETS pgt RUNTIME DESTINATION bin)
 install(TARGETS pgtrt ARCHIVE DESTINATION lib/pgt)
+install(DIRECTORY runtime/kernel/ DESTINATION lib/pgt/kernel)
 install(DIRECTORY std/ DESTINATION lib/pgt/std)
 
 enable_testing()

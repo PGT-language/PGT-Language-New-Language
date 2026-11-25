@@ -1,0 +1,13 @@
+// error: c blocks accept only
+package main
+
+#use "c"
+
+fn main() {
+    var* a = []int{1, 2}
+    c {
+        {a};
+    }
+}
+
+return 0

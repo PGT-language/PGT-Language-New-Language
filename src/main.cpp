@@ -30,6 +30,8 @@ static void printUsage(std::ostream& os) {
           "  pgt <dir|file.pgt>                    same as pgt build\n"
           "  pgt lsp                               run the language server on stdin/stdout\n"
           "  pgt cache dir | pgt cache clean       show or empty the build cache (PGT_CACHE=off disables it)\n"
+          "  pgt build <dir> --freestanding [--entry fn] [--linker-script f.ld]\n"
+          "                                        build a kernel ELF (also: 'target kernel' in pgt.mod)\n"
           "  pgt build [dir|file.pgt] --emit-ir    write LLVM IR (.ll) instead\n"
           "  pgt build|run [...] -O0|-O1|-O2|-O3   optimization level (default -O0)\n"
           "  pgt build [dir|file.pgt|-] --debug    print the tokens and the syntax tree of every file,\n"
@@ -60,6 +62,20 @@ static int runBuild(int argc, char** argv, int first, bool run = false) {
             opts.output = argv[i];
         } else if (a == "-O0" || a == "-O1" || a == "-O2" || a == "-O3") {
             opts.optLevel = a[2] - '0';
+        } else if (a == "--freestanding") {
+            opts.freestanding = true;
+        } else if (a == "--linker-script") {
+            if (++i >= argc) {
+                std::cerr << "pgt: error: '--linker-script' needs an argument\n";
+                return 1;
+            }
+            opts.linkerScript = argv[i];
+        } else if (a == "--entry") {
+            if (++i >= argc) {
+                std::cerr << "pgt: error: '--entry' needs an argument\n";
+                return 1;
+            }
+            opts.entry = argv[i];
         } else if (a == "--emit-ir") {
             opts.emitIr = true;
         } else if (a == "--debug" || a == "--debug=text") {

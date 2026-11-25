@@ -61,6 +61,7 @@ namespace pgt
         {
             llvm::InitializeNativeTarget();
             llvm::InitializeNativeTargetAsmPrinter();
+            llvm::InitializeNativeTargetAsmParser();
 
             llvm::Triple triple(g_freestanding ? std::string("x86_64-unknown-none-elf")
                                                : llvm::sys::getDefaultTargetTriple());

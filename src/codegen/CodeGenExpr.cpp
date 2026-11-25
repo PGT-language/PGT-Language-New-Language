@@ -251,7 +251,11 @@ namespace pgt
             }
         }
         if (auto *lit = dynamic_cast<const FloatLit *>(&expr))
+        {
+            if (freestanding_)
+                fail("floating-point literals are not supported in freestanding builds", lit->line, lit->col);
             return {llvm::ConstantFP::get(builder_.getDoubleTy(), lit->value), types_.floatT};
+        }
         if (auto *lit = dynamic_cast<const CharLit *>(&expr))
         {
             TyP t = types_.charT;

@@ -1,0 +1,11 @@
+// error: c block needs #use "pgt/std/c"
+package main
+
+fn main() {
+    var* x = 1
+    c {
+        {x} = 2;
+    }
+}
+
+return 0

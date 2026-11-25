@@ -1,0 +1,15 @@
+// error: errors/c_block_error.pgt:9:
+package main
+
+#use "c"
+
+fn main() {
+    var* n = 1
+    c {
+        {n} = 2;
+        int y = 3;
+        y = undefined_name;
+    }
+}
+
+return 0

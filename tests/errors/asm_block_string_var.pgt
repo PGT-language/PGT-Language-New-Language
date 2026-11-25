@@ -1,4 +1,4 @@
-// error: variable 's' has type string; asm blocks accept only int, int64, byte, char, bool and pointers (*T)
+// error: variable 's' has type string; asm blocks accept only int, int64, uint64, byte, char, bool and pointers (*T)
 package main
 
 #use "asm"

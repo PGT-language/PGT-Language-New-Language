@@ -144,6 +144,20 @@ ModFile parseModFile(const std::filesystem::path& path) {
             if (toks[i].kind != MTok::Word && toks[i].kind != MTok::String)
                 fail("expected a version after 'version'", toks[i]);
             mod.version = toks[i++].text;
+        } else if (t.text == "target" || t.text == "entry" || t.text == "linker") {
+            ++i;
+            if (toks[i].kind != MTok::Word && toks[i].kind != MTok::String)
+                fail("expected a value after '" + t.text + "'", toks[i]);
+            std::string value = toks[i++].text;
+            if (t.text == "target") {
+                if (value != "kernel" && value != "hosted")
+                    fail("unknown target '" + value + "' (expected 'kernel' or 'hosted')", toks[i - 1]);
+                mod.target = value;
+            } else if (t.text == "entry") {
+                mod.entry = value;
+            } else {
+                mod.linker = value;
+            }
         } else if (t.text == "dependencies") {
             if (seenDeps) fail("duplicate 'dependencies' section", t);
             seenDeps = true;

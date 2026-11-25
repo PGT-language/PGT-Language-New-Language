@@ -170,6 +170,7 @@ namespace pgt
         exposeShared(module);
 
         std::vector<std::string> objects;
+        bool asmTaken = false;
         for (size_t p = 0; p < parts.count(); ++p)
         {
             llvm::ValueToValueMapTy vmap;
@@ -181,6 +182,16 @@ namespace pgt
             dropUnusedCopies(*part);
 
             bool empty = true;
+            if (!part->getModuleInlineAsm().empty())
+            {
+                if (asmTaken)
+                    part->setModuleInlineAsm(std::string());
+                else
+                {
+                    asmTaken = true;
+                    empty = false;
+                }
+            }
             for (const llvm::Function &f : *part)
                 if (!f.isDeclaration())
                     empty = false;

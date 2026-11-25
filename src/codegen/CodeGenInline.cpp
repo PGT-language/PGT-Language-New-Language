@@ -201,10 +201,19 @@ namespace pgt
         return cUnits_.back();
     }
 
+    void CodeGen::requireImport(const char *path, const char *shown, int line, int col)
+    {
+        for (const auto &[name, syms] : fileImports_)
+            if (syms->pkg->importPath == path)
+                return;
+        fail(std::string(path == std::string("c") ? "c" : "asm") + " block needs #use \"pgt/std/" + shown + "\"", line, col);
+    }
+
     void CodeGen::genTopBlocks(const Program &p)
     {
         for (const TopBlock &b : p.blocks)
         {
+            requireImport(b.isC ? "c" : "asm", b.isC ? "c" : "asm", b.line, b.col);
             if (b.isC)
             {
                 CUnit &u = cUnit();
@@ -220,6 +229,7 @@ namespace pgt
 
     void CodeGen::genAsm(const AsmStmt &stmt)
     {
+        requireImport("asm", "asm", stmt.line, stmt.col);
         std::vector<llvm::Value *> addrs;
         std::vector<llvm::Type *> elems;
         std::vector<int> sizes;
@@ -278,6 +288,7 @@ namespace pgt
 
     void CodeGen::genCBlock(const CStmt &stmt)
     {
+        requireImport("c", "c", stmt.line, stmt.col);
         struct Slot
         {
             std::string name;

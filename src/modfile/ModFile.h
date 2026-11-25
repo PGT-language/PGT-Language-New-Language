@@ -11,6 +11,9 @@ struct ModFile {
     std::filesystem::path root;
     std::string name;
     std::string version;
+    std::string target;
+    std::string entry;
+    std::string linker;
     std::map<std::string, std::string> dependencies;
 };
 

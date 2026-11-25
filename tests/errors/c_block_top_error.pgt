@@ -1,0 +1,14 @@
+// error: errors/c_block_top_error.pgt:6:
+package main
+
+#use "c"
+
+c {
+    int ok(void) { return 1; }
+    int bad(void) { return missing; }
+}
+
+fn main() {
+}
+
+return 0

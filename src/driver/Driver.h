@@ -21,6 +21,9 @@ namespace pgt
         bool emitIr = false;
         int optLevel = 0;
         bool run = false;
+        bool freestanding = false;
+        std::string linkerScript;
+        std::string entry;
         std::vector<std::string> runArgs;
     };
 

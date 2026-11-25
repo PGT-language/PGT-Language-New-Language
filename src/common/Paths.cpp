@@ -51,6 +51,21 @@ namespace pgt
         return firstExisting("PGT_STD", candidates, true);
     }
 
+    std::optional<fs::path> findKernelDir()
+    {
+        fs::path dir = exeDir();
+        std::vector<fs::path> candidates;
+        if (!dir.empty())
+        {
+            candidates.push_back(dir / ".." / "lib" / "pgt" / "kernel");
+            candidates.push_back(dir / "kernel");
+        }
+#ifdef PGT_KERNEL_DIR
+        candidates.push_back(PGT_KERNEL_DIR);
+#endif
+        return firstExisting("PGT_KERNEL_DIR", candidates, true);
+    }
+
     std::optional<fs::path> findRuntimeLib()
     {
         fs::path dir = exeDir();

@@ -481,6 +481,7 @@ namespace pgt
         bool usesMalloc = false;
         bool usesMaps = false;
         bool usesAsm = false;
+        bool usesC = false;
     };
 
 }

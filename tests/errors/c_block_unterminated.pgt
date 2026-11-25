@@ -1,0 +1,9 @@
+// error: unterminated c block
+package main
+
+#use "c"
+
+fn main() {
+    c {
+        int x = 1; /* } */
+        char *s = "}";

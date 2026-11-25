@@ -45,12 +45,18 @@ namespace pgt
         {
             freestanding_ = on;
         }
+        void setEntry(const std::string &name)
+        {
+            entryName_ = name;
+        }
 
     private:
         CUnit &cUnit();
         std::vector<CUnit> cUnits_;
         std::map<std::string, size_t> cIndex_;
         bool freestanding_ = false;
+        std::string entryName_ = "kmain";
+        void genKernelEntry();
         struct Value
         {
             llvm::Value *value = nullptr;
@@ -183,6 +189,7 @@ namespace pgt
         void genSwitch(const Switch &sw);
         void genAsm(const AsmStmt &stmt);
         void genCBlock(const CStmt &stmt);
+        void requireImport(const char *path, const char *shown, int line, int col);
         void genTopBlocks(const Program &p);
         void genDefer(const Defer &stmt);
         void emitDefers();

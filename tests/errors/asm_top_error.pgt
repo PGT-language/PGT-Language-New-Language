@@ -1,0 +1,14 @@
+// error: errors/asm_top_error.pgt:6:
+package main
+
+#use "asm"
+
+asm {
+    nop
+    bogusop rax
+}
+
+fn main() {
+}
+
+return 0

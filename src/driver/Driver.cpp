@@ -6,6 +6,7 @@
 #include "codegen/ObjectEmitter.h"
 #include "common/Error.h"
 #include "common/Paths.h"
+#include "modfile/ModFile.h"
 #include "debug/Dump.h"
 #include "loader/Loader.h"
 
@@ -40,6 +41,45 @@ namespace pgt
             if (fs::is_directory(input))
                 return fs::weakly_canonical(input).filename().string();
             return input.stem().string();
+        }
+
+        std::vector<std::string> compileCUnits(const std::vector<CodeGen::CUnit> &units, int level, bool kernel,
+                                               const fs::path &extraSource, std::vector<std::string> &temps)
+        {
+            std::vector<std::string> objects;
+            std::vector<std::pair<std::string, std::string>> jobs;
+            fs::path tmp = fs::temp_directory_path();
+            std::string tag = std::to_string(getpid());
+            for (const CodeGen::CUnit &u : units)
+            {
+                std::string src = (tmp / ("pgt-c-" + tag + "-" + u.name + ".c")).string();
+                std::ofstream(src, std::ios::binary) << u.source();
+                temps.push_back(src);
+                jobs.push_back({src, (tmp / ("pgt-c-" + tag + "-" + u.name + ".o")).string()});
+            }
+            if (!extraSource.empty())
+                jobs.push_back({extraSource.string(), (tmp / ("pgt-krt-" + tag + ".o")).string()});
+            for (const auto &[src, obj] : jobs)
+            {
+                std::string cmd = "clang -c -x c " + shellQuote(src) + " -o " + shellQuote(obj) + " -O" +
+                                  std::to_string(level);
+                if (kernel)
+                    cmd += " -target x86_64-unknown-none-elf -ffreestanding -fno-stack-protector -mno-red-zone "
+                           "-mcmodel=kernel -fno-pic -mgeneral-regs-only -fno-builtin";
+                else
+                    cmd += " -fPIC";
+                if (std::system(cmd.c_str()) != 0)
+                    throw std::runtime_error("C compilation failed");
+                objects.push_back(obj);
+                temps.push_back(obj);
+            }
+            return objects;
+        }
+
+        void removeAll(const std::vector<std::string> &files)
+        {
+            for (const std::string &f : files)
+                std::remove(f.c_str());
         }
 
     }
@@ -101,10 +141,23 @@ namespace pgt
             }
 
             Loader loader;
-            Workspace workspace = loader.load(opts.input);
+            Workspace workspace = loader.load(opts.input, opts.freestanding);
+            bool kernel = workspace.target == "kernel";
+            if (kernel)
+                setFreestanding(true);
 
             std::string name = outputName(opts.input);
             bool isMain = workspace.root->name == "main";
+            if (kernel && opts.run)
+            {
+                std::cerr << "pgt: error: 'pgt run' cannot run a freestanding kernel; use pgt build\n";
+                return 1;
+            }
+            if (kernel && !isMain)
+            {
+                std::cerr << "pgt: error: a freestanding build needs package main\n";
+                return 1;
+            }
             if (opts.run && !isMain)
             {
                 std::cerr << "pgt: error: 'pgt run' needs package main\n";
@@ -127,10 +180,12 @@ namespace pgt
             }
 
             CodeGen codegen(workspace.root->importPath);
+            codegen.setFreestanding(kernel);
+            codegen.setEntry(!opts.entry.empty() ? opts.entry : !workspace.entry.empty() ? workspace.entry : "kmain");
             codegen.generate(workspace);
 
             auto cacheDir = buildCacheDir();
-            bool cached = isMain && !opts.emitIr && cacheDir;
+            bool cached = isMain && !opts.emitIr && cacheDir && !kernel;
             if (!cached)
                 optimizeModule(codegen.module(), opts.optLevel);
 
@@ -150,7 +205,63 @@ namespace pgt
 
             if (!isMain)
             {
+                if (!codegen.cUnits().empty())
+                {
+                    std::cerr << "pgt: error: c blocks are only supported when building package main\n";
+                    return 1;
+                }
                 emitObjectFile(codegen.module(), output, opts.optLevel);
+                return 0;
+            }
+
+            if (kernel)
+            {
+                auto kdir = findKernelDir();
+                if (!kdir)
+                {
+                    std::cerr << "pgt: error: cannot find the kernel runtime directory (set PGT_KERNEL_DIR)\n";
+                    return 1;
+                }
+                std::string script = opts.linkerScript;
+                if (script.empty() && !workspace.linker.empty())
+                {
+                    fs::path l = workspace.linker;
+                    script = (l.is_absolute() ? l : fs::path(workspace.modRoot) / l).string();
+                }
+                if (script.empty())
+                    script = (*kdir / "kernel.ld").string();
+                if (!fs::exists(script))
+                {
+                    std::cerr << "pgt: error: linker script '" << script << "' does not exist\n";
+                    return 1;
+                }
+                std::vector<std::string> temps;
+                std::string kobj = output + ".o";
+                emitObjectFile(codegen.module(), kobj, opts.optLevel);
+                temps.push_back(kobj);
+                std::vector<std::string> objs;
+                try
+                {
+                    objs = compileCUnits(codegen.cUnits(), opts.optLevel, true, *kdir / "pgt_kernel_rt.c", temps);
+                }
+                catch (const std::exception &e)
+                {
+                    removeAll(temps);
+                    std::cerr << "pgt: error: " << e.what() << "\n";
+                    return 1;
+                }
+                std::string lcmd = "ld.lld -nostdlib -static -z max-page-size=0x1000 -T " + shellQuote(script) + " " +
+                                   shellQuote(kobj);
+                for (const std::string &o : objs)
+                    lcmd += " " + shellQuote(o);
+                lcmd += " -o " + shellQuote(output);
+                int lrc = std::system(lcmd.c_str());
+                removeAll(temps);
+                if (lrc != 0)
+                {
+                    std::cerr << "pgt: error: linking failed\n";
+                    return 1;
+                }
                 return 0;
             }
 
@@ -172,11 +283,29 @@ namespace pgt
                 objects.push_back(objPath);
             }
 
+            std::vector<std::string> ctemps;
+            if (!codegen.cUnits().empty())
+            {
+                try
+                {
+                    std::vector<std::string> cobjs = compileCUnits(codegen.cUnits(), opts.optLevel, false, {}, ctemps);
+                    objects.insert(objects.end(), cobjs.begin(), cobjs.end());
+                }
+                catch (const std::exception &e)
+                {
+                    removeAll(ctemps);
+                    if (!objPath.empty())
+                        std::remove(objPath.c_str());
+                    std::cerr << "pgt: error: " << e.what() << "\n";
+                    return 1;
+                }
+            }
             std::string cmd = "cc";
             for (const std::string &o : objects)
                 cmd += " " + shellQuote(o);
             cmd += " " + shellQuote(runtime->string()) + " -lm -o " + shellQuote(output);
             int rc = std::system(cmd.c_str());
+            removeAll(ctemps);
             if (!objPath.empty())
                 std::remove(objPath.c_str());
             if (rc != 0)

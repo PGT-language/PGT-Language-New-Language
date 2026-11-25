@@ -184,6 +184,8 @@ namespace pgt
                 prog.usesMalloc = true;
             if (toks_[i].kind == Tok::KwAsm)
                 prog.usesAsm = true;
+            if (toks_[i].kind == Tok::KwC)
+                prog.usesC = true;
             if (toks_[i].kind == Tok::KwMap ||
                 (toks_[i].kind == Tok::Ident && (toks_[i].text == "has" || toks_[i].text == "delete") &&
                  toks_[i + 1].kind == Tok::LParen && (i == 0 || toks_[i - 1].kind != Tok::Dot)))

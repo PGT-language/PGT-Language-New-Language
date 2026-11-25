@@ -292,7 +292,11 @@ namespace pgt
         else if (n == "uint64")
             t = types_.uint64T;
         else if (n == "float")
+        {
+            if (freestanding_)
+                fail("'float' is not supported in freestanding builds", type.line, type.col);
             t = types_.floatT;
+        }
         else if (n == "char")
             t = types_.charT;
         else if (n == "byte")
@@ -423,7 +427,7 @@ namespace pgt
                 failIn(p.file, "package 'main' has more than one final 'return'", *p.exitCode);
             withExit = &p;
         }
-        if (pkg.name == "main" && !withExit)
+        if (pkg.name == "main" && !withExit && !freestanding_)
             throw CompileError("package 'main' needs exactly one file ending with 'return'", 0, 0);
     }
 
@@ -477,7 +481,9 @@ namespace pgt
 
             const Package &root = *workspace.root;
             pkg_ = &syms_.at(root.importPath);
-            if (root.name == "main")
+            if (root.name == "main" && freestanding_)
+                genKernelEntry();
+            else if (root.name == "main")
             {
                 for (const Program &p : root.programs)
                 {
@@ -860,6 +866,25 @@ namespace pgt
             builder_.CreateRetVoid();
         else
             builder_.CreateUnreachable();
+    }
+
+    void CodeGen::genKernelEntry()
+    {
+        const auto &table = pkg_->functions;
+        auto it = table.find(entryName_);
+        if (it == table.end() || it->second.isExtern)
+            throw CompileError("entry function '" + entryName_ + "' is not defined in package main", 1, 1);
+        if (!it->second.params.empty() || !it->second.ret->is(Type::Kind::Void))
+            fail("the entry function '" + entryName_ + "' must take no parameters and return nothing",
+                 it->second.line, it->second.col);
+        auto *startTy = llvm::FunctionType::get(builder_.getVoidTy(), false);
+        auto *start = llvm::Function::Create(startTy, llvm::Function::ExternalLinkage, "_start", module_.get());
+        builder_.SetInsertPoint(llvm::BasicBlock::Create(ctx_, "entry", start));
+        for (const auto &pkg : ws_->packages)
+            builder_.CreateCall(syms_.at(pkg->importPath).init);
+        builder_.CreateCall(it->second.fn);
+        rt("pgt_exit", builder_.getVoidTy(), {builder_.getInt32(0)});
+        builder_.CreateUnreachable();
     }
 
     void CodeGen::genEntryPoint(const Package &root, const Expr &exitCode)

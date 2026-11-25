@@ -68,7 +68,7 @@ namespace pgt
         return files;
     }
 
-    Workspace Loader::load(const std::string &input)
+    Workspace Loader::load(const std::string &input, bool freestanding)
     {
         fs::path in(input);
         if (!fs::exists(in))
@@ -86,11 +86,21 @@ namespace pgt
         if (auto modPath = findModFile(dir))
             mod_ = parseModFile(*modPath);
 
+        freestanding_ = freestanding || (mod_ && mod_->target == "kernel");
         stdDir_ = findStdDir();
         loadImplicit("runtime");
         loadImplicit("maps");
         ws_.root = loadPackage(dir, std::move(files), true, "");
         checkUnusedImports();
+        if (mod_)
+        {
+            ws_.target = mod_->target;
+            ws_.entry = mod_->entry;
+            ws_.linker = mod_->linker;
+            ws_.modRoot = mod_->root.string();
+        }
+        if (freestanding_)
+            ws_.target = "kernel";
         return std::move(ws_);
     }
 
@@ -129,7 +139,9 @@ namespace pgt
                     const Package *target = it->second;
                     bool used = p.qualifiers.count(target->name) ||
                                 (target->importPath == "memory" && p.usesMalloc) ||
-                                (target->importPath == "maps" && p.usesMaps);
+                                (target->importPath == "maps" && p.usesMaps) ||
+                                (target->importPath == "asm" && p.usesAsm) ||
+                                (target->importPath == "c" && p.usesC);
                     if (!used)
                         failAt("\"" + imp.path + "\" imported and not used", p.file, imp.line, imp.col);
                 }
@@ -177,7 +189,22 @@ namespace pgt
             failAt("package \"builtin\" is documentation only and cannot be imported", file, imp.line,
                    imp.col);
         if (auto dir = resolveImportDir(imp.path, mod_, stdDir_))
+        {
+            bool isStd = stdDir_ && !imp.path.empty() && imp.path.find('/') == std::string::npos &&
+                         fs::weakly_canonical(*dir) == fs::weakly_canonical(*stdDir_ / imp.path);
+            if (isStd && imp.path == "kernel" && !freestanding_)
+                failAt("package \"kernel\" is only available in freestanding builds (pgt build --freestanding "
+                       "or 'target kernel' in pgt.mod)",
+                       file, imp.line, imp.col);
+            static const std::set<std::string> freestandingOk = {"kernel", "runtime", "maps",  "reflect", "unsafe",
+                                                                 "arrays", "sort",    "memory", "builtin", "c"};
+            if (isStd && freestanding_ && imp.path == "asm")
+                return *stdDir_ / "_freestanding" / "asm";
+            if (isStd && freestanding_ && !freestandingOk.count(imp.path))
+                failAt("package \"" + imp.path + "\" needs libc and is not available in freestanding builds",
+                       file, imp.line, imp.col);
             return *dir;
+        }
 
         std::string where = mod_ ? "in module '" + mod_->name + "' or " : "";
         std::string hint = mod_ ? "" : " (to import your own packages, create a pgt.mod)";

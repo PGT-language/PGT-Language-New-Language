@@ -1,4 +1,4 @@
-// panic: line 11: unknown mnemonic
+// error: errors/asm_block_syntax.pgt:9:
 package main
 
 #use "asm"

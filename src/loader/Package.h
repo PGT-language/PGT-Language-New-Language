@@ -22,6 +22,10 @@ namespace pgt
         std::vector<std::unique_ptr<Package>> packages;
         std::map<std::string, Package *> byPath;
         Package *root = nullptr;
+        std::string target;
+        std::string entry;
+        std::string linker;
+        std::string modRoot;
     };
 
 }

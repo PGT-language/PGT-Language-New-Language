@@ -46,7 +46,6 @@ fn clobber() int {
     var* out = 0
     asm {
         mov rbx, 1
-        mov rbp, 2
         mov r12, 3
         mov r13, 4
         mov r14, 5
@@ -89,7 +88,7 @@ fn main() {
     var* p = &arr[1]
     asm {
         mov rax, {p}
-        mov qword [rax], 42
+        mov qword ptr [rax], 42
     }
     fmt.Println(arr[0], " ", arr[1], " ", arr[2])
 

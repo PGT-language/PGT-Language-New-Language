@@ -14,7 +14,7 @@ namespace pgt
     class Loader
     {
     public:
-        Workspace load(const std::string &input);
+        Workspace load(const std::string &input, bool freestanding = false);
 
     private:
         Package *loadPackage(const std::filesystem::path &dir, std::vector<std::string> files,
@@ -28,6 +28,7 @@ namespace pgt
         std::optional<ModFile> mod_;
         std::optional<std::filesystem::path> stdDir_;
         std::vector<std::string> stack_;
+        bool freestanding_ = false;
     };
 
     std::vector<std::string> listSources(const std::filesystem::path &dir);
