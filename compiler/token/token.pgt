@@ -73,6 +73,8 @@ const (
     Tilde
     Shl
     Shr
+    Question
+    KwDefer
 )
 
 struct Token {
@@ -80,6 +82,7 @@ struct Token {
     Text string
     Line int
     Col int
+    EndLine int
 }
 
 fn Name(kind int) string {
@@ -156,6 +159,8 @@ fn Name(kind int) string {
         case Tilde { return "'~'" }
         case Shl { return "'<<'" }
         case Shr { return "'>>'" }
+        case Question { return "'?'" }
+        case KwDefer { return "'defer'" }
     }
     return "?"
 }
@@ -234,6 +239,8 @@ fn KindName(kind int) string {
         case Tilde { return "Tilde" }
         case Shl { return "Shl" }
         case Shr { return "Shr" }
+        case Question { return "Question" }
+        case KwDefer { return "KwDefer" }
     }
     return "?"
 }

@@ -71,7 +71,13 @@ fn Terminates(block []*Stmt) bool {
         return last.HasElse && Terminates(last.Then) && Terminates(last.Else)
     }
     if last.Kind == StmtLoop {
-        return last.Cond == nil && !HasBreak(last.Body)
+        if HasBreak(last.Body) {
+            return false
+        }
+        if last.Cond == nil {
+            return true
+        }
+        return last.Cond.Kind == ExprBoolLit && last.Cond.BoolVal
     }
     if last.Kind == StmtSwitch {
         if !last.HasDefault || !Terminates(last.Default) {

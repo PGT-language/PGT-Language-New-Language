@@ -93,7 +93,15 @@ fn (p *Parser) advance() token.Token {
 }
 
 fn (p *Parser) atLineStart() bool {
-    return p.pos > 0 && p.toks[p.pos - 1].Line < p.cur().Line
+    if p.pos == 0 {
+        return false
+    }
+    var* prev = p.toks[p.pos - 1]
+    var* last = prev.Line
+    if prev.EndLine > last {
+        last = prev.EndLine
+    }
+    return last < p.cur().Line
 }
 
 fn (p *Parser) errorHere(msg string) {
@@ -771,6 +779,16 @@ fn (p *Parser) parseStatement() *ast.Stmt {
             }
             return st
         }
+        case token.KwDefer {
+            var* st = p.stmt(ast.StmtDefer, p.cur())
+            p.advance()
+            var* callTok = p.cur()
+            st.Value = p.parseExpr()
+            if !p.failed && st.Value.Kind != ast.ExprCall {
+                p.fail("'defer' needs a function call", callTok.Line, callTok.Col)
+            }
+            return st
+        }
         case token.KwBreak {
             var* st = p.stmt(ast.StmtBreak, p.cur())
             p.advance()
@@ -952,7 +970,24 @@ fn (p *Parser) parseSwitch() *ast.Stmt {
 }
 
 fn (p *Parser) parseExpr() *ast.Expr {
-    return p.parseBinary(0)
+    return p.parseTernary()
+}
+
+fn (p *Parser) parseTernary() *ast.Expr {
+    var* cond = p.parseBinary(0)
+    if !p.check(token.Question) || p.atLineStart() {
+        return cond
+    }
+    var* node = p.expr(ast.ExprTernary, p.cur())
+    p.advance()
+    node.Operand = cond
+    var* saved = p.noStructLit
+    p.noStructLit = false
+    node.Lhs = p.parseTernary()
+    p.noStructLit = saved
+    p.expect(token.Colon, "in the '?:' expression")
+    node.Rhs = p.parseTernary()
+    return node
 }
 
 fn (p *Parser) parseBinary(level int) *ast.Expr {

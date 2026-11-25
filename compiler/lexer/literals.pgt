@@ -189,6 +189,24 @@ fn (l *Lexer) lexString() token.Token {
     return token.Token{Kind: token.String, Text: b.String(), Line: line, Col: col}
 }
 
+fn (l *Lexer) lexRawString() token.Token {
+    var* line = l.line
+    var* col = l.col
+    l.advance()
+    var* start = l.pos
+    while true {
+        if l.atEnd() {
+            l.fail("unterminated raw string literal", line, col)
+            return token.Token{Kind: token.String, Text: "", Line: line, Col: col}
+        }
+        var* c = l.advance()
+        if c == '`' {
+            break
+        }
+    }
+    return token.Token{Kind: token.String, Text: l.src[start:l.pos - 1], Line: line, Col: col, EndLine: l.line}
+}
+
 fn (l *Lexer) lexAsmBody(line int, col int) token.Token {
     var* start = l.pos
     while true {

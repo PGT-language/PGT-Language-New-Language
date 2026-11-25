@@ -161,6 +161,13 @@ fn expr(e *ast.Expr) *Node {
             n.Kids = append(n.Kids, expr(e.Rhs))
             return n
         }
+        case ast.ExprTernary {
+            var* n = newNode("Ternary", "?:", e.Line, e.Col)
+            n.Kids = append(n.Kids, expr(e.Operand))
+            n.Kids = append(n.Kids, expr(e.Lhs))
+            n.Kids = append(n.Kids, expr(e.Rhs))
+            return n
+        }
         case ast.ExprCall {
             var* n = newNode("Call", "call", e.Line, e.Col)
             n.Kids = append(n.Kids, expr(e.Callee))
@@ -380,6 +387,11 @@ fn stmt(s *ast.Stmt) *Node {
             for r in s.Rest {
                 n.Kids = append(n.Kids, expr(r))
             }
+            return n
+        }
+        case ast.StmtDefer {
+            var* n = newNode("Defer", "defer", s.Line, s.Col)
+            n.Kids = append(n.Kids, expr(s.Value))
             return n
         }
         case ast.StmtAsm {

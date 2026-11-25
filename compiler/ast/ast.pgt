@@ -65,6 +65,7 @@ const (
     ExprMapLit
     ExprMalloc
     ExprTypeAssert
+    ExprTernary
 )
 
 const (
@@ -81,6 +82,7 @@ const (
     StmtContinue
     StmtAsm
     StmtReturn
+    StmtDefer
 )
 
 fn BinOpText(op int) string {

@@ -31,6 +31,7 @@ fn buildKeywords() map[string]int {
     m["in"] = token.KwIn
     m["break"] = token.KwBreak
     m["continue"] = token.KwContinue
+    m["defer"] = token.KwDefer
     m["true"] = token.KwTrue
     m["false"] = token.KwFalse
     m["struct"] = token.KwStruct
@@ -146,6 +147,7 @@ fn (l *Lexer) operator(c char) int {
         }
         case '^' { return token.Caret }
         case '~' { return token.Tilde }
+        case '?' { return token.Question }
         case ';' { return token.Semi }
         case '.' {
             if l.match('.') {
@@ -283,6 +285,8 @@ fn Tokenize(src string) ([]token.Token, Error) {
             out = append(out, l.lexChar())
         } else if c == '"' {
             out = append(out, l.lexString())
+        } else if c == '`' {
+            out = append(out, l.lexRawString())
         } else if c == '#' {
             out = append(out, l.lexDirective())
         } else {
