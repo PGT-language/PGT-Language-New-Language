@@ -80,6 +80,36 @@ static inline bool isManaged(const void *p)
     return off < g_size && !(off & 15) && ((g_bits[off >> 7] >> ((off >> 4) & 7)) & 1);
 }
 
+static Hdr *ownerOf(const void *p)
+{
+    uintptr_t off = (uintptr_t)p - g_base;
+    if (off >= g_size || off >= g_top - g_base)
+        return NULL;
+    size_t slot = off >> 4;
+    if (!(off & 15))
+    {
+        if ((g_bits[slot >> 3] >> (slot & 7)) & 1)
+            return (Hdr *)p - 1;
+        if (slot == 0)
+            return NULL;
+        --slot;
+    }
+    size_t idx = slot >> 3;
+    unsigned bits = g_bits[idx] & (unsigned)((2u << (slot & 7)) - 1);
+    while (!bits)
+    {
+        if (idx == 0)
+            return NULL;
+        bits = g_bits[--idx];
+    }
+    uintptr_t start = g_base + ((idx << 3) + (31 - (size_t)__builtin_clz(bits))) * 16;
+    Hdr *h = (Hdr *)start - 1;
+    size_t bytes = (size_t)(h->count * h->stride);
+    if ((uintptr_t)p >= start + (bytes ? bytes : 1))
+        return NULL;
+    return h;
+}
+
 static void heapInit(void)
 {
     for (size_t size = (size_t)1 << 36; size >= ((size_t)1 << 28); size >>= 1)
@@ -186,8 +216,11 @@ void *pgt_alloc(int64_t size, void (*drop)(void *))
 
 void pgt_retain(void *p)
 {
-    if (p && isManaged(p))
-        ++((Hdr *)p - 1)->rc;
+    if (!p)
+        return;
+    Hdr *h = ownerOf(p);
+    if (h)
+        ++h->rc;
 }
 
 static Hdr **g_pending;
@@ -227,10 +260,10 @@ static void destroy(Hdr *h)
 
 void pgt_release(void *p)
 {
-    if (!p || !isManaged(p))
+    if (!p)
         return;
-    Hdr *h = (Hdr *)p - 1;
-    if (--h->rc == 0)
+    Hdr *h = ownerOf(p);
+    if (h && --h->rc == 0)
         destroy(h);
 }
 
