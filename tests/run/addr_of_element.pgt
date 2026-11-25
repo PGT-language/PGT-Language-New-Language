@@ -1,0 +1,58 @@
+package main
+
+#use "fmt"
+
+struct File {
+    Path string
+    Content string
+}
+
+struct Entry {
+    Name string
+    Files []File
+}
+
+struct Pair {
+    Key string
+    Value string
+}
+
+fn entries() []Entry {
+    var* out + {[]Entry} = []
+    for name in ["first", "second", "third"] {
+        var* e = Entry{Name: name}
+        e.Files = append(e.Files, File{Path: name + ".pgt", Content: "content of " + name})
+        out = append(out, e)
+    }
+    return out
+}
+
+fn find(name string) *Entry {
+    var* all = entries()
+    for i in 0..len(all) {
+        if all[i].Name == name {
+            return &all[i]
+        }
+    }
+    return nil
+}
+
+fn valueOf() *string {
+    var* p = &Pair{Key: "k" + "1", Value: "v" + "1"}
+    return &p.Value
+}
+
+fn main() {
+    var* e = find("third")
+    var* noise + {[]string} = []
+    for i in 0..300 {
+        noise = append(noise, "noise " + i + " ----------------------------------------")
+    }
+    for f in e.Files {
+        fmt.Println(e.Name, " ", f.Path, " ", f.Content)
+    }
+    var* v = valueOf()
+    fmt.Println(*v, " ", len(noise))
+}
+
+return 0
