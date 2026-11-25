@@ -1,0 +1,416 @@
+package irgen
+
+#use "compiler/ast"
+#use "strings"
+
+fn (g *Gen) arityOk(e *ast.Expr, name string, n int) bool {
+    if len(e.Args) != n {
+        g.fail("'" + name + "' takes " + n + " argument(s), got " + len(e.Args), e.Line, e.Col)
+        return false
+    }
+    if e.TypeArg != nil && name != "make" && name != "new" {
+        g.fail("'" + name + "' does not take a type argument", e.Line, e.Col)
+        return false
+    }
+    return true
+}
+
+fn (g *Gen) argOf(e *ast.Expr, i int, want *Type, name string) Value {
+    var* a = e.Args[i]
+    var* v = g.genExpr(a, want)
+    return g.coerce(v, want, a.Line, a.Col, "argument " + (i + 1) + " of '" + name + "'")
+}
+
+fn (g *Gen) noValue() Value {
+    return Value{V: "", T: g.tt.voidT}
+}
+
+fn (g *Gen) genMath(e *ast.Expr, name string) Value {
+    var* arity = 1
+    if name == "pow" {
+        arity = 2
+    }
+    if len(e.Args) != arity {
+        g.fail("'" + name + "' takes " + arity + " argument(s)", e.Line, e.Col)
+        return g.dummy()
+    }
+    var* args + {[]string} = []
+    var* params + {[]string} = []
+    for a in e.Args {
+        var* v = g.genExpr(a, g.tt.floatT)
+        if g.failed {
+            return v
+        }
+        if v.T.IsIntegral() {
+            v = g.convert(v, g.tt.floatT, a.Line, a.Col)
+        }
+        if v.T.Kind != KFloat {
+            g.fail("'" + name + "' needs a number, found " + v.T.Name(), a.Line, a.Col)
+            return v
+        }
+        args = append(args, "double " + v.V)
+        params = append(params, "double")
+    }
+    return Value{V: g.callRt(name, "double", strings.Join(params, ", "), strings.Join(args, ", ")), T: g.tt.floatT}
+}
+
+fn (g *Gen) genBuiltin(e *ast.Expr, name string, hint *Type) Value {
+    var* none = Value{}
+    var* strT = g.tt.stringT
+    var* intT = g.tt.intT
+    switch name {
+        case "len" {
+            if !g.arityOk(e, name, 1) {
+                return g.dummy()
+            }
+            var* v = g.genExpr(e.Args[0], nil)
+            if g.failed {
+                return v
+            }
+            if v.T.Kind == KArray {
+                var* n = g.extract(v.T, v.V, 1)
+                return Value{V: g.inst("trunc i64 " + n + " to i32"), T: intT}
+            }
+            if v.T.Kind == KString {
+                return Value{V: g.callRt("pgt_strlen", "i32", "ptr", "ptr " + v.V), T: intT}
+            }
+            g.fail("'len' needs an array or a string, found " + v.T.Name(), e.Line, e.Col)
+            return v
+        }
+        case "cap" {
+            if !g.arityOk(e, name, 1) {
+                return g.dummy()
+            }
+            var* v = g.genExpr(e.Args[0], nil)
+            if g.failed {
+                return v
+            }
+            if v.T.Kind != KArray {
+                g.fail("'cap' needs an array, found " + v.T.Name(), e.Line, e.Col)
+                return v
+            }
+            var* n = g.extract(v.T, v.V, 2)
+            return Value{V: g.inst("trunc i64 " + n + " to i32"), T: intT}
+        }
+        case "append" {
+            if len(e.Args) == 0 {
+                g.fail("'append' needs an array to append to", e.Line, e.Col)
+                return g.dummy()
+            }
+            var* first = e.Args[0]
+            var* arr = g.genExpr(first, hint)
+            if g.failed {
+                return arr
+            }
+            if arr.T.Kind != KArray {
+                g.fail("the first argument of 'append' must be an array, found " + arr.T.Name(), first.Line, first.Col)
+                return arr
+            }
+            var* elemTy = arr.T.Elem
+            var* items + {[]Value} = []
+            for i in 1..len(e.Args) {
+                items = append(items, g.argOf(e, i, elemTy, name))
+                if g.failed {
+                    return arr
+                }
+            }
+            var* tmp = g.arrayToPtr(arr.V)
+            var* n = g.extract(arr.T, arr.V, 1)
+            var* newLen = g.inst("add i64 " + n + ", " + len(items))
+            g.callRt("pgt_array_reserve", "void", "ptr, i64, i64, ptr, ptr", "ptr " + tmp + ", i64 " + newLen + ", i64 " + g.sizeOf(elemTy) + ", ptr null, ptr null")
+            var* grown = g.inst("load %pgt.array, ptr " + tmp)
+            var* data = g.extract(arr.T, grown, 0)
+            var* lt = g.llvmType(elemTy)
+            for i, item in items {
+                var* at = g.inst("add i64 " + n + ", " + i)
+                var* p = g.inst("getelementptr " + lt + ", ptr " + data + ", i64 " + at)
+                g.store(elemTy, item.V, p)
+            }
+            return Value{V: g.insert(arr.T, grown, g.tt.int64T, newLen, 1), T: arr.T}
+        }
+        case "make" {
+            if e.TypeArg == nil {
+                g.fail("'make' needs a type: make([]int, n)", e.Line, e.Col)
+                return g.dummy()
+            }
+            var* t = g.resolveType(e.TypeArg, false)
+            if g.failed {
+                return g.dummy()
+            }
+            if t.Kind == KMap {
+                g.fail("maps are not supported by the self-hosted compiler yet", e.Line, e.Col)
+                return g.dummy()
+            }
+            if t.Kind != KArray {
+                g.fail("'make' creates arrays; use new(T) for a pointer", e.Line, e.Col)
+                return g.dummy()
+            }
+            if len(e.Args) == 0 || len(e.Args) > 2 {
+                g.fail("'make' takes a length and an optional capacity: make([]T, len, cap)", e.Line, e.Col)
+                return g.dummy()
+            }
+            var* n32 = g.argOf(e, 0, intT, name)
+            var* n = g.inst("sext i32 " + n32.V + " to i64")
+            var* c = n
+            if len(e.Args) == 2 {
+                var* c32 = g.argOf(e, 1, intT, name)
+                c = g.inst("sext i32 " + c32.V + " to i64")
+            }
+            if g.failed {
+                return g.dummy()
+            }
+            var* tmp = g.entryAlloca(t, "make")
+            g.callRt("pgt_array_make", "void", "ptr, i64, i64, i64, ptr", "ptr " + tmp + ", i64 " + n + ", i64 " + c + ", i64 " + g.sizeOf(t.Elem) + ", ptr null")
+            return Value{V: g.inst("load %pgt.array, ptr " + tmp), T: t}
+        }
+        case "new" {
+            if e.TypeArg == nil {
+                g.fail("'new' needs a type: new(Point)", e.Line, e.Col)
+                return g.dummy()
+            }
+            if len(e.Args) != 0 {
+                g.fail("'new' takes only a type", e.Line, e.Col)
+                return g.dummy()
+            }
+            var* t = g.resolveType(e.TypeArg, false)
+            if g.failed {
+                return g.dummy()
+            }
+            var* p = g.callRt("pgt_alloc", "ptr", "i64, ptr", "i64 " + g.sizeOf(t) + ", ptr null")
+            return Value{V: p, T: g.tt.pointerTo(t)}
+        }
+        case "free" {
+            if !g.arityOk(e, name, 1) {
+                return g.dummy()
+            }
+            var* v = g.genExpr(e.Args[0], nil)
+            if g.failed {
+                return v
+            }
+            if v.T.Kind == KPointer {
+                g.callRt("pgt_free", "void", "ptr", "ptr " + v.V)
+            } else if v.T.Kind == KArray {
+                g.callRt("pgt_free", "void", "ptr", "ptr " + g.extract(v.T, v.V, 3))
+            } else {
+                g.fail("'free' needs a pointer or an array, found " + v.T.Name(), e.Line, e.Col)
+            }
+            return g.noValue()
+        }
+        case "unsafeData" {
+            if !g.arityOk(e, name, 1) {
+                return g.dummy()
+            }
+            var* v = g.genExpr(e.Args[0], nil)
+            if g.failed {
+                return v
+            }
+            if v.T.Kind != KArray {
+                g.fail("'unsafeData' needs an array, found " + v.T.Name(), e.Line, e.Col)
+                return v
+            }
+            return Value{V: g.extract(v.T, v.V, 0), T: g.tt.pointerTo(v.T.Elem)}
+        }
+        case "str" {
+            if !g.arityOk(e, name, 1) {
+                return g.dummy()
+            }
+            return g.toStringValue(g.genExpr(e.Args[0], nil), e.Line, e.Col)
+        }
+        case "chars" {
+            if !g.arityOk(e, name, 1) {
+                return g.dummy()
+            }
+            var* s = g.argOf(e, 0, strT, name)
+            var* t = g.tt.arrayOf(g.tt.charT)
+            var* tmp = g.entryAlloca(t, "chars")
+            g.callRt("pgt_to_chars", "void", "ptr, ptr", "ptr " + tmp + ", ptr " + s.V)
+            return Value{V: g.inst("load %pgt.array, ptr " + tmp), T: t}
+        }
+        case "parseInt" {
+            if !g.arityOk(e, name, 1) {
+                return g.dummy()
+            }
+            var* s = g.argOf(e, 0, strT, name)
+            return Value{V: g.callRt("pgt_parse_int", "i32", "ptr", "ptr " + s.V), T: intT}
+        }
+        case "parseInt64" {
+            if !g.arityOk(e, name, 1) {
+                return g.dummy()
+            }
+            var* s = g.argOf(e, 0, strT, name)
+            return Value{V: g.callRt("pgt_parse_int64", "i64", "ptr", "ptr " + s.V), T: g.tt.int64T}
+        }
+        case "parseFloat" {
+            if !g.arityOk(e, name, 1) {
+                return g.dummy()
+            }
+            var* s = g.argOf(e, 0, strT, name)
+            return Value{V: g.callRt("pgt_parse_float", "double", "ptr", "ptr " + s.V), T: g.tt.floatT}
+        }
+        case "substr" {
+            if !g.arityOk(e, name, 3) {
+                return g.dummy()
+            }
+            var* s = g.argOf(e, 0, strT, name)
+            var* from = g.argOf(e, 1, intT, name)
+            var* n = g.argOf(e, 2, intT, name)
+            if g.failed {
+                return s
+            }
+            return Value{V: g.callRt("pgt_substr", "ptr", "ptr, i32, i32", "ptr " + s.V + ", i32 " + from.V + ", i32 " + n.V), T: strT}
+        }
+        case "indexOf" {
+            if !g.arityOk(e, name, 2) {
+                return g.dummy()
+            }
+            var* s = g.argOf(e, 0, strT, name)
+            var* sub = g.argOf(e, 1, strT, name)
+            if g.failed {
+                return s
+            }
+            return Value{V: g.callRt("pgt_index_of", "i32", "ptr, ptr", "ptr " + s.V + ", ptr " + sub.V), T: intT}
+        }
+        case "contains", "startsWith", "endsWith" {
+            if !g.arityOk(e, name, 2) {
+                return g.dummy()
+            }
+            var* s = g.argOf(e, 0, strT, name)
+            var* sub = g.argOf(e, 1, strT, name)
+            if g.failed {
+                return s
+            }
+            var* fn = "pgt_contains"
+            if name == "startsWith" {
+                fn = "pgt_starts_with"
+            }
+            if name == "endsWith" {
+                fn = "pgt_ends_with"
+            }
+            return Value{V: g.callRt(fn, "zeroext i1", "ptr, ptr", "ptr " + s.V + ", ptr " + sub.V), T: g.tt.boolT}
+        }
+        case "upper", "lower" {
+            if !g.arityOk(e, name, 1) {
+                return g.dummy()
+            }
+            var* s = g.argOf(e, 0, strT, name)
+            return Value{V: g.callRt("pgt_" + name, "ptr", "ptr", "ptr " + s.V), T: strT}
+        }
+        case "abs" {
+            if !g.arityOk(e, name, 1) {
+                return g.dummy()
+            }
+            var* v = g.genExpr(e.Args[0], hint)
+            if g.failed {
+                return v
+            }
+            if v.T.Kind == KFloat {
+                var* neg = g.inst("fcmp olt double " + v.V + ", 0.0")
+                var* f = g.inst("fneg double " + v.V)
+                return Value{V: g.inst("select i1 " + neg + ", double " + f + ", double " + v.V), T: v.T}
+            }
+            if v.T.Kind != KInt && v.T.Kind != KInt64 {
+                g.fail("'abs' needs a number, found " + v.T.Name(), e.Line, e.Col)
+                return v
+            }
+            var* lt = g.llvmType(v.T)
+            var* neg = g.inst("icmp slt " + lt + " " + v.V + ", 0")
+            var* f = g.inst("sub " + lt + " 0, " + v.V)
+            return Value{V: g.inst("select i1 " + neg + ", " + lt + " " + f + ", " + lt + " " + v.V), T: v.T}
+        }
+        case "min", "max" {
+            if !g.arityOk(e, name, 2) {
+                return g.dummy()
+            }
+            var* l, r = g.genOperands(e.Args[0], e.Args[1], hint)
+            if g.failed {
+                return l
+            }
+            if l.T != r.T || !(l.T.IsNumeric() || l.T.Kind == KString) {
+                g.fail("'" + name + "' needs two numbers of the same type, found " + l.T.Name() + " and " + r.T.Name(), e.Line, e.Col)
+                return l
+            }
+            var* less = g.compareValues(ast.BinLt, l, r, e.Line, e.Col)
+            var* lt = g.llvmType(l.T)
+            if name == "min" {
+                return Value{V: g.inst("select i1 " + less.V + ", " + lt + " " + l.V + ", " + lt + " " + r.V), T: l.T}
+            }
+            return Value{V: g.inst("select i1 " + less.V + ", " + lt + " " + r.V + ", " + lt + " " + l.V), T: l.T}
+        }
+        case "sqrt", "pow", "floor", "ceil", "round", "sin", "cos", "tan", "log", "exp", "trunc" {
+            return g.genMath(e, name)
+        }
+        case "readFile" {
+            if !g.arityOk(e, name, 1) {
+                return g.dummy()
+            }
+            var* s = g.argOf(e, 0, strT, name)
+            return Value{V: g.callRt("pgt_read_file", "ptr", "ptr", "ptr " + s.V), T: strT}
+        }
+        case "writeFile", "appendFile" {
+            if !g.arityOk(e, name, 2) {
+                return g.dummy()
+            }
+            var* p = g.argOf(e, 0, strT, name)
+            var* d = g.argOf(e, 1, strT, name)
+            if g.failed {
+                return p
+            }
+            var* fn = "pgt_write_file"
+            if name == "appendFile" {
+                fn = "pgt_append_file"
+            }
+            return Value{V: g.callRt(fn, "zeroext i1", "ptr, ptr", "ptr " + p.V + ", ptr " + d.V), T: g.tt.boolT}
+        }
+        case "fileExists" {
+            if !g.arityOk(e, name, 1) {
+                return g.dummy()
+            }
+            var* s = g.argOf(e, 0, strT, name)
+            return Value{V: g.callRt("pgt_file_exists", "zeroext i1", "ptr", "ptr " + s.V), T: g.tt.boolT}
+        }
+        case "rand" {
+            if !g.arityOk(e, name, 0) {
+                return g.dummy()
+            }
+            return Value{V: g.callRt("pgt_rand", "i32", "", ""), T: intT}
+        }
+        case "srand" {
+            if !g.arityOk(e, name, 1) {
+                return g.dummy()
+            }
+            var* s = g.argOf(e, 0, intT, name)
+            g.callRt("pgt_srand", "void", "i32", "i32 " + s.V)
+            return g.noValue()
+        }
+        case "exit" {
+            if !g.arityOk(e, name, 1) {
+                return g.dummy()
+            }
+            var* c = g.argOf(e, 0, intT, name)
+            if g.failed {
+                return c
+            }
+            g.callRtNoReturn("pgt_exit", "i32", "i32 " + c.V)
+            return g.noValue()
+        }
+        case "panic" {
+            if !g.arityOk(e, name, 1) {
+                return g.dummy()
+            }
+            var* msg = g.toStringValue(g.genExpr(e.Args[0], nil), e.Line, e.Col)
+            if g.failed {
+                return msg
+            }
+            var* fn = g.panicDecl("panicString")
+            g.emit("call void " + fn + "(ptr " + msg.V + ")")
+            g.emit("unreachable")
+            g.startDead()
+            return g.noValue()
+        }
+        case "has", "delete" {
+            g.fail("maps are not supported by the self-hosted compiler yet", e.Line, e.Col)
+            return g.dummy()
+        }
+    }
+    return none
+}
