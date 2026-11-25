@@ -279,14 +279,14 @@ fn (g *Gen) genBuiltin(e *ast.Expr, name string, hint *Type) Value {
             if g.failed {
                 return s
             }
-            var* fn = "pgt_contains"
+            var* fnref = "pgt_contains"
             if name == "startsWith" {
-                fn = "pgt_starts_with"
+                fnref = "pgt_starts_with"
             }
             if name == "endsWith" {
-                fn = "pgt_ends_with"
+                fnref = "pgt_ends_with"
             }
-            return Value{V: g.callRt(fn, "zeroext i1", "ptr, ptr", "ptr " + s.V + ", ptr " + sub.V), T: g.tt.boolT}
+            return Value{V: g.callRt(fnref, "zeroext i1", "ptr, ptr", "ptr " + s.V + ", ptr " + sub.V), T: g.tt.boolT}
         }
         case "upper", "lower" {
             if !g.arityOk(e, name, 1) {
@@ -355,11 +355,11 @@ fn (g *Gen) genBuiltin(e *ast.Expr, name string, hint *Type) Value {
             if g.failed {
                 return p
             }
-            var* fn = "pgt_write_file"
+            var* fnref = "pgt_write_file"
             if name == "appendFile" {
-                fn = "pgt_append_file"
+                fnref = "pgt_append_file"
             }
-            return Value{V: g.callRt(fn, "zeroext i1", "ptr, ptr", "ptr " + p.V + ", ptr " + d.V), T: g.tt.boolT}
+            return Value{V: g.callRt(fnref, "zeroext i1", "ptr, ptr", "ptr " + p.V + ", ptr " + d.V), T: g.tt.boolT}
         }
         case "fileExists" {
             if !g.arityOk(e, name, 1) {
@@ -401,8 +401,8 @@ fn (g *Gen) genBuiltin(e *ast.Expr, name string, hint *Type) Value {
             if g.failed {
                 return msg
             }
-            var* fn = g.panicDecl("panicString")
-            g.emit("call void " + fn + "(ptr " + msg.V + ")")
+            var* fnref = g.panicDecl("panicString")
+            g.emit("call void " + fnref + "(ptr " + msg.V + ")")
             g.emit("unreachable")
             g.startDead()
             return g.noValue()

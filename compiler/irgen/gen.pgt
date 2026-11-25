@@ -279,8 +279,8 @@ fn (g *Gen) panicIf(cond string, name string, args string) {
     var* ok = g.newLabel("ok")
     g.condBr(cond, bad, ok)
     g.label(bad)
-    var* fn = g.panicDecl(name)
-    g.emit("call void " + fn + "(" + args + ")")
+    var* fnref = g.panicDecl(name)
+    g.emit("call void " + fnref + "(" + args + ")")
     g.emit("unreachable")
     g.label(ok)
 }
@@ -516,20 +516,20 @@ fn (g *Gen) resolveTypeBodies(pkg *loader.Package) {
     }
 }
 
-fn (g *Gen) declareSignature(fn *ast.Function, recvType *Type, symbol string) *FuncInfo {
-    var* info = &FuncInfo{Name: fn.Name, Symbol: symbol, IsExtern: fn.IsExtern, Line: fn.Line, Col: fn.Col}
+fn (g *Gen) declareSignature(fd *ast.Function, recvType *Type, symbol string) *FuncInfo {
+    var* info = &FuncInfo{Name: fd.Name, Symbol: symbol, IsExtern: fd.IsExtern, Line: fd.Line, Col: fd.Col}
     if recvType != nil {
         info.Params = append(info.Params, recvType)
     }
-    for param in fn.Params {
+    for param in fd.Params {
         var* t = g.resolveType(param.Type, false)
         info.Params = append(info.Params, t)
     }
     info.Ret = g.tt.voidT
-    if fn.Ret != nil {
-        info.Ret = g.resolveType(fn.Ret, true)
+    if fd.Ret != nil {
+        info.Ret = g.resolveType(fd.Ret, true)
     }
-    info.Variadic = len(fn.Params) > 0 && fn.Params[len(fn.Params) - 1].Variadic
+    info.Variadic = len(fd.Params) > 0 && fd.Params[len(fd.Params) - 1].Variadic
     return info
 }
 
@@ -538,16 +538,16 @@ fn (g *Gen) declareFunctions(pkg *loader.Package) {
     for p in pkg.Programs {
         g.currentFile = p.File
         g.bindImports(p)
-        for fn in p.Functions {
-            if fn.Receiver != nil {
-                var* r = fn.Receiver
+        for fd in p.Functions {
+            if fd.Receiver != nil {
+                var* r = fd.Receiver
                 if !has(g.pkg.Structs, r.TypeName) {
                     g.fail("methods can only be declared on a struct of this package; '" + r.TypeName + "' is not one", r.Line, r.Col)
                     return
                 }
                 var* st = g.pkg.Structs[r.TypeName]
-                if has(st.Methods, fn.Name) {
-                    g.fail("method '" + r.TypeName + "." + fn.Name + "' is already defined", fn.Line, fn.Col)
+                if has(st.Methods, fd.Name) {
+                    g.fail("method '" + r.TypeName + "." + fd.Name + "' is already defined", fd.Line, fd.Col)
                     return
                 }
                 var* structTy = g.tt.structT(st)
@@ -555,25 +555,25 @@ fn (g *Gen) declareFunctions(pkg *loader.Package) {
                 if r.Pointer {
                     recvTy = g.tt.pointerTo(structTy)
                 }
-                var* info = g.declareSignature(fn, recvTy, mangle(pkg.ImportPath, r.TypeName + "." + fn.Name))
+                var* info = g.declareSignature(fd, recvTy, mangle(pkg.ImportPath, r.TypeName + "." + fd.Name))
                 info.PtrRecv = r.Pointer
-                st.Methods[fn.Name] = info
+                st.Methods[fd.Name] = info
                 if !pkg.IsStd {
                     g.declared[info.Symbol] = true
                 }
                 continue
             }
-            if has(g.pkg.Functions, fn.Name) {
-                g.fail("function '" + fn.Name + "' is already defined in package '" + pkg.Name + "'", fn.Line, fn.Col)
+            if has(g.pkg.Functions, fd.Name) {
+                g.fail("function '" + fd.Name + "' is already defined in package '" + pkg.Name + "'", fd.Line, fd.Col)
                 return
             }
-            var* symbol = mangle(pkg.ImportPath, fn.Name)
-            if fn.IsExtern {
-                symbol = fn.Name
+            var* symbol = mangle(pkg.ImportPath, fd.Name)
+            if fd.IsExtern {
+                symbol = fd.Name
             }
-            var* info = g.declareSignature(fn, nil, symbol)
-            g.pkg.Functions[fn.Name] = info
-            if !pkg.IsStd && !fn.IsExtern {
+            var* info = g.declareSignature(fd, nil, symbol)
+            g.pkg.Functions[fd.Name] = info
+            if !pkg.IsStd && !fd.IsExtern {
                 g.declared[info.Symbol] = true
             }
         }
@@ -739,7 +739,7 @@ fn (g *Gen) stdGlobalType(e *ast.Expr) *Type {
     return nil
 }
 
-fn (g *Gen) genFunction(fn *ast.Function, info *FuncInfo) {
+fn (g *Gen) genFunction(fd *ast.Function, info *FuncInfo) {
     g.body = strings.Builder{}
     g.allocas = strings.Builder{}
     g.tmpCount = 0
@@ -747,14 +747,14 @@ fn (g *Gen) genFunction(fn *ast.Function, info *FuncInfo) {
     g.scopes = []
     g.loops = []
     g.heapVars = map[string]bool{}
-    g.collectHeapVars(fn.Body)
+    g.collectHeapVars(fd.Body)
     g.curRet = info.Ret
     g.pushScope()
     var* names + {[]string} = []
-    if fn.Receiver != nil {
-        names = append(names, fn.Receiver.Name)
+    if fd.Receiver != nil {
+        names = append(names, fd.Receiver.Name)
     }
-    for p in fn.Params {
+    for p in fd.Params {
         names = append(names, p.Name)
     }
     var* header = ""
@@ -766,19 +766,19 @@ fn (g *Gen) genFunction(fn *ast.Function, info *FuncInfo) {
         header = header + g.llvmType(info.Params[i]) + " " + argName
         var* slot = g.newVarSlot(info.Params[i], name)
         g.store(info.Params[i], argName, slot)
-        var* line = fn.Line
-        var* col = fn.Col
+        var* line = fd.Line
+        var* col = fd.Col
         g.declare(name, &Var{Addr: slot, T: info.Params[i], IsConst: false}, line, col)
     }
-    var* fullName = fn.Name
-    if fn.Receiver != nil {
-        fullName = fn.Receiver.TypeName + "." + fn.Name
+    var* fullName = fd.Name
+    if fd.Receiver != nil {
+        fullName = fd.Receiver.TypeName + "." + fd.Name
     }
-    if info.Ret.Kind != KVoid && !ast.Terminates(fn.Body) {
-        g.fail("missing return at the end of function '" + fullName + "'", fn.Line, fn.Col)
+    if info.Ret.Kind != KVoid && !ast.Terminates(fd.Body) {
+        g.fail("missing return at the end of function '" + fullName + "'", fd.Line, fd.Col)
         return
     }
-    g.genBlock(fn.Body)
+    g.genBlock(fd.Body)
     g.popScope()
     if info.Ret.Kind == KVoid {
         g.emit("ret void")
@@ -789,7 +789,7 @@ fn (g *Gen) genFunction(fn *ast.Function, info *FuncInfo) {
         return
     }
     var* linkage = "internal "
-    if isPublic(fn.Name) && (fn.Receiver == nil || isPublic(fn.Receiver.TypeName)) {
+    if isPublic(fd.Name) && (fd.Receiver == nil || isPublic(fd.Receiver.TypeName)) {
         linkage = ""
     }
     g.funcs.Write("define " + linkage + g.llvmType(info.Ret) + " " + g.fnRef(info.Symbol) + "(" + header + ") {\nentry:\n" + g.allocas.String() + "  br label %start\nstart:\n" + g.body.String() + "}\n\n")
@@ -902,15 +902,15 @@ fn Generate(ws *loader.Workspace) (string, Error) {
         for p in pkg.Programs {
             g.currentFile = p.File
             g.bindImports(p)
-            for fn in p.Functions {
-                if fn.IsExtern {
+            for fd in p.Functions {
+                if fd.IsExtern {
                     continue
                 }
-                if fn.Receiver != nil {
-                    var* st = g.pkg.Structs[fn.Receiver.TypeName]
-                    g.genFunction(fn, st.Methods[fn.Name])
+                if fd.Receiver != nil {
+                    var* st = g.pkg.Structs[fd.Receiver.TypeName]
+                    g.genFunction(fd, st.Methods[fd.Name])
                 } else {
-                    g.genFunction(fn, g.pkg.Functions[fn.Name])
+                    g.genFunction(fd, g.pkg.Functions[fd.Name])
                 }
                 if g.failed {
                     return "", g.err
