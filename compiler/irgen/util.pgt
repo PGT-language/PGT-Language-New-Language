@@ -1,0 +1,214 @@
+package irgen
+
+#use "compiler/ast"
+#use "strings"
+
+fn hexByte(n uint64) string {
+    var* digits = "0123456789ABCDEF"
+    return string(digits[int(n >> 4)]) + string(digits[int(n & 15)])
+}
+
+fn floatBits(x float) uint64 {
+    if x == 0.0 {
+        return 0
+    }
+    var* sign uint64 = 0
+    var* m = x
+    if m < 0.0 {
+        sign = 1
+        m = 0.0 - m
+    }
+    var* e = 0
+    while m >= 2.0 {
+        m = m / 2.0
+        e++
+    }
+    while m < 1.0 && e > -1022 {
+        m = m * 2.0
+        e--
+    }
+    var* biased uint64 = 0
+    var* frac uint64 = 0
+    if m < 1.0 {
+        frac = uint64(m * 4503599627370496.0)
+    } else {
+        biased = uint64(e + 1023)
+        frac = uint64((m - 1.0) * 4503599627370496.0)
+    }
+    return (sign << 63) | (biased << 52) | frac
+}
+
+fn floatText(x float) string {
+    var* bits = floatBits(x)
+    var* out = "0x"
+    var* i = 7
+    while i >= 0 {
+        out = out + hexByte((bits >> uint64(i * 8)) & 255)
+        i--
+    }
+    return out
+}
+
+fn isConstExpr(e *ast.Expr) bool {
+    if e.Kind == ast.ExprIntLit || e.Kind == ast.ExprFloatLit {
+        return true
+    }
+    if e.Kind == ast.ExprUnary {
+        return (e.Op == ast.UnNeg || e.Op == ast.UnBitNot) && isConstExpr(e.Operand)
+    }
+    if e.Kind == ast.ExprBinary {
+        switch e.Op {
+            case ast.BinAdd, ast.BinSub, ast.BinMul, ast.BinDiv, ast.BinMod, ast.BinBitAnd, ast.BinBitOr, ast.BinBitXor, ast.BinShl, ast.BinShr {
+                return isConstExpr(e.Lhs) && isConstExpr(e.Rhs)
+            }
+        }
+    }
+    return false
+}
+
+fn hasFloatLit(e *ast.Expr) bool {
+    if e.Kind == ast.ExprFloatLit {
+        return true
+    }
+    if e.Kind == ast.ExprUnary {
+        return hasFloatLit(e.Operand)
+    }
+    if e.Kind == ast.ExprBinary {
+        return hasFloatLit(e.Lhs) || hasFloatLit(e.Rhs)
+    }
+    return false
+}
+
+fn collectExpr(e *ast.Expr, out map[string]bool) {
+    if e == nil {
+        return
+    }
+    switch e.Kind {
+        case ast.ExprUnary {
+            if e.Op == ast.UnAddrOf {
+                var* root = e.Operand
+                while root.Kind == ast.ExprSelector {
+                    root = root.Base
+                }
+                if root.Kind == ast.ExprVarRef {
+                    out[root.Name] = true
+                }
+            }
+            collectExpr(e.Operand, out)
+        }
+        case ast.ExprBinary {
+            collectExpr(e.Lhs, out)
+            collectExpr(e.Rhs, out)
+        }
+        case ast.ExprCall {
+            collectExpr(e.Callee, out)
+            for a in e.Args {
+                collectExpr(a, out)
+            }
+        }
+        case ast.ExprSelector {
+            collectExpr(e.Base, out)
+        }
+        case ast.ExprIndex {
+            collectExpr(e.Base, out)
+            collectExpr(e.Index, out)
+        }
+        case ast.ExprSlice {
+            collectExpr(e.Base, out)
+            collectExpr(e.Lo, out)
+            collectExpr(e.Hi, out)
+        }
+        case ast.ExprArrayLit {
+            for x in e.Elems {
+                collectExpr(x, out)
+            }
+        }
+        case ast.ExprMapLit {
+            for i, k in e.Keys {
+                collectExpr(k, out)
+                collectExpr(e.Values[i], out)
+            }
+        }
+        case ast.ExprStructLit {
+            for f in e.Fields {
+                collectExpr(f.Value, out)
+            }
+        }
+        case ast.ExprTypeAssert {
+            collectExpr(e.Base, out)
+        }
+    }
+}
+
+fn collectStmt(s *ast.Stmt, out map[string]bool) {
+    if s == nil {
+        return
+    }
+    switch s.Kind {
+        case ast.StmtVarDecl {
+            collectExpr(s.Init, out)
+        }
+        case ast.StmtMultiVarDecl {
+            for v in s.Values {
+                collectExpr(v, out)
+            }
+        }
+        case ast.StmtMultiAssign {
+            for t in s.Targets {
+                collectExpr(t, out)
+            }
+            for v in s.Values {
+                collectExpr(v, out)
+            }
+        }
+        case ast.StmtAssign {
+            collectExpr(s.Target, out)
+            collectExpr(s.Value, out)
+        }
+        case ast.StmtExpr {
+            collectExpr(s.Value, out)
+        }
+        case ast.StmtIf {
+            collectExpr(s.Cond, out)
+            collectBlock(s.Then, out)
+            collectBlock(s.Else, out)
+        }
+        case ast.StmtLoop {
+            collectStmt(s.InitStmt, out)
+            collectExpr(s.Cond, out)
+            collectStmt(s.Post, out)
+            collectBlock(s.Body, out)
+        }
+        case ast.StmtForIn {
+            collectExpr(s.Iterable, out)
+            collectExpr(s.RangeEnd, out)
+            collectBlock(s.Body, out)
+        }
+        case ast.StmtSwitch {
+            collectExpr(s.Tag, out)
+            for c in s.Cases {
+                for v in c.Values {
+                    collectExpr(v, out)
+                }
+                collectBlock(c.Body, out)
+            }
+            collectBlock(s.Default, out)
+        }
+        case ast.StmtReturn {
+            collectExpr(s.Value, out)
+            for r in s.Rest {
+                collectExpr(r, out)
+            }
+        }
+    }
+}
+
+fn collectBlock(b []*ast.Stmt, out map[string]bool) {
+    for s in b {
+        collectStmt(s, out)
+    }
+}
+
+fn (g *Gen) collectHeapVars(body []*ast.Stmt) {
+    collectBlock(body, g.heapVars)
+}

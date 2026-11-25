@@ -315,7 +315,7 @@ fn (g *Gen) entryAlloca(t *Type, name string) string {
 
 fn (g *Gen) newVarSlot(t *Type, name string) string {
     if has(g.heapVars, name) {
-        return g.callRt("pgt_alloc", "ptr", "i64, ptr", g.sizeOf(t) + "_, ptr null")
+        return g.callRt("pgt_alloc", "ptr", "i64, ptr", "i64 " + g.sizeOf(t) + ", ptr null")
     }
     return g.entryAlloca(t, "v")
 }
@@ -751,7 +751,6 @@ fn (g *Gen) genFunction(fn *ast.Function, info *FuncInfo) {
     g.curRet = info.Ret
     g.pushScope()
     var* names + {[]string} = []
-    var* poss + {[]*ast.Param} = []
     if fn.Receiver != nil {
         names = append(names, fn.Receiver.Name)
     }
