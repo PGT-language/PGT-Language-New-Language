@@ -251,6 +251,18 @@ namespace pgt
                 if (!fs::is_directory(depDir))
                     failAt("cannot find package \"" + imp.path + "\"", p.file, imp.line, imp.col);
                 std::vector<std::string> depFiles = listSources(depDir);
+                if (freestanding_ && imp.path == "c" && stdDir_ &&
+                    fs::weakly_canonical(depDir) == fs::weakly_canonical(*stdDir_ / "c"))
+                {
+                    static const std::set<std::string> keep = {"c.pgt",     "types.pgt",   "errors.pgt",
+                                                               "lexer.pgt", "block.pgt",   "pointers.pgt"};
+                    std::vector<std::string> kept;
+                    for (const std::string &f : depFiles)
+                        if (keep.count(fs::path(f).filename().string()))
+                            kept.push_back(f);
+                    kept.push_back((*stdDir_ / "_freestanding" / "c" / "libc.pgt").string());
+                    depFiles = std::move(kept);
+                }
                 if (depFiles.empty())
                     failAt("package \"" + imp.path + "\" contains no .pgt files", p.file, imp.line,
                            imp.col);

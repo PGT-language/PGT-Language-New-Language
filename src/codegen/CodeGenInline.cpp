@@ -203,6 +203,8 @@ namespace pgt
 
     void CodeGen::requireImport(const char *path, const char *shown, int line, int col)
     {
+        if (pkg_->pkg->importPath == "c")
+            return;
         for (const auto &[name, syms] : fileImports_)
             if (syms->pkg->importPath == path)
                 return;

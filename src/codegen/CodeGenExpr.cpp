@@ -1274,6 +1274,9 @@ namespace pgt
                         fail("'" + full + "' is not exported (lowercase names are private)", call.line,
                              call.col);
                     auto it = p->functions.find(sel->name);
+                    if (it == p->functions.end() && freestanding_ && p->pkg->importPath == "c")
+                        fail("'" + full + "' needs libc and is not available in freestanding builds", call.line,
+                             call.col);
                     if (it == p->functions.end())
                         fail("package '" + ref->name + "' has no function '" + sel->name + "'",
                              call.line, call.col);
