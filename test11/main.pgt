@@ -1,13 +1,22 @@
 package main
 
 #use (
-    "memory"
-    "fmt"
+    "std/memory"
+    "std/fmt"
+    "std/asm"
 )
 
 fn main() {
     var* n int64 = 7
-    var& := n = malloc(free[int64] 1)
+    var* a uint64 = 18446744073709551615
+    var& := a = malloc(free[uint64] 10)
+    asm {
+        mov rax, {n}
+        imul rax, rax
+        mov {n}, rax
+    }
+    var& := n = malloc(free[byte] 1)
+    fmt.Println(a)
     fmt.Println(n)
 }
 return 0
