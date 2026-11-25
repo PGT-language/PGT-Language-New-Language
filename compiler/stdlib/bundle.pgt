@@ -16,6 +16,7 @@ package main
     "sort"
     "strings"
     "syscall/linux"
+    "syscall/purec-os"
     "time"
     "unsafe"
 )
@@ -37,6 +38,7 @@ fn keep() {
     sort.Ints(a)
     strings.Upper("")
     var* sys = syscall_linux.SYS_READ
+    var* sys2 = syscall_purec_os.SYS_WRITE
     time.Now()
     unsafe.Addr(nil)
 }

@@ -1,7 +1,9 @@
 package main
 
-#use "sort"
-#use "fmt"
+#use (
+    "sort"
+    "fmt"
+)
 
 struct Pair {
     Key int

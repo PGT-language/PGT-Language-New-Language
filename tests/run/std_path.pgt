@@ -1,7 +1,9 @@
 package main
 
-#use "path"
-#use "fmt"
+#use (
+    "path"
+    "fmt"
+)
 
 fn main() {
     fmt.Println(path.Join("a", "b", "c"))

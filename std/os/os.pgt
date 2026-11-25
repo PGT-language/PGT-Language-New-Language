@@ -1,7 +1,9 @@
 package os
 
-#use "strings"
-#use "unsafe"
+#use (
+    "strings"
+    "unsafe"
+)
 
 extern fn pgt_argc() int
 extern fn pgt_argv(i int) string

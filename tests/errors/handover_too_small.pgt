@@ -1,8 +1,10 @@
 // panic: malloc: the block is too small for 'a' (int needs 4 bytes)
 package main
 
-#use "pgt/std/memory"
-#use "fmt"
+#use (
+    "pgt/std/memory"
+    "fmt"
+)
 
 fn main() {
     var* a = 1

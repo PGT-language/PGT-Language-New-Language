@@ -1,7 +1,9 @@
 package flag
 
-#use "os"
-#use "strings"
+#use (
+    "os"
+    "strings"
+)
 
 const (
     kindString = 0

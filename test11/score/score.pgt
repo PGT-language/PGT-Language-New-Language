@@ -1,8 +1,10 @@
 package score
 
-#use "os"
-#use "conv"
-#use "strings"
+#use (
+    "os"
+    "conv"
+    "strings"
+)
 
 fn Path() string {
     var* home = os.Getenv("HOME")

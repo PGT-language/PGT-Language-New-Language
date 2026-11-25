@@ -137,8 +137,20 @@ fn (g *Gen) genIfaceCall(iface Value, e *ast.Expr, method string) Value {
     }
     var* m = ii.Methods[idx]
     var* name = iface.T.Name() + "." + method
-    if len(e.Args) != len(m.Params) {
-        g.fail("'" + name + "' takes " + len(m.Params) + " argument(s), got " + len(e.Args), e.Line, e.Col)
+    var* firstHint *Type = nil
+    if len(m.Params) > 0 {
+        firstHint = m.Params[0]
+    }
+    var* sa = g.genSpreadArgs(e, firstHint)
+    if g.failed {
+        return g.dummy()
+    }
+    var* count = len(e.Args)
+    if sa.Spread {
+        count = len(sa.Values)
+    }
+    if count != len(m.Params) {
+        g.fail("'" + name + "' takes " + len(m.Params) + " argument(s), got " + count, e.Line, e.Col)
         return g.dummy()
     }
     var* data = g.extract(iface.T, iface.V, 0)
@@ -146,14 +158,13 @@ fn (g *Gen) genIfaceCall(iface Value, e *ast.Expr, method string) Value {
     var* isNil = g.inst("icmp eq ptr " + vt + ", null")
     var* msg = g.strLit("method call on a nil interface")
     g.panicIf(isNil, "panicString", "ptr " + msg)
-    var* ptys = "ptr"
     var* args = "ptr " + data
-    for i, a in e.Args {
-        var* v = g.coerce(g.genExpr(a, m.Params[i]), m.Params[i], a.Line, a.Col, "argument " + (i + 1) + " of '" + name + "'")
+    for i in 0..count {
+        var* a = g.argExpr(e, sa, i)
+        var* v = g.coerce(g.argValue(e, sa, i, m.Params[i]), m.Params[i], a.Line, a.Col, "argument " + (i + 1) + " of '" + name + "'")
         if g.failed {
             return g.dummy()
         }
-        ptys = ptys + ", " + g.llvmType(m.Params[i])
         args = args + ", " + g.llvmType(m.Params[i]) + " " + v.V
     }
     var* slot = g.inst("getelementptr ptr, ptr " + vt + ", i64 " + (idx + 1))
@@ -175,7 +186,6 @@ fn (g *Gen) ifaceAssertFn(ifaceType *Type) string {
     var* ref = "@pgt.assert." + g.uniq
     g.assertFns[ifaceType.Id] = ref
     g.assertTypes = append(g.assertTypes, ifaceType)
-    g.declareRaw(ref, "declare ptr " + ref + "(ptr)")
     return ref
 }
 

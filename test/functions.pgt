@@ -1,7 +1,9 @@
 package main
 
-#use "test/mathx"
-#use "fmt"
+#use (
+    "test/mathx"
+    "fmt"
+)
 
 fn square(x) {
     return x * x

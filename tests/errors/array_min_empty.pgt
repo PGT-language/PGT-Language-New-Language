@@ -1,7 +1,10 @@
 // panic: arrays.Min: empty array
 package main
-#use "arrays"
-#use "fmt"
+
+#use (
+    "arrays"
+    "fmt"
+)
 fn main() {
     var* a + {[]int} = []
     fmt.Println(arrays.Min(a))

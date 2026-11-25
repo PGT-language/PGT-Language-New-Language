@@ -1,7 +1,9 @@
 package main
 
-#use "math"
-#use "fmt"
+#use (
+    "math"
+    "fmt"
+)
 
 fn main() {
     fmt.Println(math.Float64bits(1.0))

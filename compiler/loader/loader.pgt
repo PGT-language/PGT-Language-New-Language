@@ -1,11 +1,13 @@
 package loader
 
-#use "compiler/ast"
-#use "compiler/lexer"
-#use "compiler/parser"
-#use "os"
-#use "path"
-#use "strings"
+#use (
+    "compiler/ast"
+    "compiler/lexer"
+    "compiler/parser"
+    "os"
+    "path"
+    "strings"
+)
 
 struct Package {
     ImportPath string

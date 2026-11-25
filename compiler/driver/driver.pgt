@@ -1,13 +1,15 @@
 package driver
 
-#use "compiler/loader"
-#use "compiler/irgen"
-#use "compiler/scaffold"
-#use "fmt"
-#use "os"
-#use "path"
-#use "strings"
-#use "time"
+#use (
+    "compiler/loader"
+    "compiler/irgen"
+    "compiler/scaffold"
+    "fmt"
+    "os"
+    "path"
+    "strings"
+    "time"
+)
 
 struct BuildOptions {
     Input string

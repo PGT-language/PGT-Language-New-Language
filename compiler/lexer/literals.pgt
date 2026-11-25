@@ -1,7 +1,9 @@
 package lexer
 
-#use "compiler/token"
-#use "strings"
+#use (
+    "compiler/token"
+    "strings"
+)
 
 const maxUint64 uint64 = 18446744073709551615
 

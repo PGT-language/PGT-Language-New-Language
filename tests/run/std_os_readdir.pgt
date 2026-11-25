@@ -1,7 +1,9 @@
 package main
 
-#use "os"
-#use "fmt"
+#use (
+    "os"
+    "fmt"
+)
 
 fn show(dir string) {
     for e in os.ReadDir(dir) {

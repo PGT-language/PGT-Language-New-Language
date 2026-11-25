@@ -1,7 +1,9 @@
 package irgen
 
-#use "compiler/ast"
-#use "strings"
+#use (
+    "compiler/ast"
+    "strings"
+)
 
 fn (g *Gen) arityOk(e *ast.Expr, name string, n int) bool {
     if len(e.Args) != n {

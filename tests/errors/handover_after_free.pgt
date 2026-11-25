@@ -1,8 +1,10 @@
 // panic: nil pointer dereference
 package main
 
-#use "pgt/std/memory"
-#use "fmt"
+#use (
+    "pgt/std/memory"
+    "fmt"
+)
 
 fn main() {
     var* a = 1

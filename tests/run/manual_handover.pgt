@@ -1,7 +1,9 @@
 package main
 
-#use "pgt/std/memory"
-#use "fmt"
+#use (
+    "pgt/std/memory"
+    "fmt"
+)
 
 struct Point {
     X int

@@ -1,8 +1,10 @@
 package main
 
-#use "fmt"
-#use "asm"
-#use "unsafe"
+#use (
+    "fmt"
+    "asm"
+    "unsafe"
+)
 
 extern fn calloc(count int64, size int64) *byte
 extern fn free(p *byte)

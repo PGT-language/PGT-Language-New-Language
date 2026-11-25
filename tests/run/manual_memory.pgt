@@ -1,7 +1,9 @@
 package main
 
-#use "pgt/std/memory"
-#use "fmt"
+#use (
+    "pgt/std/memory"
+    "fmt"
+)
 
 fn sum(b []byte) int {
     var* s = 0

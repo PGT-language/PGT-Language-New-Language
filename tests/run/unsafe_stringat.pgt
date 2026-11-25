@@ -1,8 +1,10 @@
 // memstats
 package main
 
-#use "fmt"
-#use "unsafe"
+#use (
+    "fmt"
+    "unsafe"
+)
 
 extern fn strdup(s *byte) *byte
 extern fn free(p *byte)

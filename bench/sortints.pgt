@@ -1,7 +1,9 @@
 package main
 
-#use "fmt"
-#use "sort"
+#use (
+    "fmt"
+    "sort"
+)
 
 fn main() {
     var* a []int = []

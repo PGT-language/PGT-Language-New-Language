@@ -1,7 +1,9 @@
 package irgen
 
-#use "compiler/ast"
-#use "strings"
+#use (
+    "compiler/ast"
+    "strings"
+)
 
 struct SpreadArgs {
     Spread bool

@@ -1,8 +1,10 @@
 package irgen
 
-#use "compiler/ast"
-#use "compiler/loader"
-#use "strings"
+#use (
+    "compiler/ast"
+    "compiler/loader"
+    "strings"
+)
 
 struct Error {
     File string

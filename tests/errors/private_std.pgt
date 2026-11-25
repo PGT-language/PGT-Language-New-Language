@@ -1,7 +1,10 @@
 // error: is not exported
 package main
-#use "strings"
-#use "fmt"
+
+#use (
+    "strings"
+    "fmt"
+)
 fn main() { var* b strings.Builder
 fmt.Println(b.size) }
 return 0

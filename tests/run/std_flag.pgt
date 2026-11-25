@@ -1,7 +1,9 @@
 package main
 
-#use "flag"
-#use "fmt"
+#use (
+    "flag"
+    "fmt"
+)
 
 fn run(args []string) {
     var* fs = flag.NewFlagSet("prog")

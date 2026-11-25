@@ -1,7 +1,9 @@
 package main
 
-#use "fmt"
-#use "asm"
+#use (
+    "fmt"
+    "asm"
+)
 
 fn main() {
     var* src = ""

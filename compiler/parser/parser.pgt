@@ -1,9 +1,11 @@
 package parser
 
-#use "compiler/token"
-#use "compiler/lexer"
-#use "compiler/ast"
-#use "conv"
+#use (
+    "compiler/token"
+    "compiler/lexer"
+    "compiler/ast"
+    "conv"
+)
 
 struct Error {
     Msg string

@@ -1,13 +1,15 @@
 package main
 
-#use "fmt"
-#use "os"
-#use "strings"
-#use "compiler/token"
-#use "compiler/lexer"
-#use "compiler/parser"
-#use "compiler/dump"
-#use "compiler/driver"
+#use (
+    "fmt"
+    "os"
+    "strings"
+    "compiler/token"
+    "compiler/lexer"
+    "compiler/parser"
+    "compiler/dump"
+    "compiler/driver"
+)
 
 fn tokensJson(toks []token.Token) string {
     var* b strings.Builder

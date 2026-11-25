@@ -1,8 +1,10 @@
 // memstats
 package main
 
-#use "pgt/std/memory"
-#use "fmt"
+#use (
+    "pgt/std/memory"
+    "fmt"
+)
 
 struct Inner {
     Label string

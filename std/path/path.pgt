@@ -1,7 +1,9 @@
 package path
 
-#use "strings"
-#use "unsafe"
+#use (
+    "strings"
+    "unsafe"
+)
 
 extern fn getcwd(buf *byte, size int64) *byte
 

@@ -1,8 +1,10 @@
 package dump
 
-#use "fmt"
-#use "strings"
-#use "compiler/ast"
+#use (
+    "fmt"
+    "strings"
+    "compiler/ast"
+)
 
 struct Node {
     Kind string
