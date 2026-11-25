@@ -110,6 +110,15 @@ namespace pgt
 
     std::optional<CodeGen::Wide> CodeGen::constValue(const Expr &e)
     {
+        auto r = constValueRaw(e);
+        const Wide limit = static_cast<Wide>(UINT64_MAX);
+        if (r && (*r > limit || *r < -limit))
+            return std::nullopt;
+        return r;
+    }
+
+    std::optional<CodeGen::Wide> CodeGen::constValueRaw(const Expr &e)
+    {
         if (auto *lit = dynamic_cast<const IntLit *>(&e))
             return static_cast<Wide>(lit->value);
         if (auto *g = untypedGlobal(e))
@@ -134,13 +143,9 @@ namespace pgt
         switch (bin->op)
         {
         case BinOp::Add:
-            if (__builtin_add_overflow(*l, *r, &out))
-                return std::nullopt;
-            return out;
+            return *l + *r;
         case BinOp::Sub:
-            if (__builtin_sub_overflow(*l, *r, &out))
-                return std::nullopt;
-            return out;
+            return *l - *r;
         case BinOp::Mul:
             if (__builtin_mul_overflow(*l, *r, &out))
                 return std::nullopt;
@@ -150,19 +155,17 @@ namespace pgt
         case BinOp::Mod:
             return *r == 0 ? std::nullopt : std::optional<Wide>(*l % *r);
         case BinOp::BitAnd:
-            return *l & *r;
+            return *l < 0 || *r < 0 ? std::nullopt : std::optional<Wide>(*l & *r);
         case BinOp::BitOr:
-            return *l | *r;
+            return *l < 0 || *r < 0 ? std::nullopt : std::optional<Wide>(*l | *r);
         case BinOp::BitXor:
-            return *l ^ *r;
+            return *l < 0 || *r < 0 ? std::nullopt : std::optional<Wide>(*l ^ *r);
         case BinOp::Shl:
             if (*r < 0 || *r > 63)
                 return std::nullopt;
-            if (__builtin_mul_overflow(*l, static_cast<Wide>(1) << static_cast<int>(*r), &out))
-                return std::nullopt;
-            return out;
+            return *l * (static_cast<Wide>(1) << static_cast<int>(*r));
         case BinOp::Shr:
-            if (*r < 0 || *r > 126)
+            if (*r < 0 || *r > 63)
                 return std::nullopt;
             return *l >> static_cast<int>(*r);
         default:

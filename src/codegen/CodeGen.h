@@ -165,6 +165,7 @@ namespace pgt
         bool isConstExpr(const Expr &e);
         bool isStatelessExpr(const Expr &e);
         std::optional<Wide> constValue(const Expr &e);
+        std::optional<Wide> constValueRaw(const Expr &e);
         const Global *untypedGlobal(const Expr &e);
         Value untypedConst(Wide v, TyP hint, int line, int col);
         Value genTernary(const Ternary &t, TyP hint);
