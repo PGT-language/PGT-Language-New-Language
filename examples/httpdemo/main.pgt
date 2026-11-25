@@ -33,6 +33,10 @@ fn user(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintln(w, "user ", r.PathValue("id"))
 }
 
+fn me(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintln(w, "user me")
+}
+
 fn files(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintln(w, "path ", r.PathValue("path"))
 }
@@ -67,7 +71,7 @@ fn main() {
     http.HandleFunc("GET /api/hello", hello)
     http.HandleFunc("POST /api/echo", echo)
     http.HandleFunc("GET /users/{id}", user)
-    http.HandleFunc("GET /users/me", user)
+    http.HandleFunc("GET /users/me", me)
     http.HandleFunc("GET /files/{path...}", files)
     http.HandleFunc("/form", form)
     http.HandleFunc("GET /old", old)
