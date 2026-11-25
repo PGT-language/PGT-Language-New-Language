@@ -17,24 +17,24 @@ files.sort()
 
 def run(cmd):
     p = subprocess.run(cmd, capture_output=True, timeout=20)
-    return p.returncode, p.stdout.decode("latin-1")
+    return p.returncode, p.stdout.decode("latin-1"), p.stderr.decode("latin-1")
 
 
 same = 0
 errs = 0
 bad = []
 for f in files:
-    code0, out0 = run([pgt, "build", f, "--debug=json"])
+    code0, out0, _ = run([pgt, "build", f, "--debug=json"])
     try:
         entry = json.loads(out0)["files"][0]
     except Exception:
         bad.append((f, "stage0 produced no JSON"))
         continue
-    code1, out1 = run([stage1, "tokens", f])
+    code1, out1, err1 = run([stage1, "tokens", f])
     if entry["tokens"] == [] and "error" in entry:
         e = entry["error"]
         want = "%s:%d:%d: error: %s" % (f, e["line"], e["col"], e["message"])
-        got = out1.rstrip("\n")
+        got = err1.rstrip("\n")
         if e["line"] <= 0:
             want = "%s: error: %s" % (f, e["message"])
         if got == want and code1 == 1:
