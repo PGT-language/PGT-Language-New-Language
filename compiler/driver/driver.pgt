@@ -170,8 +170,8 @@ fn New(name string, templateName string) int {
         fmt.Eprintln("pgt: error: invalid project name '" + name + "': use letters, digits, '_' and '-'")
         return 1
     }
-    var* tpl = scaffold.Find(templateName)
-    if tpl == nil {
+    var* tpl, found = scaffold.Find(templateName)
+    if !found {
         var* known = ""
         for t in scaffold.Templates() {
             if len(known) > 0 {

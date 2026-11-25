@@ -152,12 +152,11 @@ fn Templates() []Template {
     return all
 }
 
-fn Find(name string) *Template {
-    var* all = Templates()
-    for i in 0..len(all) {
-        if all[i].Name == name {
-            return &all[i]
+fn Find(name string) (Template, bool) {
+    for t in Templates() {
+        if t.Name == name {
+            return t, true
         }
     }
-    return nil
+    return Template{}, false
 }
