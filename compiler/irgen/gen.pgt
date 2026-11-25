@@ -1,0 +1,944 @@
+package irgen
+
+#use "compiler/ast"
+#use "compiler/loader"
+#use "strings"
+#use "conv"
+
+struct Error {
+    File string
+    Line int
+    Col int
+    Msg string
+}
+
+struct Value {
+    V string
+    T *Type
+}
+
+struct Var {
+    Addr string
+    T *Type
+    IsConst bool
+}
+
+struct Global {
+    Sym string
+    T *Type
+    IsConst bool
+}
+
+struct Addr {
+    A string
+    T *Type
+    IsConst bool
+    Ok bool
+}
+
+struct PackageSyms {
+    Pkg *loader.Package
+    Functions map[string]*FuncInfo
+    Structs map[string]*StructInfo
+    Ifaces map[string]*IfaceInfo
+    Globals map[string]*Global
+    InitSym string
+}
+
+struct Scope {
+    Vars map[string]*Var
+}
+
+struct LoopTarget {
+    Continue string
+    Break string
+}
+
+struct Gen {
+    tt *TypeTable
+    ws *loader.Workspace
+    syms map[string]*PackageSyms
+    pkg *PackageSyms
+    fileImports map[string]*PackageSyms
+    currentFile string
+    typeDecls strings.Builder
+    globals strings.Builder
+    decls strings.Builder
+    funcs strings.Builder
+    body strings.Builder
+    allocas strings.Builder
+    declared map[string]bool
+    descs map[string]string
+    strLits map[string]string
+    strCount int
+    tmpCount int
+    labelCount int
+    uniq int
+    scopes []*Scope
+    loops []*LoopTarget
+    heapVars map[string]bool
+    curRet *Type
+    failed bool
+    err Error
+}
+
+fn newGen() *Gen {
+    return &Gen{
+        tt: newTypeTable(),
+        syms: map[string]*PackageSyms{},
+        fileImports: map[string]*PackageSyms{},
+        declared: map[string]bool{},
+        descs: map[string]string{},
+        strLits: map[string]string{},
+        heapVars: map[string]bool{},
+    }
+}
+
+fn (g *Gen) fail(msg string, line int, col int) {
+    if !g.failed {
+        g.failed = true
+        g.err = Error{File: g.currentFile, Line: line, Col: col, Msg: msg}
+    }
+}
+
+fn (g *Gen) dummy() Value {
+    return Value{V: "0", T: g.tt.intT}
+}
+
+fn isPublic(name string) bool {
+    return len(name) > 0 && name[0] >= 'A' && name[0] <= 'Z'
+}
+
+fn quoteSym(s string) string {
+    return "\"" + s + "\""
+}
+
+fn mangle(importPath string, name string) string {
+    return "pgt." + importPath + "." + name
+}
+
+fn (g *Gen) fnRef(sym string) string {
+    return "@" + quoteSym(sym)
+}
+
+fn (g *Gen) newTmp() string {
+    g.tmpCount++
+    return "%t" + g.tmpCount
+}
+
+fn (g *Gen) newLabel(hint string) string {
+    g.labelCount++
+    return hint + "." + g.labelCount
+}
+
+fn (g *Gen) emit(line string) {
+    g.body.Write("  " + line + "\n")
+}
+
+fn (g *Gen) emitAlloca(line string) {
+    g.allocas.Write("  " + line + "\n")
+}
+
+fn (g *Gen) label(name string) {
+    g.body.Write(name + ":\n")
+}
+
+fn (g *Gen) startDead() {
+    g.label(g.newLabel("dead"))
+}
+
+fn (g *Gen) inst(rhs string) string {
+    var* t = g.newTmp()
+    g.emit(t + " = " + rhs)
+    return t
+}
+
+fn (g *Gen) br(target string) {
+    g.emit("br label %" + target)
+}
+
+fn (g *Gen) condBr(cond string, yes string, no string) {
+    g.emit("br i1 " + cond + ", label %" + yes + ", label %" + no)
+}
+
+fn (g *Gen) llvmType(t *Type) string {
+    switch t.Kind {
+        case KVoid { return "void" }
+        case KInt { return "i32" }
+        case KInt64, KUint64 { return "i64" }
+        case KFloat { return "double" }
+        case KChar, KByte { return "i8" }
+        case KBool { return "i1" }
+        case KString, KNil, KPointer, KMap { return "ptr" }
+        case KArray { return "%pgt.array" }
+        case KIface, KAny { return "%pgt.iface" }
+        case KStruct { return t.St.Llvm }
+        case KTuple {
+            var* out = "{ "
+            for i, e in t.Elems {
+                if i > 0 {
+                    out = out + ", "
+                }
+                out = out + g.llvmType(e)
+            }
+            return out + " }"
+        }
+    }
+    return "void"
+}
+
+fn (g *Gen) zeroValue(t *Type) string {
+    switch t.Kind {
+        case KInt, KInt64, KUint64, KChar, KByte { return "0" }
+        case KFloat { return "0.0" }
+        case KBool { return "false" }
+        case KString, KNil, KPointer, KMap { return "null" }
+    }
+    return "zeroinitializer"
+}
+
+fn (g *Gen) sizeOf(t *Type) string {
+    return "ptrtoint (ptr getelementptr (" + g.llvmType(t) + ", ptr null, i64 1) to i64)"
+}
+
+fn (g *Gen) typeParamText(t *Type) string {
+    return g.llvmType(t)
+}
+
+fn hexDigit(n int) char {
+    var* digits = "0123456789ABCDEF"
+    return digits[n]
+}
+
+fn escapeBytes(s string) string {
+    var* b strings.Builder
+    for c in s {
+        var* n = int(c)
+        if n >= 32 && n < 127 && c != '"' && c != '\\' {
+            b.Write(string(c))
+        } else {
+            b.Write("\\" + string(hexDigit(n / 16)) + string(hexDigit(n % 16)))
+        }
+    }
+    return b.String()
+}
+
+fn (g *Gen) strLit(s string) string {
+    if has(g.strLits, s) {
+        return g.strLits[s]
+    }
+    g.strCount++
+    var* name = "@.str." + g.strCount
+    var* n = len(s) + 1
+    g.globals.Write(name + " = private unnamed_addr constant [" + n + " x i8] c\"" + escapeBytes(s) + "\\00\", align 1\n")
+    g.strLits[s] = name
+    return name
+}
+
+fn (g *Gen) declareRaw(sym string, line string) {
+    if !has(g.declared, sym) {
+        g.declared[sym] = true
+        g.decls.Write(line + "\n")
+    }
+}
+
+fn (g *Gen) rtDecl(name string, ret string, params string) {
+    g.declareRaw(name, "declare " + ret + " @" + name + "(" + params + ")")
+}
+
+fn (g *Gen) callRt(name string, ret string, params string, args string) string {
+    g.rtDecl(name, ret, params)
+    if ret == "void" {
+        g.emit("call void @" + name + "(" + args + ")")
+        return ""
+    }
+    return g.inst("call " + ret + " @" + name + "(" + args + ")")
+}
+
+fn (g *Gen) callRtNoReturn(name string, params string, args string) {
+    g.declareRaw(name, "declare void @" + name + "(" + params + ") noreturn")
+    g.emit("call void @" + name + "(" + args + ")")
+    g.emit("unreachable")
+    g.startDead()
+}
+
+fn (g *Gen) panicDecl(name string) string {
+    var* sym = "pgt.runtime." + name
+    var* params = ""
+    switch name {
+        case "panicIndex" { params = "i64, i64" }
+        case "panicSlice", "panicSliceCap" { params = "i64, i64, i64" }
+        case "panicString" { params = "ptr" }
+    }
+    g.declareRaw(sym, "declare void @" + quoteSym(sym) + "(" + params + ") noreturn")
+    return "@" + quoteSym(sym)
+}
+
+fn (g *Gen) panicIf(cond string, name string, args string) {
+    var* bad = g.newLabel("panic")
+    var* ok = g.newLabel("ok")
+    g.condBr(cond, bad, ok)
+    g.label(bad)
+    var* fn = g.panicDecl(name)
+    g.emit("call void " + fn + "(" + args + ")")
+    g.emit("unreachable")
+    g.label(ok)
+}
+
+fn (g *Gen) nilCheck(p string) {
+    var* c = g.inst("icmp eq ptr " + p + ", null")
+    g.panicIf(c, "panicNil", "")
+}
+
+fn (g *Gen) load(t *Type, addr string) string {
+    return g.inst("load " + g.llvmType(t) + ", ptr " + addr)
+}
+
+fn (g *Gen) store(t *Type, val string, addr string) {
+    g.emit("store " + g.llvmType(t) + " " + val + ", ptr " + addr)
+}
+
+fn (g *Gen) extract(t *Type, agg string, idx int) string {
+    return g.inst("extractvalue " + g.llvmType(t) + " " + agg + ", " + idx)
+}
+
+fn (g *Gen) insert(t *Type, agg string, elem *Type, val string, idx int) string {
+    return g.inst("insertvalue " + g.llvmType(t) + " " + agg + ", " + g.llvmType(elem) + " " + val + ", " + idx)
+}
+
+fn (g *Gen) entryAlloca(t *Type, name string) string {
+    g.uniq++
+    var* slot = "%" + name + "." + g.uniq
+    g.emitAlloca(slot + " = alloca " + g.llvmType(t))
+    return slot
+}
+
+fn (g *Gen) newVarSlot(t *Type, name string) string {
+    if has(g.heapVars, name) {
+        return g.callRt("pgt_alloc", "ptr", "i64, ptr", g.sizeOf(t) + "_, ptr null")
+    }
+    return g.entryAlloca(t, "v")
+}
+
+fn (g *Gen) pushScope() {
+    g.scopes = append(g.scopes, &Scope{Vars: map[string]*Var{}})
+}
+
+fn (g *Gen) popScope() {
+    g.scopes = g.scopes[0:len(g.scopes) - 1]
+}
+
+fn (g *Gen) lookupLocal(name string) *Var {
+    var* i = len(g.scopes) - 1
+    while i >= 0 {
+        var* s = g.scopes[i]
+        if has(s.Vars, name) {
+            return s.Vars[name]
+        }
+        i--
+    }
+    return nil
+}
+
+fn (g *Gen) lookupVar(name string) *Var {
+    var* v = g.lookupLocal(name)
+    if v != nil {
+        return v
+    }
+    if has(g.pkg.Globals, name) {
+        var* gl = g.pkg.Globals[name]
+        return &Var{Addr: gl.Sym, T: gl.T, IsConst: gl.IsConst}
+    }
+    return nil
+}
+
+fn (g *Gen) declare(name string, v *Var, line int, col int) {
+    if has(g.scopes[len(g.scopes) - 1].Vars, name) {
+        g.fail("variable '" + name + "' is already declared in this scope", line, col)
+        return
+    }
+    g.scopes[len(g.scopes) - 1].Vars[name] = v
+}
+
+fn (g *Gen) lookupPackage(name string) *PackageSyms {
+    if has(g.fileImports, name) {
+        return g.fileImports[name]
+    }
+    return nil
+}
+
+fn (g *Gen) bindImports(prog *ast.Program) {
+    g.fileImports = map[string]*PackageSyms{}
+    for imp in prog.Imports {
+        if !has(g.ws.ByPath, imp.Path) {
+            continue
+        }
+        var* target = g.ws.ByPath[imp.Path]
+        if has(g.fileImports, target.Name) {
+            g.fail("package name '" + target.Name + "' is imported more than once", imp.Line, imp.Col)
+            return
+        }
+        g.fileImports[target.Name] = g.syms[target.ImportPath]
+    }
+}
+
+fn (g *Gen) resolveType(t *ast.TypeExpr, allowVoid bool) *Type {
+    switch t.Kind {
+        case ast.TypeArray { return g.tt.arrayOf(g.resolveType(t.Elem, false)) }
+        case ast.TypePointer { return g.tt.pointerTo(g.resolveType(t.Elem, false)) }
+        case ast.TypeMap {
+            var* k = g.resolveType(t.Key, false)
+            if !k.IsIntegral() && k.Kind != KBool && k.Kind != KString {
+                g.fail("invalid map key type " + k.Name() + " (keys can be int, int64, char, byte, bool or string)", t.Key.Line, t.Key.Col)
+            }
+            return g.tt.mapOf(k, g.resolveType(t.Elem, false))
+        }
+        case ast.TypeTuple {
+            var* elems + {[]*Type} = []
+            for e in t.Elems {
+                elems = append(elems, g.resolveType(e, false))
+            }
+            return g.tt.tupleOf(elems)
+        }
+    }
+    if len(t.Qualifier) > 0 {
+        var* p = g.lookupPackage(t.Qualifier)
+        if p == nil {
+            g.fail("undefined package '" + t.Qualifier + "'", t.Line, t.Col)
+            return g.tt.intT
+        }
+        if !isPublic(t.Name) {
+            g.fail("'" + t.Text() + "' is not exported (lowercase names are private)", t.Line, t.Col)
+            return g.tt.intT
+        }
+        if has(p.Structs, t.Name) {
+            return g.tt.structT(p.Structs[t.Name])
+        }
+        if has(p.Ifaces, t.Name) {
+            return g.tt.ifaceT(p.Ifaces[t.Name])
+        }
+        g.fail("package '" + t.Qualifier + "' has no type '" + t.Name + "'", t.Line, t.Col)
+        return g.tt.intT
+    }
+    var* n = t.Name
+    switch n {
+        case "any" { return g.tt.anyT }
+        case "int" { return g.tt.intT }
+        case "int64" { return g.tt.int64T }
+        case "uint64" { return g.tt.uint64T }
+        case "float" { return g.tt.floatT }
+        case "char" { return g.tt.charT }
+        case "byte" { return g.tt.byteT }
+        case "string" { return g.tt.stringT }
+        case "bool" { return g.tt.boolT }
+        case "void" {
+            if !allowVoid {
+                g.fail("'void' can only be used as a result type", t.Line, t.Col)
+            }
+            return g.tt.voidT
+        }
+    }
+    if has(g.pkg.Structs, n) {
+        return g.tt.structT(g.pkg.Structs[n])
+    }
+    if has(g.pkg.Ifaces, n) {
+        return g.tt.ifaceT(g.pkg.Ifaces[n])
+    }
+    g.fail("unknown type '" + n + "'", t.Line, t.Col)
+    return g.tt.intT
+}
+
+fn (g *Gen) declareTypes(pkg *loader.Package) {
+    var* ps = g.syms[pkg.ImportPath]
+    for p in pkg.Programs {
+        g.currentFile = p.File
+        for d in p.Structs {
+            if has(ps.Structs, d.Name) || has(ps.Ifaces, d.Name) {
+                g.fail("type '" + d.Name + "' is already defined in package '" + pkg.Name + "'", d.Line, d.Col)
+                return
+            }
+            var* st = &StructInfo{Name: d.Name, PkgPath: pkg.ImportPath, PkgName: pkg.Name, Decl: d, Methods: map[string]*FuncInfo{}}
+            st.Llvm = "%" + quoteSym(mangle(pkg.ImportPath, d.Name))
+            ps.Structs[d.Name] = st
+        }
+        for d in p.Interfaces {
+            if has(ps.Structs, d.Name) || has(ps.Ifaces, d.Name) {
+                g.fail("type '" + d.Name + "' is already defined in package '" + pkg.Name + "'", d.Line, d.Col)
+                return
+            }
+            ps.Ifaces[d.Name] = &IfaceInfo{Name: d.Name, PkgPath: pkg.ImportPath, PkgName: pkg.Name}
+        }
+    }
+}
+
+fn (g *Gen) resolveTypeBodies(pkg *loader.Package) {
+    g.pkg = g.syms[pkg.ImportPath]
+    for p in pkg.Programs {
+        g.currentFile = p.File
+        g.bindImports(p)
+        for d in p.Structs {
+            var* st = g.pkg.Structs[d.Name]
+            var* body = ""
+            for f in d.Fields {
+                if st.FieldIndex(f.Name) >= 0 {
+                    g.fail("duplicate field '" + f.Name + "' in struct '" + d.Name + "'", f.Line, f.Col)
+                    return
+                }
+                var* t = g.resolveType(f.Type, false)
+                st.Fields = append(st.Fields, &FieldInfo{Name: f.Name, Type: t})
+                if len(body) > 0 {
+                    body = body + ", "
+                }
+                body = body + g.llvmType(t)
+            }
+            if g.failed {
+                return
+            }
+            if len(d.Fields) == 0 {
+                g.typeDecls.Write(st.Llvm + " = type {}\n")
+            } else {
+                g.typeDecls.Write(st.Llvm + " = type { " + body + " }\n")
+            }
+        }
+        for d in p.Interfaces {
+            var* ii = g.pkg.Ifaces[d.Name]
+            for m in d.Methods {
+                var* im = &IfaceMethod{Name: m.Name, Ret: g.tt.voidT}
+                for prm in m.Params {
+                    im.Params = append(im.Params, g.resolveType(prm.Type, false))
+                }
+                if m.Ret != nil {
+                    im.Ret = g.resolveType(m.Ret, true)
+                }
+                ii.Methods = append(ii.Methods, im)
+            }
+        }
+    }
+}
+
+fn (g *Gen) declareSignature(fn *ast.Function, recvType *Type, symbol string) *FuncInfo {
+    var* info = &FuncInfo{Name: fn.Name, Symbol: symbol, IsExtern: fn.IsExtern, Line: fn.Line, Col: fn.Col}
+    if recvType != nil {
+        info.Params = append(info.Params, recvType)
+    }
+    for param in fn.Params {
+        var* t = g.resolveType(param.Type, false)
+        info.Params = append(info.Params, t)
+    }
+    info.Ret = g.tt.voidT
+    if fn.Ret != nil {
+        info.Ret = g.resolveType(fn.Ret, true)
+    }
+    info.Variadic = len(fn.Params) > 0 && fn.Params[len(fn.Params) - 1].Variadic
+    return info
+}
+
+fn (g *Gen) declareFunctions(pkg *loader.Package) {
+    g.pkg = g.syms[pkg.ImportPath]
+    for p in pkg.Programs {
+        g.currentFile = p.File
+        g.bindImports(p)
+        for fn in p.Functions {
+            if fn.Receiver != nil {
+                var* r = fn.Receiver
+                if !has(g.pkg.Structs, r.TypeName) {
+                    g.fail("methods can only be declared on a struct of this package; '" + r.TypeName + "' is not one", r.Line, r.Col)
+                    return
+                }
+                var* st = g.pkg.Structs[r.TypeName]
+                if has(st.Methods, fn.Name) {
+                    g.fail("method '" + r.TypeName + "." + fn.Name + "' is already defined", fn.Line, fn.Col)
+                    return
+                }
+                var* structTy = g.tt.structT(st)
+                var* recvTy = structTy
+                if r.Pointer {
+                    recvTy = g.tt.pointerTo(structTy)
+                }
+                var* info = g.declareSignature(fn, recvTy, mangle(pkg.ImportPath, r.TypeName + "." + fn.Name))
+                info.PtrRecv = r.Pointer
+                st.Methods[fn.Name] = info
+                if !pkg.IsStd {
+                    g.declared[info.Symbol] = true
+                }
+                continue
+            }
+            if has(g.pkg.Functions, fn.Name) {
+                g.fail("function '" + fn.Name + "' is already defined in package '" + pkg.Name + "'", fn.Line, fn.Col)
+                return
+            }
+            var* symbol = mangle(pkg.ImportPath, fn.Name)
+            if fn.IsExtern {
+                symbol = fn.Name
+            }
+            var* info = g.declareSignature(fn, nil, symbol)
+            g.pkg.Functions[fn.Name] = info
+            if !pkg.IsStd && !fn.IsExtern {
+                g.declared[info.Symbol] = true
+            }
+        }
+    }
+}
+
+fn (g *Gen) paramList(info *FuncInfo) string {
+    var* out = ""
+    for i, p in info.Params {
+        if i > 0 {
+            out = out + ", "
+        }
+        out = out + g.llvmType(p)
+    }
+    return out
+}
+
+fn (g *Gen) useFn(info *FuncInfo) {
+    if has(g.declared, info.Symbol) {
+        return
+    }
+    g.declared[info.Symbol] = true
+    var* params = ""
+    for i, p in info.Params {
+        if i > 0 {
+            params = params + ", "
+        }
+        if info.IsExtern && p.Kind == KArray {
+            params = params + "ptr"
+        } else {
+            params = params + g.llvmType(p)
+            if info.IsExtern && (p.Kind == KBool || p.Kind == KChar || p.Kind == KByte) {
+                params = params + " zeroext"
+            }
+        }
+    }
+    var* ret = g.llvmType(info.Ret)
+    var* retAttr = ""
+    if info.IsExtern && (info.Ret.Kind == KBool || info.Ret.Kind == KChar || info.Ret.Kind == KByte) {
+        retAttr = "zeroext "
+    }
+    g.decls.Write("declare " + retAttr + ret + " " + g.fnRef(info.Symbol) + "(" + params + ")\n")
+}
+
+fn (g *Gen) literalType(e *ast.Expr) *Type {
+    if e.Kind == ast.ExprIntLit {
+        return g.tt.intT
+    }
+    if e.Kind == ast.ExprFloatLit {
+        return g.tt.floatT
+    }
+    return nil
+}
+
+fn (g *Gen) genGlobals(pkg *loader.Package) {
+    g.pkg = g.syms[pkg.ImportPath]
+    if pkg.IsStd {
+        g.declareStdGlobals(pkg)
+        return
+    }
+    var* initSym = mangle(pkg.ImportPath, "init")
+    g.pkg.InitSym = initSym
+    g.body = strings.Builder{}
+    g.allocas = strings.Builder{}
+    g.tmpCount = 0
+    g.labelCount = 0
+    g.curRet = g.tt.voidT
+    g.heapVars = map[string]bool{}
+    g.loops = []
+    var* defs = ""
+    for p in pkg.Programs {
+        g.currentFile = p.File
+        g.bindImports(p)
+        for d in p.Globals {
+            if has(g.pkg.Globals, d.Name) || has(g.pkg.Functions, d.Name) || has(g.pkg.Structs, d.Name) {
+                g.fail("'" + d.Name + "' is already declared in package '" + pkg.Name + "'", d.Line, d.Col)
+                return
+            }
+            g.scopes = []
+            g.pushScope()
+            var* ty *Type = nil
+            if d.Type != nil {
+                ty = g.resolveType(d.Type, false)
+            }
+            var* init = Value{V: "", T: nil}
+            if d.Init != nil {
+                init = g.genExpr(d.Init, ty)
+                if g.failed {
+                    return
+                }
+                if ty != nil {
+                    init = g.coerce(init, ty, d.Line, d.Col, "the initializer of '" + d.Name + "'")
+                } else {
+                    ty = init.T
+                }
+            }
+            if g.failed {
+                return
+            }
+            if ty.Kind == KNil {
+                g.fail("cannot infer the type of '" + d.Name + "' from nil", d.Line, d.Col)
+                return
+            }
+            if ty.Kind == KVoid {
+                g.fail("'" + d.Name + "' cannot be initialized with a call that returns nothing", d.Line, d.Col)
+                return
+            }
+            g.popScope()
+            var* sym = mangle(pkg.ImportPath, d.Name)
+            var* linkage = "internal "
+            if isPublic(d.Name) {
+                linkage = ""
+            }
+            defs = defs + g.fnRef(sym) + " = " + linkage + "global " + g.llvmType(ty) + " " + g.zeroValue(ty) + "\n"
+            if len(init.V) > 0 {
+                g.store(ty, init.V, g.fnRef(sym))
+            }
+            g.pkg.Globals[d.Name] = &Global{Sym: g.fnRef(sym), T: ty, IsConst: d.IsConst}
+        }
+    }
+    g.globals.Write(defs)
+    g.funcs.Write("define internal void " + g.fnRef(initSym) + "() {\nentry:\n" + g.allocas.String() + "  br label %start\nstart:\n" + g.body.String() + "  ret void\n}\n\n")
+}
+
+fn (g *Gen) declareStdGlobals(pkg *loader.Package) {
+    for p in pkg.Programs {
+        g.currentFile = p.File
+        g.bindImports(p)
+        for d in p.Globals {
+            if !isPublic(d.Name) {
+                continue
+            }
+            var* ty *Type = nil
+            if d.Type != nil {
+                ty = g.resolveType(d.Type, false)
+            } else if d.Init != nil {
+                ty = g.stdGlobalType(d.Init)
+            }
+            if ty == nil || g.failed {
+                continue
+            }
+            var* sym = mangle(pkg.ImportPath, d.Name)
+            g.globals.Write(g.fnRef(sym) + " = external global " + g.llvmType(ty) + "\n")
+            g.pkg.Globals[d.Name] = &Global{Sym: g.fnRef(sym), T: ty, IsConst: d.IsConst}
+        }
+    }
+}
+
+fn (g *Gen) stdGlobalType(e *ast.Expr) *Type {
+    switch e.Kind {
+        case ast.ExprIntLit { return g.tt.intT }
+        case ast.ExprFloatLit { return g.tt.floatT }
+        case ast.ExprStringLit { return g.tt.stringT }
+        case ast.ExprBoolLit { return g.tt.boolT }
+        case ast.ExprCharLit { return g.tt.charT }
+        case ast.ExprUnary {
+            return g.stdGlobalType(e.Operand)
+        }
+        case ast.ExprBinary {
+            return g.stdGlobalType(e.Lhs)
+        }
+    }
+    return nil
+}
+
+fn (g *Gen) genFunction(fn *ast.Function, info *FuncInfo) {
+    g.body = strings.Builder{}
+    g.allocas = strings.Builder{}
+    g.tmpCount = 0
+    g.labelCount = 0
+    g.scopes = []
+    g.loops = []
+    g.heapVars = map[string]bool{}
+    g.collectHeapVars(fn.Body)
+    g.curRet = info.Ret
+    g.pushScope()
+    var* names + {[]string} = []
+    var* poss + {[]*ast.Param} = []
+    if fn.Receiver != nil {
+        names = append(names, fn.Receiver.Name)
+    }
+    for p in fn.Params {
+        names = append(names, p.Name)
+    }
+    var* header = ""
+    for i, name in names {
+        if i > 0 {
+            header = header + ", "
+        }
+        var* argName = "%arg." + i
+        header = header + g.llvmType(info.Params[i]) + " " + argName
+        var* slot = g.newVarSlot(info.Params[i], name)
+        g.store(info.Params[i], argName, slot)
+        var* line = fn.Line
+        var* col = fn.Col
+        g.declare(name, &Var{Addr: slot, T: info.Params[i], IsConst: false}, line, col)
+    }
+    var* fullName = fn.Name
+    if fn.Receiver != nil {
+        fullName = fn.Receiver.TypeName + "." + fn.Name
+    }
+    if info.Ret.Kind != KVoid && !ast.Terminates(fn.Body) {
+        g.fail("missing return at the end of function '" + fullName + "'", fn.Line, fn.Col)
+        return
+    }
+    g.genBlock(fn.Body)
+    g.popScope()
+    if info.Ret.Kind == KVoid {
+        g.emit("ret void")
+    } else {
+        g.emit("unreachable")
+    }
+    if g.failed {
+        return
+    }
+    var* linkage = "internal "
+    if isPublic(fn.Name) && (fn.Receiver == nil || isPublic(fn.Receiver.TypeName)) {
+        linkage = ""
+    }
+    g.funcs.Write("define " + linkage + g.llvmType(info.Ret) + " " + g.fnRef(info.Symbol) + "(" + header + ") {\nentry:\n" + g.allocas.String() + "  br label %start\nstart:\n" + g.body.String() + "}\n\n")
+}
+
+fn (g *Gen) genEntryPoint(root *loader.Package, prog *ast.Program) {
+    var* ps = g.syms[root.ImportPath]
+    g.pkg = ps
+    if !has(ps.Functions, "main") || ps.Functions["main"].IsExtern {
+        g.fail("function 'main' is not defined", 1, 1)
+        return
+    }
+    var* mainInfo = ps.Functions["main"]
+    if len(mainInfo.Params) > 0 {
+        g.fail("function 'main' must not take parameters", mainInfo.Line, mainInfo.Col)
+        return
+    }
+    g.body = strings.Builder{}
+    g.allocas = strings.Builder{}
+    g.tmpCount = 0
+    g.labelCount = 0
+    g.scopes = []
+    g.loops = []
+    g.heapVars = map[string]bool{}
+    g.curRet = g.tt.intT
+    g.pushScope()
+    g.declareRaw("pgt_std_boot", "declare void @pgt_std_boot(i32, ptr)")
+    g.emit("call void @pgt_std_boot(i32 %argc, ptr %argv)")
+    for pkg in g.ws.Packages {
+        if pkg.IsStd {
+            continue
+        }
+        var* sym = g.syms[pkg.ImportPath].InitSym
+        g.emit("call void " + g.fnRef(sym) + "()")
+    }
+    g.emit("call void " + g.fnRef(mainInfo.Symbol) + "()")
+    var* code = g.genExpr(prog.ExitCode, g.tt.intT)
+    if g.failed {
+        return
+    }
+    if code.T.Kind != KInt {
+        g.fail("the final 'return' must be an integer", prog.ExitCode.Line, prog.ExitCode.Col)
+        return
+    }
+    g.rtDecl("fflush", "i32", "ptr")
+    g.emit("call i32 @fflush(ptr null)")
+    g.emit("ret i32 " + code.V)
+    g.funcs.Write("define i32 @main(i32 %argc, ptr %argv) {\nentry:\n" + g.allocas.String() + "  br label %start\nstart:\n" + g.body.String() + "}\n\n")
+}
+
+fn (g *Gen) checkExitCodes(pkg *loader.Package) *ast.Program {
+    var* withExit *ast.Program = nil
+    for p in pkg.Programs {
+        if p.ExitCode == nil {
+            continue
+        }
+        if pkg.Name != "main" {
+            g.currentFile = p.File
+            g.fail("only package 'main' may end with 'return'", p.ExitCode.Line, p.ExitCode.Col)
+            return nil
+        }
+        if withExit != nil {
+            g.currentFile = p.File
+            g.fail("package 'main' has more than one final 'return'", p.ExitCode.Line, p.ExitCode.Col)
+            return nil
+        }
+        withExit = p
+    }
+    if pkg.Name == "main" && withExit == nil {
+        g.currentFile = pkg.Programs[0].File
+        g.fail("package 'main' needs exactly one file ending with 'return'", 0, 0)
+    }
+    return withExit
+}
+
+fn Generate(ws *loader.Workspace) (string, Error) {
+    var* g = newGen()
+    g.ws = ws
+    var* entry *ast.Program = nil
+    for pkg in ws.Packages {
+        var* e = g.checkExitCodes(pkg)
+        if g.failed {
+            return "", g.err
+        }
+        if pkg == ws.Root {
+            entry = e
+        }
+        g.syms[pkg.ImportPath] = &PackageSyms{Pkg: pkg, Functions: map[string]*FuncInfo{}, Structs: map[string]*StructInfo{}, Ifaces: map[string]*IfaceInfo{}, Globals: map[string]*Global{}}
+    }
+    for pkg in ws.Packages {
+        g.declareTypes(pkg)
+    }
+    for pkg in ws.Packages {
+        g.resolveTypeBodies(pkg)
+    }
+    for pkg in ws.Packages {
+        g.declareFunctions(pkg)
+    }
+    for pkg in ws.Packages {
+        if g.failed {
+            return "", g.err
+        }
+        g.genGlobals(pkg)
+    }
+    for pkg in ws.Packages {
+        if pkg.IsStd || g.failed {
+            continue
+        }
+        g.pkg = g.syms[pkg.ImportPath]
+        for p in pkg.Programs {
+            g.currentFile = p.File
+            g.bindImports(p)
+            for fn in p.Functions {
+                if fn.IsExtern {
+                    continue
+                }
+                if fn.Receiver != nil {
+                    var* st = g.pkg.Structs[fn.Receiver.TypeName]
+                    g.genFunction(fn, st.Methods[fn.Name])
+                } else {
+                    g.genFunction(fn, g.pkg.Functions[fn.Name])
+                }
+                if g.failed {
+                    return "", g.err
+                }
+            }
+        }
+    }
+    if g.failed {
+        return "", g.err
+    }
+    if ws.Root.Name == "main" && entry != nil {
+        g.currentFile = entry.File
+        g.bindImports(entry)
+        g.genEntryPoint(ws.Root, entry)
+    }
+    if g.failed {
+        return "", g.err
+    }
+    var* out strings.Builder
+    out.Write("; PGT module\n")
+    out.Write("%pgt.array = type { ptr, i64, i64, ptr }\n")
+    out.Write("%pgt.iface = type { ptr, ptr }\n")
+    out.Write("%pgt.fielddesc = type { ptr, ptr, i64 }\n")
+    out.Write("%pgt.typedesc = type { i32, i32, ptr, ptr, i64, ptr, ptr, ptr }\n")
+    out.Write(g.typeDecls.String())
+    out.Write(g.globals.String())
+    out.Write(g.decls.String())
+    out.Write(g.funcs.String())
+    return out.String(), Error{}
+}
