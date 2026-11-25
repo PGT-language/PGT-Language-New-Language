@@ -43,7 +43,11 @@
       {
         "language": "pgt",
         "scopeName": "source.pgt",
-        "path": "./syntaxes/pgt.tmLanguage.json"
+        "path": "./syntaxes/pgt.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.c.pgt": "c",
+          "meta.embedded.block.assembly.pgt": "asm"
+        }
       },
       {
         "language": "pgt-mod",
