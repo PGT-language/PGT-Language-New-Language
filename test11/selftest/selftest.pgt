@@ -1,0 +1,161 @@
+package selftest
+
+#use (
+    "test11/render"
+    "test11/game"
+    "std/fmt"
+)
+
+var* failed = 0
+var* total = 0
+
+fn check(name string, ok bool) {
+    total++
+    if ok {
+        fmt.Println("ok   ", name)
+        return
+    }
+    failed++
+    fmt.Println("FAIL ", name)
+}
+
+fn setup(w int, h int, body []game.Point, dir int, food game.Point) *game.Game {
+    var* g = game.New(w, h)
+    g.Snake = body
+    g.Dir = dir
+    g.Queue = []
+    g.Food = food
+    return g
+}
+
+fn line(x0 int, x1 int, y int) []game.Point {
+    var* pts []game.Point = []
+    for x in x0..x1 + 1 {
+        pts = append(pts, game.Point{X: x, Y: y})
+    }
+    return pts
+}
+
+fn testMove() {
+    var* g = setup(10, 10, line(1, 3, 5), game.DirRight, game.Point{X: 9, Y: 9})
+    var* st = g.Step()
+    check("move: status ok", st == game.StatusOk)
+    check("move: head advanced", g.Head().X == 4 && g.Head().Y == 5)
+    check("move: length constant", g.Length() == 3)
+    check("move: tail removed", !g.OnSnake(1, 5))
+    g.Turn(game.DirDown)
+    g.Step()
+    check("move: turn down", g.Head().X == 4 && g.Head().Y == 6)
+    g.Turn(game.DirLeft)
+    g.Step()
+    check("move: turn left", g.Head().X == 3 && g.Head().Y == 6)
+    g.Turn(game.DirUp)
+    g.Step()
+    check("move: turn up", g.Head().X == 3 && g.Head().Y == 5)
+}
+
+fn testReverse() {
+    var* g = setup(10, 10, line(1, 3, 5), game.DirRight, game.Point{X: 9, Y: 9})
+    check("reverse: rejected", !g.Turn(game.DirLeft))
+    g.Step()
+    check("reverse: keeps direction", g.Head().X == 4)
+    check("queue: up accepted", g.Turn(game.DirUp))
+    check("queue: reverse of queued rejected", !g.Turn(game.DirDown))
+    check("queue: same direction rejected", !g.Turn(game.DirUp))
+    check("queue: left accepted after up", g.Turn(game.DirLeft))
+    check("queue: limited to two", !g.Turn(game.DirDown))
+    g.Step()
+    g.Step()
+    check("queue: both turns applied", g.Head().X == 3 && g.Head().Y == 4)
+    check("queue: still alive", !g.Over())
+}
+
+fn testGrowth() {
+    var* g = setup(10, 10, line(1, 3, 5), game.DirRight, game.Point{X: 4, Y: 5})
+    var* st = g.Step()
+    check("growth: status ate", st == game.StatusAte)
+    check("growth: length 4", g.Length() == 4)
+    check("growth: tail kept", g.OnSnake(1, 5))
+    check("growth: score", g.Score == game.FoodScore)
+    check("growth: new food not on snake", !g.OnSnake(g.Food.X, g.Food.Y))
+    st = g.Step()
+    check("growth: next step ok", st == game.StatusOk && g.Length() == 4)
+}
+
+fn testWalls() {
+    var* g = setup(10, 10, line(7, 9, 5), game.DirRight, game.Point{X: 0, Y: 0})
+    check("wall: right edge", g.Step() == game.StatusWall && g.Over())
+    var* t = setup(10, 10, [game.Point{X: 5, Y: 1}, game.Point{X: 5, Y: 0}], game.DirUp, game.Point{X: 9, Y: 9})
+    check("wall: top edge", t.Step() == game.StatusWall)
+    var* l = setup(10, 10, [game.Point{X: 1, Y: 5}, game.Point{X: 0, Y: 5}], game.DirLeft, game.Point{X: 9, Y: 9})
+    check("wall: left edge", l.Step() == game.StatusWall)
+    var* d = setup(10, 10, [game.Point{X: 5, Y: 8}, game.Point{X: 5, Y: 9}], game.DirDown, game.Point{X: 0, Y: 0})
+    check("wall: bottom edge", d.Step() == game.StatusWall)
+    var* after = g.Step()
+    check("wall: step after over is stable", after == game.StatusWall)
+}
+
+fn testSelf() {
+    var* body = [game.Point{X: 2, Y: 2}, game.Point{X: 3, Y: 2}, game.Point{X: 4, Y: 2}, game.Point{X: 5, Y: 2}, game.Point{X: 5, Y: 3}, game.Point{X: 4, Y: 3}]
+    var* g = setup(10, 10, body, game.DirLeft, game.Point{X: 9, Y: 9})
+    g.Turn(game.DirUp)
+    check("self: collision with body", g.Step() == game.StatusSelf && g.Over())
+    var* loop = [game.Point{X: 2, Y: 2}, game.Point{X: 3, Y: 2}, game.Point{X: 3, Y: 3}, game.Point{X: 2, Y: 3}]
+    var* t = setup(10, 10, loop, game.DirUp, game.Point{X: 9, Y: 9})
+    check("self: moving into vacated tail is allowed", t.Step() == game.StatusOk)
+}
+
+fn testFood() {
+    var* g = game.New(8, 6)
+    var* ok = true
+    for i in 0..300 {
+        g.PlaceFood()
+        if g.OnSnake(g.Food.X, g.Food.Y) || g.Food.X < 0 || g.Food.Y < 0 || g.Food.X >= g.W || g.Food.Y >= g.H {
+            ok = false
+        }
+    }
+    check("food: never on snake or outside field", ok)
+    var* full = game.New(3, 1)
+    full.Snake = [game.Point{X: 0, Y: 0}, game.Point{X: 1, Y: 0}]
+    full.PlaceFood()
+    check("food: only free cell chosen", full.Food.X == 2 && full.Food.Y == 0)
+    full.Dir = game.DirRight
+    check("food: filling board wins", full.Step() == game.StatusWon && full.Over())
+}
+
+fn testSpeed() {
+    var* g = game.New(10, 10)
+    var* d0 = g.Delay()
+    check("speed: starts at level 1", g.Speed() == 1 && d0 == game.BaseDelay)
+    g.Eaten = game.FoodPerLevel * 3
+    check("speed: faster with growth", g.Delay() < d0 && g.Speed() == 4)
+    g.Eaten = 100000
+    check("speed: delay floor", g.Delay() == game.MinDelay)
+}
+
+fn testLayout() {
+    var* w, h = render.Fit(80, 24)
+    check("layout: 80x24 fits", w == 39 && h == 20)
+    w, h = render.Fit(300, 100)
+    check("layout: capped", w == render.MaxW && h == render.MaxH)
+    check("layout: tiny detected", render.TooSmall(20, 6) && !render.TooSmall(80, 24))
+    var* g = game.New(w, h)
+    var* l = render.MakeLayout(300, 100, w, h)
+    check("layout: frame renders", len(l.Frame(g, 0)) > 100)
+}
+
+fn Run() int {
+    testMove()
+    testReverse()
+    testGrowth()
+    testWalls()
+    testSelf()
+    testFood()
+    testSpeed()
+    testLayout()
+    fmt.Println(total - failed, "/", total, " checks passed")
+    if failed > 0 {
+        return 1
+    }
+    return 0
+}
