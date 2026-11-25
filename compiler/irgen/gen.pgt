@@ -815,8 +815,8 @@ fn (g *Gen) genEntryPoint(root *loader.Package, prog *ast.Program) {
     g.heapVars = map[string]bool{}
     g.curRet = g.tt.intT
     g.pushScope()
-    g.declareRaw("pgt_std_boot", "declare void @pgt_std_boot(i32, ptr)")
-    g.emit("call void @pgt_std_boot(i32 %argc, ptr %argv)")
+    g.declareRaw("pgt_std_boot", "declare i32 @pgt_std_boot(i32, ptr)")
+    g.emit("call i32 @pgt_std_boot(i32 %argc, ptr %argv)")
     for pkg in g.ws.Packages {
         if pkg.IsStd {
             continue
