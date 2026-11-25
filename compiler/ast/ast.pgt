@@ -205,6 +205,9 @@ struct Expr {
     Values []*Expr
     Count *Expr
     IsTypeKeyword bool
+    OvSlot string
+    OvAddr bool
+    OvType int
 }
 
 fn NewExpr(kind int, line int, col int) *Expr {

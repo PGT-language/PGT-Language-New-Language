@@ -1,0 +1,297 @@
+package irgen
+
+#use "compiler/ast"
+
+const maxMag uint64 = 18446744073709551615
+
+struct Wide {
+    Neg bool
+    Mag uint64
+}
+
+fn wideNorm(neg bool, mag uint64) Wide {
+    if mag == 0 {
+        return Wide{Neg: false, Mag: 0}
+    }
+    return Wide{Neg: neg, Mag: mag}
+}
+
+fn wideText(w Wide) string {
+    if w.Neg {
+        return "-" + str(w.Mag)
+    }
+    return str(w.Mag)
+}
+
+fn wideNeg(a Wide) Wide {
+    return wideNorm(!a.Neg, a.Mag)
+}
+
+fn wideAdd(a Wide, b Wide) (Wide, bool) {
+    if a.Neg == b.Neg {
+        if a.Mag > maxMag - b.Mag {
+            return Wide{}, false
+        }
+        return wideNorm(a.Neg, a.Mag + b.Mag), true
+    }
+    if a.Mag >= b.Mag {
+        return wideNorm(a.Neg, a.Mag - b.Mag), true
+    }
+    return wideNorm(b.Neg, b.Mag - a.Mag), true
+}
+
+fn wideMul(a Wide, b Wide) (Wide, bool) {
+    if a.Mag != 0 && b.Mag > maxMag / a.Mag {
+        return Wide{}, false
+    }
+    return wideNorm(a.Neg != b.Neg, a.Mag * b.Mag), true
+}
+
+fn wideFits64(w Wide) bool {
+    if w.Neg {
+        return w.Mag <= 9223372036854775808
+    }
+    return true
+}
+
+fn wideFitsInt(w Wide) bool {
+    if w.Neg {
+        return w.Mag <= 2147483648
+    }
+    return w.Mag <= 2147483647
+}
+
+fn (g *Gen) foldedType(w Wide) *Type {
+    if wideFitsInt(w) {
+        return g.tt.intT
+    }
+    if w.Neg || w.Mag <= 9223372036854775807 {
+        return g.tt.int64T
+    }
+    return g.tt.uint64T
+}
+
+fn (g *Gen) untypedGlobal(e *ast.Expr) *Global {
+    if e.Kind == ast.ExprVarRef {
+        if g.lookupLocal(e.Name) != nil {
+            return nil
+        }
+        if has(g.pkg.Globals, e.Name) {
+            var* gl = g.pkg.Globals[e.Name]
+            if gl.Untyped {
+                return gl
+            }
+        }
+        return nil
+    }
+    if e.Kind == ast.ExprSelector {
+        var* base = e.Base
+        if base.Kind != ast.ExprVarRef || g.lookupLocal(base.Name) != nil || has(g.pkg.Globals, base.Name) || !isPublic(e.Name) {
+            return nil
+        }
+        var* p = g.lookupPackage(base.Name)
+        if p == nil {
+            return nil
+        }
+        if has(p.Globals, e.Name) {
+            var* gl = p.Globals[e.Name]
+            if gl.Untyped {
+                return gl
+            }
+        }
+        return nil
+    }
+    return nil
+}
+
+fn (g *Gen) isConstExpr(e *ast.Expr) bool {
+    if e.Kind == ast.ExprIntLit || e.Kind == ast.ExprFloatLit || e.Kind == ast.ExprCharLit {
+        return true
+    }
+    if g.untypedGlobal(e) != nil {
+        return true
+    }
+    if e.Kind == ast.ExprUnary {
+        return (e.Op == ast.UnNeg || e.Op == ast.UnBitNot) && g.isConstExpr(e.Operand)
+    }
+    if e.Kind == ast.ExprBinary {
+        switch e.Op {
+            case ast.BinAdd, ast.BinSub, ast.BinMul, ast.BinDiv, ast.BinMod, ast.BinBitAnd, ast.BinBitOr, ast.BinBitXor, ast.BinShl, ast.BinShr {
+                return g.isConstExpr(e.Lhs) && g.isConstExpr(e.Rhs)
+            }
+        }
+    }
+    return false
+}
+
+fn (g *Gen) constValue(e *ast.Expr) (Wide, bool) {
+    switch e.Kind {
+        case ast.ExprIntLit {
+            return Wide{Neg: false, Mag: e.IntVal}, true
+        }
+        case ast.ExprVarRef, ast.ExprSelector {
+            var* ug = g.untypedGlobal(e)
+            if ug != nil {
+                return ug.Val, true
+            }
+            return Wide{}, false
+        }
+        case ast.ExprUnary {
+            if e.Op != ast.UnNeg && e.Op != ast.UnBitNot {
+                return Wide{}, false
+            }
+            var* v, ok = g.constValue(e.Operand)
+            if !ok {
+                return Wide{}, false
+            }
+            if e.Op == ast.UnNeg {
+                return wideNeg(v), true
+            }
+            if v.Neg {
+                return wideNorm(false, v.Mag - 1), true
+            }
+            if v.Mag == maxMag {
+                return Wide{}, false
+            }
+            return wideNorm(true, v.Mag + 1), true
+        }
+        case ast.ExprBinary {
+            return g.constBinary(e)
+        }
+    }
+    return Wide{}, false
+}
+
+fn (g *Gen) constBinary(e *ast.Expr) (Wide, bool) {
+    var* l, lok = g.constValue(e.Lhs)
+    if !lok {
+        return Wide{}, false
+    }
+    var* r, rok = g.constValue(e.Rhs)
+    if !rok {
+        return Wide{}, false
+    }
+    switch e.Op {
+        case ast.BinAdd {
+            return wideAdd(l, r)
+        }
+        case ast.BinSub {
+            return wideAdd(l, wideNeg(r))
+        }
+        case ast.BinMul {
+            return wideMul(l, r)
+        }
+        case ast.BinDiv {
+            if r.Mag == 0 {
+                return Wide{}, false
+            }
+            return wideNorm(l.Neg != r.Neg, l.Mag / r.Mag), true
+        }
+        case ast.BinMod {
+            if r.Mag == 0 {
+                return Wide{}, false
+            }
+            return wideNorm(l.Neg, l.Mag % r.Mag), true
+        }
+        case ast.BinBitAnd {
+            if l.Neg || r.Neg {
+                return Wide{}, false
+            }
+            return Wide{Neg: false, Mag: l.Mag & r.Mag}, true
+        }
+        case ast.BinBitOr {
+            if l.Neg || r.Neg {
+                return Wide{}, false
+            }
+            return Wide{Neg: false, Mag: l.Mag | r.Mag}, true
+        }
+        case ast.BinBitXor {
+            if l.Neg || r.Neg {
+                return Wide{}, false
+            }
+            return Wide{Neg: false, Mag: l.Mag ^ r.Mag}, true
+        }
+        case ast.BinShl {
+            if r.Neg || r.Mag > 63 {
+                return Wide{}, false
+            }
+            if l.Mag > (maxMag >> r.Mag) {
+                return Wide{}, false
+            }
+            return wideNorm(l.Neg, l.Mag << r.Mag), true
+        }
+        case ast.BinShr {
+            if r.Neg || r.Mag > 63 {
+                return Wide{}, false
+            }
+            var* q = l.Mag >> r.Mag
+            if l.Neg {
+                var* mask = (uint64(1) << r.Mag) - 1
+                if (l.Mag & mask) != 0 {
+                    q = q + 1
+                }
+            }
+            return wideNorm(l.Neg, q), true
+        }
+    }
+    return Wide{}, false
+}
+
+fn (g *Gen) untypedConst(w Wide, hint *Type, line int, col int) Value {
+    var* t = g.tt.intT
+    if hint != nil && (hint.Kind == KInt64 || hint.Kind == KUint64 || hint.Kind == KFloat || hint.Kind == KChar || hint.Kind == KByte) {
+        t = hint
+    }
+    switch t.Kind {
+        case KFloat {
+            var* f = float(w.Mag)
+            if w.Neg {
+                f = -f
+            }
+            return Value{V: floatText(f), T: t}
+        }
+        case KInt64 {
+            if (!w.Neg && w.Mag > 9223372036854775807) || (w.Neg && w.Mag > 9223372036854775808) {
+                g.fail("constant " + wideText(w) + " overflows int64", line, col)
+            }
+            return Value{V: wideText(w), T: t}
+        }
+        case KUint64 {
+            if w.Neg {
+                g.fail("constant " + wideText(w) + " overflows uint64", line, col)
+            }
+            return Value{V: str(w.Mag), T: t}
+        }
+        case KChar, KByte {
+            if w.Neg || w.Mag > 255 {
+                g.fail("constant " + wideText(w) + " overflows " + t.Name(), line, col)
+            }
+            return Value{V: wideText(w), T: t}
+        }
+    }
+    if !wideFitsInt(w) {
+        g.fail("constant " + wideText(w) + " overflows int (32 bits); use it where an int64 is expected", line, col)
+    }
+    return Value{V: wideText(w), T: g.tt.intT}
+}
+
+fn hasCharLit(e *ast.Expr) bool {
+    if e.Kind == ast.ExprCharLit {
+        return true
+    }
+    if e.Kind == ast.ExprUnary {
+        return hasCharLit(e.Operand)
+    }
+    if e.Kind == ast.ExprBinary {
+        return hasCharLit(e.Lhs) || hasCharLit(e.Rhs)
+    }
+    return false
+}
+
+fn (g *Gen) genCharLit(e *ast.Expr, hint *Type) Value {
+    var* t = g.tt.charT
+    if hint != nil && (hint.Kind == KInt || hint.Kind == KInt64 || hint.Kind == KUint64 || hint.Kind == KByte) {
+        t = hint
+    }
+    return Value{V: str(int(e.CharVal)), T: t}
+}

@@ -28,6 +28,8 @@ struct Global {
     Sym string
     T *Type
     IsConst bool
+    Untyped bool
+    Val Wide
 }
 
 struct Addr {
@@ -55,6 +57,19 @@ struct LoopTarget {
     Break string
 }
 
+struct DeferCapture {
+    E *ast.Expr
+    Slot string
+    TypeIdx int
+    Addr bool
+}
+
+struct DeferSite {
+    Flag string
+    Call *ast.Expr
+    Caps []*DeferCapture
+}
+
 struct Gen {
     tt *TypeTable
     ws *loader.Workspace
@@ -77,6 +92,8 @@ struct Gen {
     uniq int
     scopes []*Scope
     loops []*LoopTarget
+    defers []*DeferSite
+    ovTypes []*Type
     heapVars map[string]bool
     curRet *Type
     mtActive bool
