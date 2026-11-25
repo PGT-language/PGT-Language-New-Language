@@ -1013,6 +1013,7 @@ namespace pgt::lsp
                     Loader loader;
                     Workspace ws = loader.load(input.string());
                     CodeGen cg(ws.root->importPath);
+                    cg.setFreestanding(ws.target == "kernel");
                     cg.generate(ws);
                 }
                 catch (const CompileError &e)
