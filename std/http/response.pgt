@@ -1,0 +1,174 @@
+package http
+
+#use (
+    "strings"
+    "unsafe"
+    "net"
+)
+
+extern fn read(fd int, buf *byte, n int64) int64
+extern fn lseek(fd int, offset int64, whence int) int64
+extern fn close(fd int) int
+extern fn open(path string, flags int, mode int) int
+
+struct chunk {
+    s string
+    b []byte
+    bin bool
+}
+
+struct response {
+    hdr *Header
+    status int
+    wrote bool
+    chunks []chunk
+    size int
+    filePath string
+}
+
+fn newResponse() *response {
+    return &response{hdr: NewHeader(), status: StatusOK}
+}
+
+fn (w *response) Header() *Header {
+    return w.hdr
+}
+
+fn (w *response) WriteHeader(code int) {
+    if !w.wrote {
+        w.status = code
+        w.wrote = true
+    }
+}
+
+fn (w *response) Write(s string) int {
+    w.WriteHeader(StatusOK)
+    w.chunks = append(w.chunks, chunk{s: s})
+    w.size += len(s)
+    return len(s)
+}
+
+fn (w *response) WriteBytes(b []byte) int {
+    w.WriteHeader(StatusOK)
+    w.chunks = append(w.chunks, chunk{b: b, bin: true})
+    w.size += len(b)
+    return len(b)
+}
+
+fn bodyAllowed(status int) bool {
+    // RFC 9110, 6.4.1: 1xx, 204 and 304 responses have no content
+    return status >= 200 && status != StatusNoContent && status != StatusNotModified
+}
+
+fn sniff(first string) string {
+    if strings.HasPrefix(first, "<!DOCTYPE") || strings.HasPrefix(first, "<html") || strings.HasPrefix(first, "<!doctype") {
+        return "text/html; charset=utf-8"
+    }
+    return "text/plain; charset=utf-8"
+}
+
+fn statusLine(code int) string {
+    // RFC 9112, 4: status-line = HTTP-version SP status-code SP [ reason-phrase ]
+    return "HTTP/1.1 " + code + " " + StatusText(code) + "\r\n"
+}
+
+fn (w *response) finish(conn net.Conn, headOnly bool) {
+    var* fd = -1
+    var* total = w.size
+    if w.filePath != "" {
+        fd = open(w.filePath, 0, 0)
+        if fd < 0 {
+            w.filePath = ""
+            w.chunks = []
+            w.hdr.Del("Content-Type")
+            w.status = StatusNotFound
+            w.chunks = append(w.chunks, chunk{s: "404 page not found\n"})
+            w.size = 19
+            total = 19
+            w.hdr.Set("Content-Type", "text/plain; charset=utf-8")
+        } else {
+            total = int(lseek(fd, 0, 2))
+            lseek(fd, 0, 0)
+        }
+    }
+    var* allowed = bodyAllowed(w.status)
+    if allowed && !w.hdr.Has("Content-Type") && total > 0 {
+        var* first = ""
+        if len(w.chunks) > 0 && !w.chunks[0].bin {
+            first = w.chunks[0].s
+        }
+        w.hdr.Set("Content-Type", sniff(first))
+    }
+    var* head = statusLine(w.status)
+    for k, items in w.hdr.m {
+        if k != "Content-Length" && k != "Connection" {
+            for item in items {
+                head = head + k + ": " + item + "\r\n"
+            }
+        }
+    }
+    if allowed {
+        head = head + "Content-Length: " + total + "\r\n"
+    }
+    head = head + "Connection: close\r\n\r\n"
+    if !allowed || headOnly {
+        conn.Write(head)
+        if fd >= 0 {
+            close(fd)
+        }
+        return
+    }
+    if fd >= 0 {
+        conn.Write(head)
+        var* buf = make([]byte, 32768)
+        var* p = unsafe.BytesData(buf)
+        var* n = read(fd, p, 32768)
+        while n > 0 {
+            if conn.WriteBytes(p, n) != "" {
+                break
+            }
+            n = read(fd, p, 32768)
+        }
+        close(fd)
+        return
+    }
+    var* pending = head
+    for c in w.chunks {
+        if c.bin {
+            conn.Write(pending)
+            pending = ""
+            if len(c.b) > 0 {
+                conn.WriteBytes(unsafe.BytesData(c.b), int64(len(c.b)))
+            }
+        } else {
+            pending = pending + c.s
+        }
+    }
+    if pending != "" {
+        conn.Write(pending)
+    }
+}
+
+fn Error(w ResponseWriter, msg string, code int) {
+    w.Header().Del("Content-Length")
+    w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+    w.Header().Set("X-Content-Type-Options", "nosniff")
+    w.WriteHeader(code)
+    w.Write(msg + "\n")
+}
+
+fn NotFound(w ResponseWriter, r *Request) {
+    Error(w, "404 page not found", StatusNotFound)
+}
+
+fn Redirect(w ResponseWriter, r *Request, url string, code int) {
+    // RFC 9110, 10.2.2: the Location header field gives the redirect target
+    w.Header().Set("Location", url)
+    if r.Method == MethodGet || r.Method == MethodHead {
+        w.Header().Set("Content-Type", "text/html; charset=utf-8")
+    }
+    w.WriteHeader(code)
+    if r.Method == MethodGet {
+        w.Write("<a href=\"" + url + "\">" + StatusText(code) + "</a>.\n\n")
+    }
+}

@@ -596,3 +596,27 @@ fn ReadLine() string {
     var* ok = false
     return pgt_read_raw_line(&ok)
 }
+
+interface Writer {
+    Write(s string) int
+}
+
+fn writerOf(w any, who string) Writer {
+    var* wr, ok = w.(Writer)
+    if !ok {
+        panic("fmt." + who + ": the first argument has no method Write(string) int")
+    }
+    return wr
+}
+
+fn Fprint(w any, args ...any) int {
+    return writerOf(w, "Fprint").Write(Sprint(args...))
+}
+
+fn Fprintln(w any, args ...any) int {
+    return writerOf(w, "Fprintln").Write(Sprintln(args...))
+}
+
+fn Fprintf(w any, format string, args ...any) int {
+    return writerOf(w, "Fprintf").Write(Sprintf(format, args...))
+}

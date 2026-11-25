@@ -1,0 +1,115 @@
+package http
+
+#use (
+    "strings"
+    "os"
+)
+
+interface FileSystem {
+    Root() string
+}
+
+struct dirFS {
+    root string
+}
+
+fn (d *dirFS) Root() string {
+    return d.root
+}
+
+fn Dir(root string) FileSystem {
+    return &dirFS{root: root}
+}
+
+fn Mime(path string) string {
+    var* dot = strings.LastIndex(path, ".")
+    if dot < 0 {
+        return "application/octet-stream"
+    }
+    var* ext = strings.Lower(path[dot + 1:])
+    switch ext {
+        case "html", "htm" { return "text/html; charset=utf-8" }
+        case "css" { return "text/css; charset=utf-8" }
+        case "js", "mjs" { return "text/javascript; charset=utf-8" }
+        case "json" { return "application/json; charset=utf-8" }
+        case "txt" { return "text/plain; charset=utf-8" }
+        case "xml" { return "text/xml; charset=utf-8" }
+        case "csv" { return "text/csv; charset=utf-8" }
+        case "md" { return "text/markdown; charset=utf-8" }
+        case "png" { return "image/png" }
+        case "jpg", "jpeg" { return "image/jpeg" }
+        case "gif" { return "image/gif" }
+        case "webp" { return "image/webp" }
+        case "svg" { return "image/svg+xml" }
+        case "ico" { return "image/x-icon" }
+        case "wasm" { return "application/wasm" }
+        case "pdf" { return "application/pdf" }
+        case "woff2" { return "font/woff2" }
+    }
+    return "application/octet-stream"
+}
+
+fn serveFile(w ResponseWriter, r *Request, name string) {
+    var* file = name
+    if os.IsDir(file) {
+        file = file + "/index.html"
+    }
+    if !fileExists(file) || os.IsDir(file) {
+        NotFound(w, r)
+        return
+    }
+    var* rw, ok = w.(*response)
+    if ok {
+        rw.filePath = file
+        if !rw.hdr.Has("Content-Type") {
+            rw.hdr.Set("Content-Type", Mime(file))
+        }
+        rw.WriteHeader(StatusOK)
+        return
+    }
+    if !w.Header().Has("Content-Type") {
+        w.Header().Set("Content-Type", Mime(file))
+    }
+    w.Write(readFile(file))
+}
+
+fn ServeFile(w ResponseWriter, r *Request, name string) {
+    serveFile(w, r, name)
+}
+
+struct fileServer {
+    root string
+}
+
+fn hasDotDot(rel string) bool {
+    for part in strings.Split(rel, "/") {
+        if part == ".." {
+            return true
+        }
+    }
+    return strings.Contains(rel, "\\")
+}
+
+fn (f *fileServer) ServeHTTP(w ResponseWriter, r *Request) {
+    var* p = r.URL.Path
+    if !strings.HasPrefix(p, "/") {
+        p = "/" + p
+    }
+    var* rel = p[1:]
+    if hasDotDot(rel) {
+        Error(w, "403 Forbidden", StatusForbidden)
+        return
+    }
+    if rel == "" || strings.HasSuffix(rel, "/") {
+        rel = rel + "index.html"
+    }
+    var* file = f.root + "/" + rel
+    if os.IsDir(file) {
+        file = file + "/index.html"
+    }
+    serveFile(w, r, file)
+}
+
+fn FileServer(fs FileSystem) Handler {
+    return &fileServer{root: fs.Root()}
+}

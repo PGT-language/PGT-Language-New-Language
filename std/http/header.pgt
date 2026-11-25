@@ -1,0 +1,249 @@
+package http
+
+#use (
+    "strings"
+    "unsafe"
+    "sort"
+)
+
+struct Header {
+    m map[string][]string
+}
+
+struct Values {
+    m map[string][]string
+}
+
+struct URL {
+    Scheme string
+    Host string
+    Path string
+    RawQuery string
+}
+
+fn CanonicalHeaderKey(s string) string {
+    // RFC 9110, 5.1: field names are case-insensitive; the canonical form is Word-Word
+    var* cs = chars(s)
+    var* up = true
+    for i in 0..len(cs) {
+        var* c = cs[i]
+        if up {
+            cs[i] = strings.ToUpper(c)
+        } else {
+            cs[i] = strings.ToLower(c)
+        }
+        up = c == '-'
+    }
+    return string(cs)
+}
+
+fn NewHeader() *Header {
+    return &Header{m: make(map[string][]string)}
+}
+
+fn (h *Header) Set(key string, value string) {
+    h.m[CanonicalHeaderKey(key)] = [value]
+}
+
+fn (h *Header) Add(key string, value string) {
+    var* k = CanonicalHeaderKey(key)
+    h.m[k] = append(h.m[k], value)
+}
+
+fn (h *Header) Get(key string) string {
+    var* v = h.m[CanonicalHeaderKey(key)]
+    if len(v) == 0 {
+        return ""
+    }
+    return v[0]
+}
+
+fn (h *Header) Values(key string) []string {
+    return h.m[CanonicalHeaderKey(key)]
+}
+
+fn (h *Header) Has(key string) bool {
+    return has(h.m, CanonicalHeaderKey(key))
+}
+
+fn (h *Header) Del(key string) {
+    delete(h.m, CanonicalHeaderKey(key))
+}
+
+fn (h *Header) Keys() []string {
+    var* out + {[]string} = []
+    for k in h.m {
+        out = append(out, k)
+    }
+    return out
+}
+
+fn NewValues() *Values {
+    return &Values{m: make(map[string][]string)}
+}
+
+fn (v *Values) Set(key string, value string) {
+    if v.m == nil {
+        v.m = make(map[string][]string)
+    }
+    v.m[key] = [value]
+}
+
+fn (v *Values) Add(key string, value string) {
+    if v.m == nil {
+        v.m = make(map[string][]string)
+    }
+    v.m[key] = append(v.m[key], value)
+}
+
+fn (v Values) Get(key string) string {
+    var* all = v.m[key]
+    if len(all) == 0 {
+        return ""
+    }
+    return all[0]
+}
+
+fn (v Values) All(key string) []string {
+    return v.m[key]
+}
+
+fn (v Values) Has(key string) bool {
+    return has(v.m, key)
+}
+
+fn (v *Values) Del(key string) {
+    delete(v.m, key)
+}
+
+fn (v Values) Encode() string {
+    var* keys + {[]string} = []
+    for k in v.m {
+        keys = append(keys, k)
+    }
+    sort.Strings(keys)
+    var* out = ""
+    for k in keys {
+        for item in v.m[k] {
+            if out != "" {
+                out = out + "&"
+            }
+            out = out + QueryEscape(k) + "=" + QueryEscape(item)
+        }
+    }
+    return out
+}
+
+fn hexVal(c char) int {
+    if c >= '0' && c <= '9' {
+        return int(c) - int('0')
+    }
+    if c >= 'a' && c <= 'f' {
+        return int(c) - int('a') + 10
+    }
+    if c >= 'A' && c <= 'F' {
+        return int(c) - int('A') + 10
+    }
+    return -1
+}
+
+fn unescape(s string, plus bool) string {
+    var* n = len(s)
+    var* buf = make([]byte, n + 1)
+    var* p = unsafe.BytesData(buf)
+    var* out = 0
+    var* i = 0
+    while i < n {
+        var* c = s[i]
+        var* hi = -1
+        var* lo = -1
+        if c == '%' && i + 2 < n {
+            hi = hexVal(s[i + 1])
+            lo = hexVal(s[i + 2])
+        }
+        if hi >= 0 && lo >= 0 {
+            unsafe.StoreByte(unsafe.Add(p, int64(out)), byte(hi * 16 + lo))
+            i += 3
+        } else if plus && c == '+' {
+            unsafe.StoreByte(unsafe.Add(p, int64(out)), byte(32))
+            i += 1
+        } else {
+            unsafe.StoreByte(unsafe.Add(p, int64(out)), byte(c))
+            i += 1
+        }
+        out += 1
+    }
+    unsafe.StoreByte(unsafe.Add(p, int64(out)), byte(0))
+    return unsafe.StringAt(p)
+}
+
+fn QueryUnescape(s string) string {
+    return unescape(s, true)
+}
+
+fn PathUnescape(s string) string {
+    return unescape(s, false)
+}
+
+fn escape(s string, space string) string {
+    var* digits = "0123456789ABCDEF"
+    var* out = ""
+    for c in s {
+        var* v = int(c)
+        if v < 0 {
+            v += 256
+        }
+        if strings.IsAlnum(c) || c == '-' || c == '_' || c == '.' || c == '~' {
+            out = out + str(c)
+        } else if c == ' ' {
+            out = out + space
+        } else {
+            out = out + "%" + digits[v / 16:v / 16 + 1] + digits[v % 16:v % 16 + 1]
+        }
+    }
+    return out
+}
+
+fn QueryEscape(s string) string {
+    return escape(s, "+")
+}
+
+fn PathEscape(s string) string {
+    return escape(s, "%20")
+}
+
+fn ParseQuery(raw string) Values {
+    var* out = Values{m: make(map[string][]string)}
+    if raw == "" {
+        return out
+    }
+    for pair in strings.Split(raw, "&") {
+        if pair == "" {
+            continue
+        }
+        var* at = strings.Index(pair, "=")
+        var* key = pair
+        var* val = ""
+        if at >= 0 {
+            key = pair[:at]
+            val = pair[at + 1:]
+        }
+        out.Add(QueryUnescape(key), QueryUnescape(val))
+    }
+    return out
+}
+
+fn (u *URL) Query() Values {
+    return ParseQuery(u.RawQuery)
+}
+
+fn (u *URL) String() string {
+    var* out = u.Path
+    if u.Scheme != "" {
+        out = u.Scheme + "://" + u.Host + out
+    }
+    if u.RawQuery != "" {
+        out = out + "?" + u.RawQuery
+    }
+    return out
+}

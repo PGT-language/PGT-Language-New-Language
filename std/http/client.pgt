@@ -7,16 +7,13 @@ package http
 )
 
 struct Response {
-    Status int
-    Headers map[string]string
+    StatusCode int
+    Status string
+    Header *Header
     Body string
 }
 
-fn (r Response) Header(name string) string {
-    return r.Headers[strings.Lower(name)]
-}
-
-fn ParseURL(url string) (string, int, string, string) {
+fn splitURL(url string) (string, int, string, string) {
     if strings.HasPrefix(url, "https://") {
         return "", 0, "", "https is not supported yet"
     }
@@ -48,6 +45,7 @@ fn ParseURL(url string) (string, int, string, string) {
 }
 
 fn decodeChunked(body string) string {
+    // RFC 9112, 7.1: chunked transfer coding
     var* out = ""
     var* rest = body
     while true {
@@ -65,55 +63,70 @@ fn decodeChunked(body string) string {
     return out
 }
 
-fn ParseResponse(raw string) (Response, string) {
-    var* none = Response{}
+fn parseResponse(raw string) (*Response, string) {
     var* end = strings.Index(raw, "\r\n\r\n")
     if end < 0 {
-        return none, "malformed response"
+        return nil, "malformed response"
     }
     var* lines = strings.Split(raw[:end], "\r\n")
     var* parts = strings.Split(lines[0], " ")
     if len(parts) < 2 || !strings.HasPrefix(parts[0], "HTTP/") || !conv.IsInt(parts[1]) {
-        return none, "malformed status line"
+        return nil, "malformed status line"
     }
-    var* res = Response{Status: conv.Atoi(parts[1]), Headers: parseHeaders(lines, 1), Body: raw[end + 4:]}
-    if res.Header("transfer-encoding") == "chunked" {
+    var* res = &Response{StatusCode: conv.Atoi(parts[1]), Header: NewHeader(), Body: raw[end + 4:]}
+    res.Status = parts[1]
+    if len(parts) > 2 {
+        res.Status = parts[1] + " " + strings.Join(parts[2:], " ")
+    }
+    parseHeaderLines(res.Header, lines)
+    if strings.EqualFold(res.Header.Get("Transfer-Encoding"), "chunked") {
         res.Body = decodeChunked(res.Body)
     }
     return res, ""
 }
 
-fn request(method string, url string, ctype string, body string) (Response, string) {
-    var* none = Response{}
-    var* host, port, path, perr = ParseURL(url)
+fn request(method string, url string, ctype string, body string) (*Response, string) {
+    var* host, port, path, perr = splitURL(url)
     if perr != "" {
-        return none, perr
+        return nil, perr
     }
     var* conn, err = net.Dial(host, port)
     if err != "" {
-        return none, err
+        return nil, err
     }
     var* head = method + " " + path + " HTTP/1.1\r\nHost: " + host + ":" + port + "\r\nConnection: close\r\n"
-    if method == "POST" {
+    if method == MethodPost || method == MethodPut || method == MethodPatch {
         head = head + "Content-Type: " + ctype + "\r\nContent-Length: " + len(body) + "\r\n"
     }
     err = conn.Write(head + "\r\n" + body)
     if err != "" {
         conn.Close()
-        return none, err
+        return nil, err
     }
     var* raw, rerr = conn.ReadAll()
     conn.Close()
     if rerr != "" {
-        return none, rerr
+        return nil, rerr
     }
-    return ParseResponse(raw)
+    return parseResponse(raw)
 }
 
-fn Get(url string) (Response, string) {
-    return request("GET", url, "", "")
+fn Get(url string) (*Response, string) {
+    return request(MethodGet, url, "", "")
 }
 
-fn Post(url string, ctype string, body string) (Response, string) {
-    return request("POST", url, ctype, body)
+fn Head(url string) (*Response, string) {
+    return request(MethodHead, url, "", "")
+}
+
+fn Post(url string, ctype string, body string) (*Response, string) {
+    return request(MethodPost, url, ctype, body)
+}
+
+fn Put(url string, ctype string, body string) (*Response, string) {
+    return request(MethodPut, url, ctype, body)
+}
+
+fn Delete(url string) (*Response, string) {
+    return request(MethodDelete, url, "", "")
 }

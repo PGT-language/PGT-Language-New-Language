@@ -1,0 +1,67 @@
+package http
+
+#use (
+    "strings"
+)
+
+interface Handler {
+    ServeHTTP(w ResponseWriter, r *Request)
+}
+
+interface ResponseWriter {
+    Header() *Header
+    Write(s string) int
+    WriteBytes(b []byte) int
+    WriteHeader(code int)
+}
+
+struct funcHandler {
+    f fn(ResponseWriter, *Request)
+}
+
+fn (h *funcHandler) ServeHTTP(w ResponseWriter, r *Request) {
+    h.f(w, r)
+}
+
+fn HandlerFunc(f fn(ResponseWriter, *Request)) Handler {
+    return &funcHandler{f: f}
+}
+
+struct prefixHandler {
+    prefix string
+    h Handler
+}
+
+fn (p *prefixHandler) ServeHTTP(w ResponseWriter, r *Request) {
+    if !strings.HasPrefix(r.URL.Path, p.prefix) {
+        NotFound(w, r)
+        return
+    }
+    var* r2 = *r
+    r2.URL = &URL{Scheme: r.URL.Scheme, Host: r.URL.Host, Path: r.URL.Path[len(p.prefix):], RawQuery: r.URL.RawQuery}
+    p.h.ServeHTTP(w, &r2)
+}
+
+fn StripPrefix(prefix string, h Handler) Handler {
+    if prefix == "" {
+        return h
+    }
+    return &prefixHandler{prefix: prefix, h: h}
+}
+
+struct redirectHandler {
+    url string
+    code int
+}
+
+fn (h *redirectHandler) ServeHTTP(w ResponseWriter, r *Request) {
+    Redirect(w, r, h.url, h.code)
+}
+
+fn RedirectHandler(url string, code int) Handler {
+    return &redirectHandler{url: url, code: code}
+}
+
+fn NotFoundHandler() Handler {
+    return HandlerFunc(NotFound)
+}

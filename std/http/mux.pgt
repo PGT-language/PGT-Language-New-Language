@@ -1,0 +1,219 @@
+package http
+
+#use (
+    "strings"
+)
+
+const segLiteral = 0
+const segWild = 1
+const segMulti = 2
+
+struct route {
+    pattern string
+    method string
+    segs []string
+    kinds []int
+    subtree bool
+    h Handler
+}
+
+struct ServeMux {
+    routes []*route
+}
+
+var* DefaultServeMux = NewServeMux()
+
+fn NewServeMux() *ServeMux {
+    return &ServeMux{}
+}
+
+fn parsePattern(pattern string, h Handler) *route {
+    var* method = ""
+    var* rest = pattern
+    var* sp = strings.Index(pattern, " ")
+    if sp >= 0 {
+        method = pattern[:sp]
+        rest = strings.TrimSpace(pattern[sp + 1:])
+    }
+    if !strings.HasPrefix(rest, "/") {
+        panic("http: invalid pattern " + pattern + " (a pattern is [METHOD ]/path)")
+    }
+    var* rt = &route{pattern: pattern, method: method, h: h}
+    var* body = rest[1:]
+    if strings.HasSuffix(body, "/") || body == "" {
+        rt.subtree = true
+        if body != "" {
+            body = body[:len(body) - 1]
+        }
+    }
+    if body == "" {
+        return rt
+    }
+    var* parts = strings.Split(body, "/")
+    for i in 0..len(parts) {
+        var* seg = parts[i]
+        var* kind = segLiteral
+        if seg == "{$}" && i == len(parts) - 1 {
+            seg = ""
+            rt.subtree = false
+        } else if strings.HasPrefix(seg, "{") && strings.HasSuffix(seg, "}") {
+            seg = seg[1:len(seg) - 1]
+            kind = segWild
+            if strings.HasSuffix(seg, "...") {
+                if i != len(parts) - 1 {
+                    panic("http: invalid pattern " + pattern + " ({name...} must be the last segment)")
+                }
+                seg = seg[:len(seg) - 3]
+                kind = segMulti
+            }
+            if seg == "" {
+                panic("http: invalid pattern " + pattern + " (empty wildcard name)")
+            }
+        }
+        rt.segs = append(rt.segs, seg)
+        rt.kinds = append(rt.kinds, kind)
+    }
+    return rt
+}
+
+fn (m *ServeMux) Handle(pattern string, h Handler) {
+    if h == nil {
+        panic("http: nil handler")
+    }
+    var* rt = parsePattern(pattern, h)
+    for old in m.routes {
+        if old.pattern == pattern {
+            panic("http: multiple registrations for " + pattern)
+        }
+    }
+    m.routes = append(m.routes, rt)
+}
+
+fn (m *ServeMux) HandleFunc(pattern string, f fn(ResponseWriter, *Request)) {
+    m.Handle(pattern, HandlerFunc(f))
+}
+
+fn (rt *route) match(req []string, pv map[string]string) bool {
+    var* n = len(rt.segs)
+    for i in 0..n {
+        if rt.kinds[i] == segMulti {
+            pv[rt.segs[i]] = strings.Join(req[i:], "/")
+            return true
+        }
+        if i >= len(req) {
+            return false
+        }
+        if rt.kinds[i] == segLiteral {
+            if rt.segs[i] != req[i] {
+                return false
+            }
+        } else {
+            if req[i] == "" {
+                return false
+            }
+            pv[rt.segs[i]] = req[i]
+        }
+    }
+    if rt.subtree {
+        return len(req) > n
+    }
+    return len(req) == n
+}
+
+fn (rt *route) allows(method string) bool {
+    return rt.method == "" || rt.method == method || (rt.method == MethodGet && method == MethodHead)
+}
+
+fn (rt *route) score() []int {
+    var* out + {[]int} = []
+    for k in rt.kinds {
+        out = append(out, 3 - k)
+    }
+    if rt.subtree {
+        out = append(out, 0)
+    } else {
+        out = append(out, 5)
+    }
+    return out
+}
+
+fn moreSpecific(a *route, b *route) bool {
+    var* sa = a.score()
+    var* sb = b.score()
+    for i in 0..len(sa) {
+        if i >= len(sb) {
+            return true
+        }
+        if sa[i] != sb[i] {
+            return sa[i] > sb[i]
+        }
+    }
+    if len(sb) > len(sa) {
+        return false
+    }
+    return a.method != "" && b.method == ""
+}
+
+fn splitPath(path string) []string {
+    var* body = path
+    if strings.HasPrefix(body, "/") {
+        body = body[1:]
+    }
+    return strings.Split(body, "/")
+}
+
+fn (m *ServeMux) lookup(r *Request) (*route, map[string]string, string) {
+    var* req = splitPath(r.URL.Path)
+    var* best + {*route} = nil
+    var* bestValues = make(map[string]string)
+    var* allow = ""
+    for rt in m.routes {
+        var* pv = make(map[string]string)
+        if !rt.match(req, pv) {
+            continue
+        }
+        if rt.allows(r.Method) {
+            if best == nil || moreSpecific(rt, best) {
+                best = rt
+                bestValues = pv
+            }
+        } else {
+            var* name = rt.method
+            if !strings.Contains(", " + allow + ",", ", " + name + ",") {
+                if allow != "" {
+                    allow = allow + ", "
+                }
+                allow = allow + name
+            }
+            if name == MethodGet && !strings.Contains(", " + allow + ",", ", HEAD,") {
+                allow = allow + ", HEAD"
+            }
+        }
+    }
+    return best, bestValues, allow
+}
+
+fn (m *ServeMux) ServeHTTP(w ResponseWriter, r *Request) {
+    var* rt, pv, allow = m.lookup(r)
+    if rt == nil {
+        if allow != "" {
+            w.Header().Set("Allow", allow)
+            Error(w, StatusText(StatusMethodNotAllowed), StatusMethodNotAllowed)
+            return
+        }
+        NotFound(w, r)
+        return
+    }
+    for k, v in pv {
+        r.SetPathValue(k, v)
+    }
+    rt.h.ServeHTTP(w, r)
+}
+
+fn Handle(pattern string, h Handler) {
+    DefaultServeMux.Handle(pattern, h)
+}
+
+fn HandleFunc(pattern string, f fn(ResponseWriter, *Request)) {
+    DefaultServeMux.HandleFunc(pattern, f)
+}

@@ -1,0 +1,13 @@
+package http
+
+const (
+    MethodGet = "GET" // RFC 9110, 9.3.1
+    MethodHead = "HEAD" // RFC 9110, 9.3.2
+    MethodPost = "POST" // RFC 9110, 9.3.3
+    MethodPut = "PUT" // RFC 9110, 9.3.4
+    MethodDelete = "DELETE" // RFC 9110, 9.3.5
+    MethodConnect = "CONNECT" // RFC 9110, 9.3.6
+    MethodOptions = "OPTIONS" // RFC 9110, 9.3.7
+    MethodTrace = "TRACE" // RFC 9110, 9.3.8
+    MethodPatch = "PATCH" // RFC 5789
+)

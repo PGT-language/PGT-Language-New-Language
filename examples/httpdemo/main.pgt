@@ -1,52 +1,82 @@
 package main
 
 #use (
-    "strings"
     "http"
     "conv"
     "fmt"
     "os"
 )
 
-fn jsonString(s string) string {
-    var* out = strings.Replace(s, "\\", "\\\\")
-    out = strings.Replace(out, "\"", "\\\"")
-    out = strings.Replace(out, "\n", "\\n")
-    return "\"" + out + "\""
+fn index(w http.ResponseWriter, r *http.Request) {
+    http.ServeFile(w, r, "static/index.html")
+}
+
+fn ping(w http.ResponseWriter, r *http.Request) {
+    w.Write("pong\n")
+}
+
+fn hello(w http.ResponseWriter, r *http.Request) {
+    var* name = r.URL.Query().Get("name")
+    if name == "" {
+        name = "world"
+    }
+    w.Header().Set("Content-Type", "application/json; charset=utf-8")
+    fmt.Fprintf(w, "{\"hello\": %q}", name)
+}
+
+fn echo(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", r.Header.Get("Content-Type"))
+    w.Write(r.Body)
+}
+
+fn user(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintln(w, "user ", r.PathValue("id"))
+}
+
+fn files(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintln(w, "path ", r.PathValue("path"))
+}
+
+fn form(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprint(w, "name=", r.FormValue("name"), " ct=", r.Header.Get("content-type"), " len=", r.ContentLength)
+}
+
+fn old(w http.ResponseWriter, r *http.Request) {
+    http.Redirect(w, r, "/ping", http.StatusFound)
+}
+
+fn headers(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("x-custom", "one")
+    w.Header().Add("X-Multi", "a")
+    w.Header().Add("x-multi", "b")
+    w.WriteHeader(http.StatusCreated)
+    w.Write("created\n")
+}
+
+fn teapot(w http.ResponseWriter, r *http.Request) {
+    http.Error(w, "teapot says no", http.StatusTeapot)
 }
 
 fn main() {
-    var* port = 8080
+    var* port = "8080"
     if os.NumArgs() >= 1 && conv.IsInt(os.Arg(1)) {
-        port = conv.Atoi(os.Arg(1))
+        port = os.Arg(1)
     }
-    var* s = http.NewServer()
-    s.File("/", "static/index.html")
-    s.Dir("/static/", "static")
-    s.Text("/ping", "pong\n")
-    var* err = s.Listen("127.0.0.1", port)
-    if err != "" {
-        fmt.Println("error: " + err)
-        os.Exit(1)
-    }
+    http.HandleFunc("GET /{$}", index)
+    http.HandleFunc("GET /ping", ping)
+    http.HandleFunc("GET /api/hello", hello)
+    http.HandleFunc("POST /api/echo", echo)
+    http.HandleFunc("GET /users/{id}", user)
+    http.HandleFunc("GET /users/me", user)
+    http.HandleFunc("GET /files/{path...}", files)
+    http.HandleFunc("/form", form)
+    http.HandleFunc("GET /old", old)
+    http.HandleFunc("GET /headers", headers)
+    http.HandleFunc("GET /teapot", teapot)
+    http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
     fmt.Println("listening on http://127.0.0.1:" + port)
-    while true {
-        var* req, nerr = s.Next()
-        if nerr != "" {
-            fmt.Println("error: " + nerr)
-            os.Exit(1)
-        }
-        if req.Path == "/api/hello" && req.Method == "GET" {
-            var* name = req.Query("name")
-            if name == "" {
-                name = "world"
-            }
-            req.Json(200, "{\"hello\": " + jsonString(name) + "}")
-        } else if req.Path == "/api/echo" && req.Method == "POST" {
-            req.Send(200, req.Header("Content-Type"), req.Body)
-        } else {
-            req.NotFound()
-        }
-    }
+    var* err = http.ListenAndServe(":" + port, nil)
+    fmt.Println("error: " + err)
+    os.Exit(1)
 }
 return 0

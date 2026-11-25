@@ -1,0 +1,118 @@
+package main
+
+#use (
+    "http"
+    "fmt"
+)
+
+struct rec {
+    h *http.Header
+    code int
+    body string
+}
+
+fn (w *rec) Header() *http.Header {
+    return w.h
+}
+
+fn (w *rec) Write(s string) int {
+    if w.code == 0 {
+        w.code = 200
+    }
+    w.body = w.body + s
+    return len(s)
+}
+
+fn (w *rec) WriteBytes(b []byte) int {
+    return len(b)
+}
+
+fn (w *rec) WriteHeader(code int) {
+    w.code = code
+}
+
+fn named(tag string) fn(http.ResponseWriter, *http.Request) {
+    if tag == "root" {
+        return fn(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "root") }
+    }
+    if tag == "api" {
+        return fn(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "api ", r.Method) }
+    }
+    if tag == "post" {
+        return fn(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "post") }
+    }
+    if tag == "id" {
+        return fn(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "id=", r.PathValue("id")) }
+    }
+    if tag == "me" {
+        return fn(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "me") }
+    }
+    if tag == "static" {
+        return fn(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "static ", r.PathValue("rest")) }
+    }
+    return fn(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "exact") }
+}
+
+fn try(m *http.ServeMux, method string, path string) {
+    var* w = &rec{h: http.NewHeader()}
+    var* r = &http.Request{Method: method, URL: &http.URL{Path: path}, Header: http.NewHeader()}
+    m.ServeHTTP(w, r)
+    fmt.Println(method, " ", path, " -> ", w.code, " [", w.body, "] allow=", w.h.Get("allow"))
+}
+
+fn main() {
+    var* m = http.NewServeMux()
+    m.HandleFunc("/", named("root"))
+    m.HandleFunc("GET /api/items", named("api"))
+    m.HandleFunc("POST /api/items", named("post"))
+    m.HandleFunc("/users/{id}", named("id"))
+    m.HandleFunc("GET /users/me", named("me"))
+    m.HandleFunc("/static/{rest...}", named("static"))
+    m.HandleFunc("/exact/{$}", named("exact"))
+    try(m, "GET", "/")
+    try(m, "GET", "/anything/here")
+    try(m, "GET", "/api/items")
+    try(m, "HEAD", "/api/items")
+    try(m, "POST", "/api/items")
+    try(m, "DELETE", "/api/items")
+    try(m, "GET", "/users/42")
+    try(m, "GET", "/users/me")
+    try(m, "PUT", "/users/me")
+    try(m, "GET", "/static/a/b.css")
+    try(m, "GET", "/static/")
+    try(m, "GET", "/exact/")
+    try(m, "GET", "/exact/x")
+
+    var* only = http.NewServeMux()
+    only.HandleFunc("GET /only", named("exact"))
+    only.HandleFunc("POST /only", named("post"))
+    only.HandleFunc("PUT /multi", named("exact"))
+    try(only, "DELETE", "/only")
+    try(only, "GET", "/only")
+    try(only, "GET", "/multi")
+    try(only, "GET", "/other")
+
+    var* h = http.NewHeader()
+    h.Set("content-TYPE", "text/plain")
+    h.Add("x-multi", "a")
+    h.Add("X-MULTI", "b")
+    fmt.Println(h.Get("Content-Type"), " ", h.Get("CONTENT-type"), " ", h.Has("x-multi"), " ", len(h.Values("X-Multi")), " ", h.Get("Missing") == "")
+    h.Del("CONTENT-TYPE")
+    fmt.Println(h.Has("Content-Type"), " ", http.CanonicalHeaderKey("accept-encoding"), " ", http.CanonicalHeaderKey("X-FORWARDED-for"))
+
+    var* q = http.ParseQuery("a=1&b=two%20words&a=3&c=x+y&empty=&flag")
+    fmt.Println(q.Get("a"), "|", q.Get("b"), "|", q.Get("c"), "|", q.Has("flag"), "|", q.Has("nope"), "|", len(q.All("a")), "|", q.Get("empty") == "")
+    var* v = http.NewValues()
+    v.Set("q", "a b&c")
+    v.Add("z", "1")
+    v.Add("z", "2")
+    fmt.Println(v.Encode())
+    var* u = &http.URL{Path: "/p", RawQuery: "k=v&k=w"}
+    fmt.Println(u.Query().Get("k"), " ", u.String())
+    fmt.Println(http.StatusText(http.StatusTeapot), "|", http.StatusText(http.StatusNetworkAuthenticationRequired), "|", http.StatusText(999) == "")
+    fmt.Println(http.MethodGet, " ", http.MethodPatch, " ", http.StatusTooEarly, " ", http.StatusPermanentRedirect)
+    var* req = &http.Request{Method: "GET", URL: &http.URL{Path: "/", RawQuery: "name=bob"}, Header: http.NewHeader()}
+    req.Header.Set("Cookie", "a=1; session=xyz")
+    fmt.Println(req.FormValue("name"), " ", req.Cookie("session"), " ", req.Cookie("none") == "")
+}
+return 0
