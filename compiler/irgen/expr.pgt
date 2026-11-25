@@ -73,10 +73,23 @@ fn (g *Gen) genExpr(e *ast.Expr, hint *Type) Value {
     if h != nil && h.Kind == KAny {
         h = nil
     }
+    if len(e.OvSlot) > 0 {
+        var* ot = g.ovTypes[e.OvType]
+        var* op = e.OvSlot
+        if e.OvAddr {
+            op = g.inst("load ptr, ptr " + e.OvSlot)
+        }
+        return Value{V: g.load(ot, op), T: ot}
+    }
+    var* ug = g.untypedGlobal(e)
+    if ug != nil {
+        return g.untypedConst(ug.Val, h, e.Line, e.Col)
+    }
     switch e.Kind {
+        case ast.ExprTernary { return g.genTernary(e, h) }
         case ast.ExprIntLit { return g.genIntLit(e, h) }
         case ast.ExprFloatLit { return Value{V: floatText(e.FloatVal), T: g.tt.floatT} }
-        case ast.ExprCharLit { return Value{V: str(int(e.CharVal)), T: g.tt.charT} }
+        case ast.ExprCharLit { return g.genCharLit(e, h) }
         case ast.ExprBoolLit {
             if e.BoolVal {
                 return Value{V: "true", T: g.tt.boolT}
@@ -237,12 +250,14 @@ fn (g *Gen) toStringValue(v Value, line int, col int) Value {
 }
 
 fn (g *Gen) genOperands(lhs *ast.Expr, rhs *ast.Expr, hint *Type) (Value, Value) {
-    var* lc = isConstExpr(lhs)
-    var* rc = isConstExpr(rhs)
+    var* lc = g.isConstExpr(lhs)
+    var* rc = g.isConstExpr(rhs)
     if lc && rc {
         var* h = hint
         if h == nil && (hasFloatLit(lhs) || hasFloatLit(rhs)) {
             h = g.tt.floatT
+        } else if h == nil && (hasCharLit(lhs) || hasCharLit(rhs)) {
+            h = g.tt.charT
         }
         var* l = g.genExpr(lhs, h)
         var* r = g.genExpr(rhs, h)
@@ -646,6 +661,13 @@ fn (g *Gen) addressOf(e *ast.Expr, forWrite bool) Addr {
     if g.failed {
         return Addr{}
     }
+    if len(e.OvSlot) > 0 {
+        if !e.OvAddr {
+            return Addr{}
+        }
+        var* op = g.inst("load ptr, ptr " + e.OvSlot)
+        return Addr{A: op, T: g.ovTypes[e.OvType], IsConst: false, Ok: true}
+    }
     switch e.Kind {
         case ast.ExprVarRef {
             var* v = g.lookupVar(e.Name)
@@ -902,6 +924,109 @@ fn (g *Gen) genSlice(e *ast.Expr) Value {
     return Value{V: r3, T: base.T}
 }
 
+fn isEmptyArrayLit(e *ast.Expr) bool {
+    return e.Kind == ast.ExprArrayLit && len(e.Elems) == 0
+}
+
+fn (g *Gen) isLazyExpr(e *ast.Expr) bool {
+    return g.isConstExpr(e) || e.Kind == ast.ExprNilLit || isEmptyArrayLit(e)
+}
+
+struct TernArm {
+    V string
+    T *Type
+    Block string
+    IsNil bool
+}
+
+fn (g *Gen) ternaryArm(bb string, x *ast.Expr, hint *Type, result *Type, endBB string) TernArm {
+    g.label(bb)
+    var* h = hint
+    if result != nil {
+        h = result
+    }
+    var* v = g.genExpr(x, h)
+    if g.failed {
+        return TernArm{}
+    }
+    if v.T.Kind == KVoid || v.T.Kind == KTuple {
+        g.fail("a '?:' branch needs a single value", x.Line, x.Col)
+        return TernArm{}
+    }
+    var* aend = g.newLabel("tern.aend")
+    g.br(aend)
+    g.label(aend)
+    g.br(endBB)
+    if v.T.Kind == KNil {
+        return TernArm{V: "", T: nil, Block: aend, IsNil: true}
+    }
+    if result != nil && v.T != result {
+        g.fail("the branches of '?:' have different types: " + result.Name() + " and " + v.T.Name(), x.Line, x.Col)
+        return TernArm{}
+    }
+    return TernArm{V: v.V, T: v.T, Block: aend, IsNil: false}
+}
+
+fn (g *Gen) genTernary(e *ast.Expr, hint0 *Type) Value {
+    var* hint = hint0
+    var* c = g.genCond(e.Operand)
+    if g.failed {
+        return g.dummy()
+    }
+    var* firstBB = g.newLabel("tern.then")
+    var* secondBB = g.newLabel("tern.else")
+    var* endBB = g.newLabel("tern.end")
+    g.condBr(c.V, firstBB, secondBB)
+    var* firstExpr = e.Lhs
+    var* secondExpr = e.Rhs
+    var* lazyThen = g.isLazyExpr(e.Lhs)
+    var* lazyElse = g.isLazyExpr(e.Rhs)
+    if lazyThen && !lazyElse {
+        firstBB = secondBB
+        secondBB = g.newLabel("tern.then")
+        firstExpr = e.Rhs
+        secondExpr = e.Lhs
+    }
+    if hint == nil && lazyThen && lazyElse {
+        if hasFloatLit(e.Lhs) || hasFloatLit(e.Rhs) {
+            hint = g.tt.floatT
+        } else if hasCharLit(e.Lhs) || hasCharLit(e.Rhs) {
+            hint = g.tt.charT
+        }
+    }
+    var* a = g.ternaryArm(firstBB, firstExpr, hint, nil, endBB)
+    if g.failed {
+        return g.dummy()
+    }
+    var* b = g.ternaryArm(secondBB, secondExpr, hint, a.T, endBB)
+    if g.failed {
+        return g.dummy()
+    }
+    var* result = a.T
+    if result == nil {
+        result = b.T
+    }
+    if result == nil {
+        g.fail("cannot infer the type of '?:' from two nil branches", e.Line, e.Col)
+        return g.dummy()
+    }
+    if (a.IsNil || b.IsNil) && !result.IsNillable() {
+        g.fail("cannot use nil as " + result.Name() + " in a '?:' branch", e.Line, e.Col)
+        return g.dummy()
+    }
+    g.label(endBB)
+    var* av = a.V
+    if a.IsNil {
+        av = g.zeroValue(result)
+    }
+    var* bv = b.V
+    if b.IsNil {
+        bv = g.zeroValue(result)
+    }
+    var* phi = g.inst("phi " + g.llvmType(result) + " [ " + av + ", %" + a.Block + " ], [ " + bv + ", %" + b.Block + " ]")
+    return Value{V: phi, T: result}
+}
+
 fn (g *Gen) genArrayLit(e *ast.Expr, hint *Type) Value {
     var* elemTy *Type = nil
     if hint != nil && hint.Kind == KArray {
@@ -910,9 +1035,30 @@ fn (g *Gen) genArrayLit(e *ast.Expr, hint *Type) Value {
         g.fail("cannot infer the type of an empty array; write it: var* a []int = []", e.Line, e.Col)
         return g.dummy()
     }
+    var* anchor = len(e.Elems)
+    var* anchorVal = Value{}
+    if elemTy == nil && isEmptyArrayLit(e.Elems[0]) {
+        var* k = 0
+        while k < len(e.Elems) && isEmptyArrayLit(e.Elems[k]) {
+            k++
+        }
+        if k == len(e.Elems) {
+            g.fail("cannot infer the type of an empty array; write it: var* a []int = []", e.Elems[0].Line, e.Elems[0].Col)
+            return g.dummy()
+        }
+        anchor = k
+        anchorVal = g.genExpr(e.Elems[k], nil)
+        if g.failed {
+            return anchorVal
+        }
+        elemTy = anchorVal.T
+    }
     var* values + {[]Value} = []
-    for x in e.Elems {
-        var* v = g.genExpr(x, elemTy)
+    for i, x in e.Elems {
+        var* v = anchorVal
+        if i != anchor {
+            v = g.genExpr(x, elemTy)
+        }
         if g.failed {
             return v
         }

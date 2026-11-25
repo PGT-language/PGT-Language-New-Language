@@ -48,23 +48,6 @@ fn floatText(x float) string {
     return out
 }
 
-fn isConstExpr(e *ast.Expr) bool {
-    if e.Kind == ast.ExprIntLit || e.Kind == ast.ExprFloatLit {
-        return true
-    }
-    if e.Kind == ast.ExprUnary {
-        return (e.Op == ast.UnNeg || e.Op == ast.UnBitNot) && isConstExpr(e.Operand)
-    }
-    if e.Kind == ast.ExprBinary {
-        switch e.Op {
-            case ast.BinAdd, ast.BinSub, ast.BinMul, ast.BinDiv, ast.BinMod, ast.BinBitAnd, ast.BinBitOr, ast.BinBitXor, ast.BinShl, ast.BinShr {
-                return isConstExpr(e.Lhs) && isConstExpr(e.Rhs)
-            }
-        }
-    }
-    return false
-}
-
 fn hasFloatLit(e *ast.Expr) bool {
     if e.Kind == ast.ExprFloatLit {
         return true
@@ -96,6 +79,11 @@ fn collectExpr(e *ast.Expr, out map[string]bool) {
             collectExpr(e.Operand, out)
         }
         case ast.ExprBinary {
+            collectExpr(e.Lhs, out)
+            collectExpr(e.Rhs, out)
+        }
+        case ast.ExprTernary {
+            collectExpr(e.Operand, out)
             collectExpr(e.Lhs, out)
             collectExpr(e.Rhs, out)
         }
@@ -198,6 +186,9 @@ fn collectStmt(s *ast.Stmt, out map[string]bool) {
             for r in s.Rest {
                 collectExpr(r, out)
             }
+        }
+        case ast.StmtDefer {
+            collectExpr(s.Value, out)
         }
     }
 }
