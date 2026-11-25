@@ -557,11 +557,45 @@ asm.Free(f)
 | `f.Addr() int64` | Адрес кода (для косвенных вызовов из другого кода) |
 | `Free(f Func)` | `munmap` |
 | `CheckBlock(text string, names []string, sizes []int) Result` | Проверяет текст блока `asm { }` без запуска: подстановки `{имя}`, запрет `r15`, `ret`, `leave`, синтаксис; `Result.Line` — строка внутри блока |
-| `RunBlock(cache *byte, text string, names []string, sizes []int, table *byte, where string, line int)` | Служебная функция для блоков `asm { }` (вызывается компилятором): ассемблирует и загружает код при первом запуске, затем вызывает его с таблицей слотов в `r15` |
+| `RunBlock(cache *byte, text string, names []string, sizes []int, table *byte, where string, line int)` | Служебная функция старой схемы запуска блоков во время выполнения; компилятор её больше не вызывает (блоки `asm { }` компилируются в программу как встроенный ассемблер LLVM), но она остаётся в пакете |
 
-Блоки `asm { }` в самом языке описаны в `syntax.md` («Ассемблерные вставки»).
+Блоки `asm { }` в самом языке описаны в `syntax.md` («Ассемблерные вставки»): для них нужен `#use "asm"`, но JIT-функции пакета им не требуются.
 
 Ошибки (неверный синтаксис, неизвестные мнемоника или регистр, неверная комбинация операндов, несовпадение размеров, число вне диапазона, неопределённая или повторная метка) возвращаются в `Result.Err` с номером строки. Вызов реализован через `unsafe.CallPtr` с маленькой ассемблерной прослойкой (`Call` собирает её этим же ассемблером), поэтому новые примитивы в компиляторе не нужны.
+
+## c
+
+Пакет для блоков `c { }` (см. `syntax.md`, «Вставки на C»): `#use "c"` обязателен в каждом файле, где есть такой блок. Содержит помощники для работы с C-указателями; в режиме ядра пакет импортируется, а функции, которым нужна libc, перенаправлены на `pgt_kernel_rt.c`.
+
+| Имя | Описание |
+|---|---|
+| `SizeofChar`, `SizeofShort`, `SizeofInt`, `SizeofLong`, `SizeofLongLong`, `SizeofPointer`, `SizeofSizeT`, `SizeofFloat`, `SizeofDouble` | Размеры C-типов в байтах (x86-64) |
+| `CharPtr(s string) *byte` | Указатель на данные строки (без копирования, действует, пока жива строка) |
+| `CString(s string) *byte` | Копия строки в C-памяти с нулевым байтом; освобождать через `Free` |
+| `GoString(p *byte) string` | Строка PGT из C-строки |
+| `Malloc(n)`, `Calloc(count, size)`, `Realloc(p, n)`, `Free(p)` | Обёртки над C-аллокатором (`Malloc` возвращает обнулённую память) |
+| `Strlen(p *byte) int64`, `Memcpy(dst, src *byte, n int64)`, `Memset(dst *byte, v int, n int64)` | Обёртки над libc |
+| `Errno() int`, `SetErrno(v int)` | Доступ к `errno` |
+
+## kernel
+
+Только для режима ядра (`pgt build --freestanding`, `target kernel` в `pgt.mod`). Все функции написаны на PGT с использованием блоков `asm { }` и `c { }`.
+
+| Область | Функции |
+|---|---|
+| Порты | `Outb`, `Outw`, `Outl(port, value int)`, `Inb`, `Inw`, `Inl(port int) int` |
+| Процессор | `Cli`, `Sti`, `Hlt`, `Halt` (вечный цикл), `Pause`, `Int3`, `ReadCR0/CR2/CR3/CR4() uint64`, `WriteCR3(v uint64)`, `Rdmsr(msr int) uint64`, `Wrmsr(msr int, v uint64)`, `Rdtsc() uint64`, `Invlpg(addr uint64)` |
+| Память по адресу | `Peek8/16/32/64(addr uint64)`, `Poke8/16/32/64(addr, value)`, `MemFill`, `MemMove` |
+| COM1 | `SerialInit`, `SerialWriteByte(b int)`, `SerialWrite(s)`, `SerialWriteLn(s)` |
+| Консоль | `ConsoleInit() bool`, `ConsoleReady`, `ConsoleClear`, `ConsoleSetColor(fg, bg)`, `ConsoleSetCursor(col, row)`, `ConsolePutChar(c int)`, `ConsoleWrite(s)`, `ConsoleWriteAt(col, row, s)`, `ConsoleFillRect`, `ConsoleCols/Rows/Width/Height/CursorX/CursorY`, цвета `ColorWhite`, `ColorCyan` и т.д. Шрифт 8x16 встроен, прокрутка поддерживается |
+| Вывод | `Print(s)`, `Println(s)` (COM1 и консоль), `Hex(v uint64) string` |
+| Таблицы | `InitGDT()` (GDT с кодом/данными ядра и пользователя и TSS с IST1 для double fault), `InitIDT()` (векторы 0-31 и IRQ 32-47, заглушки в модульном `asm { }`) |
+| Прерывания | `PicRemap(offset1, offset2)`, `PicEOI(irq)`, `PicMask`, `PicUnmask`, `PicMaskAll`; `PitInit(hz)`, `Ticks() int64`, `TickHz`, `UptimeMs`; `Breakpoints()`, `LastException()`, `IrqCount()`, `ExceptionName(vec)` |
+| Клавиатура | `KeyboardInit()`, `KeyAvailable() bool`, `ReadKey() int` (ASCII по scancode set 1, `-1` если пусто, учитывается Shift) |
+| Страницы | `PmmInit()`, `AllocFrame() uint64` (физический адрес, `0` при нехватке), `FrameVirt(phys)`, `PmmUsableBytes()`, `PmmFramesAllocated()` |
+| Limine | `LimineOK()`, `FramebufferAvailable/Addr/Width/Height/Pitch/Bpp`, `HhdmOffset()`, `MemmapCount/Base/Length/Type(i)`, `MemmapTypeName(t)`; запросы лежат в секциях `.limine_requests*` (блок `c { }` в `limine.pgt`) |
+
+Обработчик `OnInterrupt` обрабатывает точку останова (счётчик `Breakpoints`), таймер, клавиатуру; прочие исключения печатают сообщение и останавливают процессор.
 
 ## syscall
 

@@ -1,0 +1,7 @@
+package main
+
+#use "fmt"
+
+fn kmain() {
+    fmt.Println("no libc here")
+}

@@ -192,12 +192,8 @@ namespace pgt
         {
             bool isStd = stdDir_ && !imp.path.empty() && imp.path.find('/') == std::string::npos &&
                          fs::weakly_canonical(*dir) == fs::weakly_canonical(*stdDir_ / imp.path);
-            if (isStd && imp.path == "kernel" && !freestanding_)
-                failAt("package \"kernel\" is only available in freestanding builds (pgt build --freestanding "
-                       "or 'target kernel' in pgt.mod)",
-                       file, imp.line, imp.col);
-            static const std::set<std::string> freestandingOk = {"kernel", "runtime", "maps",  "reflect", "unsafe",
-                                                                 "arrays", "sort",    "memory", "builtin", "c"};
+            static const std::set<std::string> freestandingOk = {"runtime", "maps", "reflect", "unsafe", "arrays",
+                                                                 "sort", "memory", "builtin", "c"};
             if (isStd && freestanding_ && imp.path == "asm")
                 return *stdDir_ / "_freestanding" / "asm";
             if (isStd && freestanding_ && !freestandingOk.count(imp.path))

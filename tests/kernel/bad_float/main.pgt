@@ -1,0 +1,5 @@
+package main
+
+fn kmain() {
+    var* x = 1.5
+}

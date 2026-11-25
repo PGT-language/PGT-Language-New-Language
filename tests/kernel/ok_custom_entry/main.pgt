@@ -1,0 +1,12 @@
+package main
+
+#use "asm"
+
+fn boot() {
+    while true {
+        asm {
+            cli
+            hlt
+        }
+    }
+}

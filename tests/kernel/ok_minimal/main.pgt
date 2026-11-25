@@ -1,0 +1,47 @@
+package main
+
+#use (
+    "asm"
+    "c"
+)
+
+c {
+    #include <stdint.h>
+    extern void pgt_serial_putc(char ch);
+    int32_t twice(int32_t x)
+    {
+        return x * 2;
+    }
+    void say(const char *s)
+    {
+        while (*s)
+            pgt_serial_putc(*s++);
+    }
+}
+
+extern fn twice(x int) int
+extern fn say(s string)
+
+fn halt() {
+    while true {
+        asm {
+            cli
+            hlt
+        }
+    }
+}
+
+fn kmain() {
+    var* v = twice(21)
+    asm {
+        mov eax, {v}
+        add eax, 1
+        mov {v}, eax
+    }
+    say("v=" + v + "\n")
+    var* names = make([]string, 0)
+    names = append(names, "a")
+    names = append(names, "b" + v)
+    say(names[1])
+    halt()
+}

@@ -63,6 +63,24 @@ for d in projects/*/; do
     check_output "$d" "$d" "$d.out" "$d.in" "$d.args"
 done
 
+for d in kernel/*/; do
+    d=${d%/}
+    want=$(head -n 1 "$d/expect")
+    elf="$TMP/kernel_elf"
+    rm -f "$elf"
+    if log=$(timeout 60 "$PGT" build "$d" -o "$elf" 2>&1); then
+        if [ "$want" = OK ] && [ "$(head -c 4 "$elf" | od -An -c | tr -d ' ')" = '177ELF' ]; then
+            ok
+        else
+            bad "$d" "built, but expected: $want"
+        fi
+    elif [ "$want" != OK ] && [[ $log == *"$want"* ]]; then
+        ok
+    else
+        bad "$d" "expected: $want"$'\n'"got:      $log"
+    fi
+done
+
 for f in debug/*.pgt; do
     base=${f%.pgt}
     out=$("$PGT" build - --debug < "$f" 2>&1)
