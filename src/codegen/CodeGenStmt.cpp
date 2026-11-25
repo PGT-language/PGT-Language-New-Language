@@ -71,6 +71,12 @@ namespace pgt
             flushTemps();
             return;
         }
+        if (auto *cs = dynamic_cast<const CStmt *>(&stmt))
+        {
+            genCBlock(*cs);
+            flushTemps();
+            return;
+        }
         if (dynamic_cast<const Break *>(&stmt))
         {
             if (loops_.empty())

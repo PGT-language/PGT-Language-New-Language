@@ -29,6 +29,7 @@ add_executable(pgt
     src/codegen/Types.cpp
     src/codegen/CodeGen.cpp
     src/codegen/CodeGenStmt.cpp
+    src/codegen/CodeGenInline.cpp
     src/codegen/CodeGenExpr.cpp
     src/codegen/CodeGenBuiltins.cpp
     src/codegen/CodeGenMemory.cpp

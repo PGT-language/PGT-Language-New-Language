@@ -26,8 +26,31 @@ namespace pgt
         {
             return *module_;
         }
+        struct CUnit
+        {
+            std::string name;
+            std::string top;
+            std::string fns;
+            int blocks = 0;
+            std::string source() const
+            {
+                return top + fns;
+            }
+        };
+        const std::vector<CUnit> &cUnits() const
+        {
+            return cUnits_;
+        }
+        void setFreestanding(bool on)
+        {
+            freestanding_ = on;
+        }
 
     private:
+        CUnit &cUnit();
+        std::vector<CUnit> cUnits_;
+        std::map<std::string, size_t> cIndex_;
+        bool freestanding_ = false;
         struct Value
         {
             llvm::Value *value = nullptr;
@@ -159,6 +182,8 @@ namespace pgt
         void genForIn(const ForIn &loop);
         void genSwitch(const Switch &sw);
         void genAsm(const AsmStmt &stmt);
+        void genCBlock(const CStmt &stmt);
+        void genTopBlocks(const Program &p);
         void genDefer(const Defer &stmt);
         void emitDefers();
         llvm::AllocaInst *zeroedEntrySlot(llvm::Type *type, const std::string &name);

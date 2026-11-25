@@ -457,6 +457,7 @@ namespace pgt
                 {
                     currentFile_ = p.file;
                     bindImports(p);
+                    genTopBlocks(p);
                     for (const Function &fn : p.functions)
                     {
                         if (fn.isExtern)
