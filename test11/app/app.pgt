@@ -10,7 +10,6 @@ package app
     "std/fmt"
 )
 
-
 const (
     ActNone = 0
     ActQuit = 1
