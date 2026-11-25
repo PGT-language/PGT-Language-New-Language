@@ -1,0 +1,245 @@
+package irgen
+
+#use "compiler/ast"
+
+const (
+    KVoid = iota
+    KInt
+    KInt64
+    KUint64
+    KFloat
+    KChar
+    KByte
+    KBool
+    KString
+    KNil
+    KArray
+    KPointer
+    KStruct
+    KIface
+    KAny
+    KMap
+    KTuple
+)
+
+struct FieldInfo {
+    Name string
+    Type *Type
+}
+
+struct FuncInfo {
+    Name string
+    Symbol string
+    Params []*Type
+    Ret *Type
+    IsExtern bool
+    PtrRecv bool
+    Variadic bool
+    Line int
+    Col int
+}
+
+struct StructInfo {
+    Name string
+    PkgPath string
+    PkgName string
+    Decl *ast.StructDecl
+    Fields []*FieldInfo
+    Methods map[string]*FuncInfo
+    Llvm string
+    Resolved bool
+}
+
+struct IfaceMethod {
+    Name string
+    Params []*Type
+    Ret *Type
+}
+
+struct IfaceInfo {
+    Name string
+    PkgPath string
+    PkgName string
+    Methods []*IfaceMethod
+}
+
+struct Type {
+    Kind int
+    Id string
+    Elem *Type
+    Key *Type
+    Elems []*Type
+    St *StructInfo
+    Iface *IfaceInfo
+}
+
+fn (t *Type) Is(k int) bool {
+    return t.Kind == k
+}
+
+fn (t *Type) IsIntegral() bool {
+    return t.Kind == KInt || t.Kind == KInt64 || t.Kind == KUint64 || t.Kind == KChar || t.Kind == KByte
+}
+
+fn (t *Type) IsUnsigned() bool {
+    return t.Kind == KChar || t.Kind == KByte || t.Kind == KUint64
+}
+
+fn (t *Type) IsNumeric() bool {
+    return t.IsIntegral() || t.Kind == KFloat
+}
+
+fn (t *Type) IsNillable() bool {
+    return t.Kind == KPointer || t.Kind == KArray || t.Kind == KString || t.Kind == KIface || t.Kind == KAny || t.Kind == KMap
+}
+
+fn (t *Type) IsPtrToStruct() bool {
+    return t.Kind == KPointer && t.Elem.Kind == KStruct
+}
+
+fn (st *StructInfo) FieldIndex(name string) int {
+    for i, f in st.Fields {
+        if f.Name == name {
+            return i
+        }
+    }
+    return -1
+}
+
+fn (ii *IfaceInfo) MethodIndex(name string) int {
+    for i, m in ii.Methods {
+        if m.Name == name {
+            return i
+        }
+    }
+    return -1
+}
+
+fn (t *Type) Name() string {
+    switch t.Kind {
+        case KVoid { return "void" }
+        case KInt { return "int" }
+        case KInt64 { return "int64" }
+        case KUint64 { return "uint64" }
+        case KFloat { return "float" }
+        case KChar { return "char" }
+        case KByte { return "byte" }
+        case KBool { return "bool" }
+        case KString { return "string" }
+        case KNil { return "nil" }
+        case KAny { return "any" }
+        case KArray { return "[]" + t.Elem.Name() }
+        case KPointer { return "*" + t.Elem.Name() }
+        case KMap { return "map[" + t.Key.Name() + "]" + t.Elem.Name() }
+        case KStruct {
+            if t.St.PkgName == "main" {
+                return t.St.Name
+            }
+            return t.St.PkgName + "." + t.St.Name
+        }
+        case KIface {
+            if t.Iface.PkgName == "main" {
+                return t.Iface.Name
+            }
+            return t.Iface.PkgName + "." + t.Iface.Name
+        }
+        case KTuple {
+            var* out = "("
+            for i, e in t.Elems {
+                if i > 0 {
+                    out = out + ", "
+                }
+                out = out + e.Name()
+            }
+            return out + ")"
+        }
+    }
+    return "?"
+}
+
+fn (t *Type) Desc() string {
+    switch t.Kind {
+        case KStruct { return "S:" + t.St.PkgPath + "." + t.St.Name }
+        case KIface { return "I:" + t.Iface.PkgPath + "." + t.Iface.Name }
+        case KArray { return "[]" + t.Elem.Desc() }
+        case KPointer { return "*" + t.Elem.Desc() }
+        case KMap { return "map[" + t.Key.Desc() + "]" + t.Elem.Desc() }
+        case KTuple {
+            var* out = "("
+            for e in t.Elems {
+                out = out + e.Desc() + ","
+            }
+            return out + ")"
+        }
+    }
+    return t.Name()
+}
+
+struct TypeTable {
+    byId map[string]*Type
+    voidT *Type
+    intT *Type
+    int64T *Type
+    uint64T *Type
+    floatT *Type
+    charT *Type
+    byteT *Type
+    boolT *Type
+    stringT *Type
+    nilT *Type
+    anyT *Type
+}
+
+fn newTypeTable() *TypeTable {
+    var* tt = &TypeTable{byId: map[string]*Type{}}
+    tt.voidT = tt.basic(KVoid)
+    tt.intT = tt.basic(KInt)
+    tt.int64T = tt.basic(KInt64)
+    tt.uint64T = tt.basic(KUint64)
+    tt.floatT = tt.basic(KFloat)
+    tt.charT = tt.basic(KChar)
+    tt.byteT = tt.basic(KByte)
+    tt.boolT = tt.basic(KBool)
+    tt.stringT = tt.basic(KString)
+    tt.nilT = tt.basic(KNil)
+    tt.anyT = tt.basic(KAny)
+    return tt
+}
+
+fn (tt *TypeTable) intern(t *Type) *Type {
+    var* id = t.Desc()
+    if has(tt.byId, id) {
+        return tt.byId[id]
+    }
+    t.Id = id
+    tt.byId[id] = t
+    return t
+}
+
+fn (tt *TypeTable) basic(k int) *Type {
+    return tt.intern(&Type{Kind: k})
+}
+
+fn (tt *TypeTable) arrayOf(elem *Type) *Type {
+    return tt.intern(&Type{Kind: KArray, Elem: elem})
+}
+
+fn (tt *TypeTable) pointerTo(elem *Type) *Type {
+    return tt.intern(&Type{Kind: KPointer, Elem: elem})
+}
+
+fn (tt *TypeTable) mapOf(key *Type, elem *Type) *Type {
+    return tt.intern(&Type{Kind: KMap, Key: key, Elem: elem})
+}
+
+fn (tt *TypeTable) tupleOf(elems []*Type) *Type {
+    return tt.intern(&Type{Kind: KTuple, Elems: elems})
+}
+
+fn (tt *TypeTable) structT(st *StructInfo) *Type {
+    return tt.intern(&Type{Kind: KStruct, St: st})
+}
+
+fn (tt *TypeTable) ifaceT(ii *IfaceInfo) *Type {
+    return tt.intern(&Type{Kind: KIface, Iface: ii})
+}

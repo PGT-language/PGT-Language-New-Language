@@ -1,22 +1,13 @@
 package main
 
-#use (
-    "std/memory"
-    "std/fmt"
-    "std/asm"
-)
+#use "test11/term"
+#use "fmt"
 
 fn main() {
-    var* n int64 = 7
-    var* a uint64 = 18446744073709551615
-    var& := a = malloc(free[uint64] 10)
-    asm {
-        mov rax, {n}
-        imul rax, rax
-        mov {n}, rax
-    }
-    var& := n = malloc(free[byte] 8)
-    fmt.Println(a)
-    fmt.Println(n)
+    var* ok = term.Init()
+    fmt.Println(ok)
+    var* w, h = term.Size()
+    fmt.Println(w, " ", h)
+    term.Restore()
 }
 return 0

@@ -1,0 +1,332 @@
+package loader
+
+#use "compiler/ast"
+#use "compiler/lexer"
+#use "compiler/parser"
+#use "os"
+#use "path"
+#use "strings"
+
+struct Package {
+    ImportPath string
+    Name string
+    Dir string
+    Programs []*ast.Program
+    IsStd bool
+}
+
+struct Workspace {
+    Packages []*Package
+    ByPath map[string]*Package
+    Root *Package
+}
+
+struct Error {
+    File string
+    Line int
+    Col int
+    Msg string
+}
+
+struct ModFile {
+    Ok bool
+    Name string
+    Root string
+}
+
+struct Loader {
+    Mod ModFile
+    StdDir string
+    HasStd bool
+    Ws *Workspace
+    Stack []string
+    Err Error
+    Failed bool
+}
+
+fn (l *Loader) fail(file string, line int, col int, msg string) {
+    if !l.Failed {
+        l.Failed = true
+        l.Err = Error{File: file, Line: line, Col: col, Msg: msg}
+    }
+}
+
+fn exeDir() string {
+    var* args = os.Args()
+    if len(args) == 0 {
+        return ""
+    }
+    var* exe = args[0]
+    if !strings.Contains(exe, "/") {
+        return ""
+    }
+    return path.Dir(exe)
+}
+
+fn envOr(name string) string {
+    return os.Getenv(name)
+}
+
+fn FindStdDir() (string, bool) {
+    var* env = envOr("PGT_STD")
+    if len(env) > 0 {
+        return env, true
+    }
+    var* dir = exeDir()
+    if len(dir) == 0 {
+        dir = "."
+    }
+    var* candidates = [path.Join(dir, "..", "lib", "pgt", "std"), path.Join(dir, "std"), path.Join(dir, "..", "std")]
+    for c in candidates {
+        if os.IsDir(c) {
+            return c, true
+        }
+    }
+    return "", false
+}
+
+fn FindRuntimeLib() (string, bool) {
+    var* env = envOr("PGT_RUNTIME")
+    if len(env) > 0 {
+        return env, true
+    }
+    var* dir = exeDir()
+    if len(dir) == 0 {
+        dir = "."
+    }
+    var* candidates = [path.Join(dir, "..", "lib", "pgt", "libpgtrt.a"), path.Join(dir, "libpgtrt.a"), path.Join(dir, "..", "build", "libpgtrt.a"), path.Join(dir, "build", "libpgtrt.a")]
+    for c in candidates {
+        if os.Exists(c) && !os.IsDir(c) {
+            return c, true
+        }
+    }
+    return "", false
+}
+
+fn FindStdBundle() (string, bool) {
+    var* env = envOr("PGT_STDLIB")
+    if len(env) > 0 {
+        return env, true
+    }
+    var* dir = exeDir()
+    if len(dir) == 0 {
+        dir = "."
+    }
+    var* candidates = [path.Join(dir, "..", "lib", "pgt", "libpgtstd.a"), path.Join(dir, "libpgtstd.a"), path.Join(dir, "..", "build", "libpgtstd.a"), path.Join(dir, "build", "libpgtstd.a")]
+    for c in candidates {
+        if os.Exists(c) && !os.IsDir(c) {
+            return c, true
+        }
+    }
+    return "", false
+}
+
+fn ParseModFile(file string) ModFile {
+    var* text = os.ReadFile(file)
+    var* mod = ModFile{Ok: false, Name: "", Root: path.Dir(file)}
+    for line in strings.Lines(text) {
+        var* cut = strings.Index(line, "//")
+        var* body = line
+        if cut >= 0 {
+            body = line[0:cut]
+        }
+        var* fields = strings.Fields(body)
+        if len(fields) >= 2 && fields[0] == "module" {
+            mod.Ok = true
+            mod.Name = fields[1]
+            return mod
+        }
+    }
+    return mod
+}
+
+fn FindModFile(dir string) ModFile {
+    var* cur = path.Abs(dir)
+    while true {
+        var* candidate = path.Join(cur, "pgt.mod")
+        if os.Exists(candidate) && !os.IsDir(candidate) {
+            return ParseModFile(candidate)
+        }
+        var* parent = path.Dir(cur)
+        if parent == cur {
+            break
+        }
+        cur = parent
+    }
+    return ModFile{Ok: false, Name: "", Root: ""}
+}
+
+fn ListSources(dir string) []string {
+    var* out + {[]string} = []
+    for e in os.ReadDir(dir) {
+        if !e.IsDir && strings.HasSuffix(e.Name, ".pgt") {
+            out = append(out, path.Join(dir, e.Name))
+        }
+    }
+    return out
+}
+
+fn (l *Loader) parseFile(file string) *ast.Program {
+    if !os.Exists(file) {
+        l.fail(file, 0, 0, "cannot read the file")
+        return nil
+    }
+    var* src = os.ReadFile(file)
+    var* toks, lerr = lexer.Tokenize(src)
+    if len(lerr.Msg) > 0 {
+        l.fail(file, lerr.Line, lerr.Col, lerr.Msg)
+        return nil
+    }
+    var* prog, perr = parser.Parse(toks)
+    if len(perr.Msg) > 0 {
+        l.fail(file, perr.Line, perr.Col, perr.Msg)
+        return nil
+    }
+    prog.File = file
+    return prog
+}
+
+fn (l *Loader) importPathFor(dir string, name string) string {
+    if !l.Mod.Ok {
+        return name
+    }
+    var* rel = path.Rel(l.Mod.Root, path.Abs(dir))
+    if rel == "." || len(rel) == 0 {
+        return l.Mod.Name
+    }
+    return l.Mod.Name + "/" + rel
+}
+
+fn (l *Loader) resolveImport(imp *ast.Import, file string) (string, bool, bool) {
+    if imp.Path == "builtin" {
+        l.fail(file, imp.Line, imp.Col, "package \"builtin\" is documentation only and cannot be imported")
+        return "", false, false
+    }
+    if l.Mod.Ok {
+        var* name = l.Mod.Name
+        if imp.Path == name {
+            return l.Mod.Root, false, true
+        }
+        if len(imp.Path) > len(name) && strings.HasPrefix(imp.Path, name + "/") {
+            return path.Join(l.Mod.Root, imp.Path[len(name) + 1:len(imp.Path)]), false, true
+        }
+    }
+    if l.HasStd && !strings.Contains(imp.Path, "..") {
+        var* dir = path.Join(l.StdDir, imp.Path)
+        if os.IsDir(dir) {
+            return dir, true, true
+        }
+    }
+    var* where = ""
+    if l.Mod.Ok {
+        where = "in module '" + l.Mod.Name + "' or "
+    }
+    var* hint = ""
+    if !l.Mod.Ok {
+        hint = " (to import your own packages, create a pgt.mod)"
+    }
+    l.fail(file, imp.Line, imp.Col, "cannot find package \"" + imp.Path + "\" " + where + "in the standard library" + hint)
+    return "", false, false
+}
+
+fn (l *Loader) loadPackage(dir string, files []string, isRoot bool, importPath string, isStd bool) *Package {
+    var* pkg = &Package{Dir: dir, IsStd: isStd}
+    for f in files {
+        var* prog = l.parseFile(f)
+        if l.Failed {
+            return nil
+        }
+        pkg.Programs = append(pkg.Programs, prog)
+    }
+    pkg.Name = pkg.Programs[0].Package
+    for p in pkg.Programs {
+        if p.Package != pkg.Name {
+            l.fail(p.File, 0, 0, "package '" + p.Package + "' conflicts with package '" + pkg.Name + "' of the same directory")
+            return nil
+        }
+    }
+    if !isRoot && pkg.Name == "main" {
+        l.fail(pkg.Programs[0].File, 0, 0, "package 'main' cannot be imported")
+        return nil
+    }
+    if len(importPath) == 0 {
+        pkg.ImportPath = l.importPathFor(dir, pkg.Name)
+    } else {
+        pkg.ImportPath = importPath
+    }
+    for s in l.Stack {
+        if s == pkg.ImportPath {
+            l.fail(pkg.Programs[0].File, 0, 0, "import cycle through " + pkg.ImportPath)
+            return nil
+        }
+    }
+    l.Stack = append(l.Stack, pkg.ImportPath)
+    for p in pkg.Programs {
+        for imp in p.Imports {
+            if l.Ws.ByPath[imp.Path] != nil {
+                continue
+            }
+            var* depDir, depStd, ok = l.resolveImport(imp, p.File)
+            if !ok {
+                return nil
+            }
+            if !os.IsDir(depDir) {
+                l.fail(p.File, imp.Line, imp.Col, "cannot find package \"" + imp.Path + "\"")
+                return nil
+            }
+            var* depFiles = ListSources(depDir)
+            if len(depFiles) == 0 {
+                l.fail(p.File, imp.Line, imp.Col, "package \"" + imp.Path + "\" contains no .pgt files")
+                return nil
+            }
+            l.loadPackage(depDir, depFiles, false, imp.Path, depStd)
+            if l.Failed {
+                return nil
+            }
+        }
+    }
+    l.Stack = l.Stack[0:len(l.Stack) - 1]
+    l.Ws.ByPath[pkg.ImportPath] = pkg
+    l.Ws.Packages = append(l.Ws.Packages, pkg)
+    return pkg
+}
+
+fn (l *Loader) loadImplicit(name string) {
+    if !l.HasStd || !os.IsDir(path.Join(l.StdDir, name)) {
+        l.fail(name, 0, 0, "the " + name + " package was not found in the standard library (set PGT_STD)")
+        return
+    }
+    var* dir = path.Join(l.StdDir, name)
+    l.loadPackage(dir, ListSources(dir), false, name, true)
+}
+
+fn Load(input string) (*Workspace, Error) {
+    var* l = Loader{Ws: &Workspace{ByPath: map[string]*Package{}}}
+    if !os.Exists(input) {
+        return l.Ws, Error{File: input, Line: 0, Col: 0, Msg: "no such file or directory"}
+    }
+    var* isDir = os.IsDir(input)
+    var* dir = input
+    if !isDir {
+        dir = path.Dir(input)
+    }
+    var* files + {[]string} = []
+    if isDir {
+        files = ListSources(dir)
+    } else {
+        files = [input]
+    }
+    if len(files) == 0 {
+        return l.Ws, Error{File: input, Line: 0, Col: 0, Msg: "no .pgt files in this directory"}
+    }
+    l.Mod = FindModFile(dir)
+    l.StdDir, l.HasStd = FindStdDir()
+    l.loadImplicit("runtime")
+    if !l.Failed {
+        l.loadImplicit("maps")
+    }
+    if !l.Failed {
+        l.Ws.Root = l.loadPackage(dir, files, true, "", false)
+    }
+    return l.Ws, l.Err
+}

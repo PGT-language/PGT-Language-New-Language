@@ -1,0 +1,140 @@
+package term
+
+#use "unsafe"
+
+extern fn tcgetattr(fd int, t *byte) int
+extern fn tcsetattr(fd int, how int, t *byte) int
+extern fn cfmakeraw(t *byte)
+extern fn ioctl(fd int, req int64, p *byte) int
+extern fn read(fd int, buf *byte, n int64) int64
+extern fn write(fd int, s string, n int64) int64
+extern fn poll(fds *byte, n int64, timeout int) int
+extern fn isatty(fd int) int
+
+const (
+    KeyNone = 0
+    KeyUp = 1001
+    KeyDown = 1002
+    KeyRight = 1003
+    KeyLeft = 1004
+    KeyEsc = 27
+    TermiosSize = 128
+    TCSANOW = 0
+    TIOCGWINSZ = 21523
+)
+
+var* saved *byte = nil
+var* work *byte = nil
+var* active = false
+var* inbuf *byte = nil
+var* pending = []
+
+fn Active() bool {
+    return active
+}
+
+fn IsTTY() bool {
+    return isatty(0) == 1 && isatty(1) == 1
+}
+
+fn Init() bool {
+    if active {
+        return true
+    }
+    if !IsTTY() {
+        return false
+    }
+    saved = unsafe.Alloc(TermiosSize, nil)
+    work = unsafe.Alloc(TermiosSize, nil)
+    inbuf = unsafe.Alloc(64, nil)
+    if tcgetattr(0, saved) != 0 {
+        return false
+    }
+    unsafe.Copy(work, saved, TermiosSize)
+    cfmakeraw(work)
+    if tcsetattr(0, TCSANOW, work) != 0 {
+        return false
+    }
+    active = true
+    Write("\x1b[?1049h\x1b[?25l\x1b[2J")
+    return true
+}
+
+fn Restore() {
+    if !active {
+        return
+    }
+    Write("\x1b[0m\x1b[?25h\x1b[?1049l")
+    tcsetattr(0, TCSANOW, saved)
+    active = false
+}
+
+fn Write(s string) {
+    write(1, s, int64(len(s)))
+}
+
+fn Size() (int, int) {
+    var* buf = unsafe.Alloc(16, nil)
+    var* cols = 0
+    var* rows = 0
+    if ioctl(1, TIOCGWINSZ, buf) == 0 {
+        rows = int(unsafe.LoadByte(buf)) + int(unsafe.LoadByte(unsafe.Add(buf, 1))) * 256
+        cols = int(unsafe.LoadByte(unsafe.Add(buf, 2))) + int(unsafe.LoadByte(unsafe.Add(buf, 3))) * 256
+    }
+    if cols < 20 || rows < 10 {
+        return 80, 24
+    }
+    return cols, rows
+}
+
+fn fill() {
+    var* fds = unsafe.Alloc(8, nil)
+    unsafe.StoreInt(fds, 0)
+    unsafe.StoreByte(unsafe.Add(fds, 4), 1)
+    unsafe.StoreByte(unsafe.Add(fds, 5), 0)
+    unsafe.StoreByte(unsafe.Add(fds, 6), 0)
+    unsafe.StoreByte(unsafe.Add(fds, 7), 0)
+    while poll(fds, 1, 0) > 0 {
+        var* n = read(0, inbuf, 64)
+        if n <= 0 {
+            return
+        }
+        for var* i = 0; i < int(n); i++ {
+            pending = append(pending, int(unsafe.LoadByte(unsafe.Add(inbuf, int64(i)))))
+        }
+    }
+}
+
+fn pop() int {
+    var* c = pending[0]
+    pending = pending[1:]
+    return c
+}
+
+fn ReadKey() int {
+    fill()
+    if len(pending) == 0 {
+        return KeyNone
+    }
+    var* c = pop()
+    if c != 27 {
+        return c
+    }
+    if len(pending) >= 2 && pending[0] == 91 {
+        pop()
+        var* d = pop()
+        switch d {
+            case 65 { return KeyUp }
+            case 66 { return KeyDown }
+            case 67 { return KeyRight }
+            case 68 { return KeyLeft }
+            default { return KeyNone }
+        }
+    }
+    return KeyEsc
+}
+
+fn Drain() {
+    fill()
+    pending = []
+}
