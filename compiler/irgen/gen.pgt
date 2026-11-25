@@ -1,8 +1,8 @@
 package irgen
 
 #use (
-    "compiler/ast"
     "compiler/loader"
+    "compiler/ast"
     "strings"
 )
 

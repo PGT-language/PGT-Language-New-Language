@@ -1,12 +1,12 @@
 package loader
 
 #use (
-    "compiler/ast"
-    "compiler/lexer"
     "compiler/parser"
-    "os"
-    "path"
+    "compiler/lexer"
+    "compiler/ast"
     "strings"
+    "path"
+    "os"
 )
 
 struct Package {

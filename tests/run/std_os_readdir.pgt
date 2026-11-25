@@ -1,8 +1,8 @@
 package main
 
 #use (
-    "os"
     "fmt"
+    "os"
 )
 
 fn show(dir string) {

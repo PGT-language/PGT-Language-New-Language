@@ -2,8 +2,8 @@
 package main
 
 #use (
-    "fmt"
     "unsafe"
+    "fmt"
 )
 
 extern fn strdup(s *byte) *byte

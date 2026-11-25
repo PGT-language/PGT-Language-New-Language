@@ -1,8 +1,8 @@
 package asm
 
 #use (
-    "unsafe"
     "strings"
+    "unsafe"
 )
 
 const prologueLines = 7

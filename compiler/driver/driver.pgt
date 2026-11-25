@@ -1,14 +1,14 @@
 package driver
 
 #use (
+    "compiler/scaffold"
     "compiler/loader"
     "compiler/irgen"
-    "compiler/scaffold"
+    "strings"
+    "path"
+    "time"
     "fmt"
     "os"
-    "path"
-    "strings"
-    "time"
 )
 
 struct BuildOptions {

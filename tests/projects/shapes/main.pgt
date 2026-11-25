@@ -1,10 +1,10 @@
 package main
 
 #use (
-    "fmt"
     "shapes/render"
     "shapes/geom"
     "std/memory"
+    "fmt"
 )
 
 fn main() {

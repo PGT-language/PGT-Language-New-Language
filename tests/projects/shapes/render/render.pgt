@@ -1,10 +1,10 @@
 package render
 
 #use (
-    "fmt"
     "shapes/geom"
     "strings"
     "conv"
+    "fmt"
 )
 
 fn Describe(s geom.Shape) string {

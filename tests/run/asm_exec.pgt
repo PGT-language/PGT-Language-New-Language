@@ -1,9 +1,9 @@
 package main
 
 #use (
+    "unsafe"
     "fmt"
     "asm"
-    "unsafe"
 )
 
 extern fn calloc(count int64, size int64) *byte

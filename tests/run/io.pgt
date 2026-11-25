@@ -1,9 +1,9 @@
 package main
 
 #use (
+    "strings"
     "fmt"
     "io"
-    "strings"
 )
 
 fn main() {

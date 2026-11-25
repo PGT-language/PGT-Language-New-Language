@@ -1,24 +1,24 @@
 package main
 
 #use (
+    "syscall/purec-os"
+    "syscall/linux"
+    "reflect"
+    "strings"
     "arrays"
-    "asm"
+    "memory"
+    "unsafe"
     "conv"
     "flag"
-    "fmt"
-    "io"
     "math"
-    "memory"
-    "os"
     "path"
     "rand"
-    "reflect"
     "sort"
-    "strings"
-    "syscall/linux"
-    "syscall/purec-os"
     "time"
-    "unsafe"
+    "asm"
+    "fmt"
+    "io"
+    "os"
 )
 
 fn keep() {

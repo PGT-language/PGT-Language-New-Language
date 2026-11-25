@@ -193,11 +193,17 @@ namespace pgt
     void Parser::parseImports(Program &prog)
     {
         advance();
+        std::string prev;
         auto readOne = [&]
         {
             const Token &t = expect(Tok::String, "as the package path");
             if (t.text.empty())
                 throw CompileError("empty import path", t.line, t.col);
+            if (!prev.empty() && t.text.size() > prev.size())
+                throw CompileError("imports must be sorted by length, longest first: \"" + t.text +
+                                       "\" must come before \"" + prev + "\"",
+                                   t.line, t.col);
+            prev = t.text;
             prog.imports.push_back(Import{normalizeImportPath(t.text), t.line, t.col});
         };
         if (check(Tok::LParen))

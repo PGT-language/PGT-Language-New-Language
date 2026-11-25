@@ -1,0 +1,9 @@
+// error: imports must be sorted by length, longest first
+package main
+#use (
+    "fmt"
+    "std/os"
+)
+fn main() {
+    fmt.Println(os.NumArgs())
+}

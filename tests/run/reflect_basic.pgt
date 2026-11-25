@@ -2,8 +2,8 @@
 package main
 
 #use (
-    "fmt"
     "reflect"
+    "fmt"
 )
 
 struct Point {

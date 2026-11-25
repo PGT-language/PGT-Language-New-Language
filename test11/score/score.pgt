@@ -1,9 +1,9 @@
 package score
 
 #use (
-    "os"
-    "conv"
     "strings"
+    "conv"
+    "os"
 )
 
 fn Path() string {

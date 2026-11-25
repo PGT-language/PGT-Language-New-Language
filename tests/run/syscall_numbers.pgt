@@ -1,8 +1,8 @@
 package main
 
 #use (
-    "fmt"
     "pgt/std/syscall/linux"
+    "fmt"
 )
 
 fn main() {

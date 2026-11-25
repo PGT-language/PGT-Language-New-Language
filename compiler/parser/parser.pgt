@@ -271,26 +271,32 @@ fn (p *Parser) parseImports(prog *ast.Program) {
     p.advance()
     if p.check(token.LParen) {
         p.advance()
+        var* prev = ""
         while !p.check(token.RParen) {
             if p.check(token.Eof) {
                 p.errorHere("unexpected end of file, expected ')'")
                 break
             }
-            p.readImport(prog)
+            prev = p.readImport(prog, prev)
         }
         p.advance()
     } else {
-        p.readImport(prog)
+        p.readImport(prog, "")
     }
 }
 
-fn (p *Parser) readImport(prog *ast.Program) {
+fn (p *Parser) readImport(prog *ast.Program, prev string) string {
     var* t = p.expect(token.String, "as the package path")
     if len(t.Text) == 0 {
         p.fail("empty import path", t.Line, t.Col)
-        return
+        return prev
+    }
+    if len(prev) > 0 && len(t.Text) > len(prev) {
+        p.fail("imports must be sorted by length, longest first: \"" + t.Text + "\" must come before \"" + prev + "\"", t.Line, t.Col)
+        return prev
     }
     prog.Imports = append(prog.Imports, &ast.Import{Path: normalizeImportPath(t.Text), Line: t.Line, Col: t.Col})
+    return t.Text
 }
 
 fn (p *Parser) atTypeStart() bool {

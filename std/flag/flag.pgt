@@ -1,8 +1,8 @@
 package flag
 
 #use (
-    "os"
     "strings"
+    "os"
 )
 
 const (

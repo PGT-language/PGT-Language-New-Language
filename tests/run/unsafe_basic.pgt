@@ -2,9 +2,9 @@
 package main
 
 #use (
-    "fmt"
     "memory"
     "unsafe"
+    "fmt"
 )
 
 fn main() {

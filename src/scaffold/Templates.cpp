@@ -73,9 +73,9 @@ return 0
          {{"main.pgt", R"PGT(package main
 
 #use (
-    "fmt"
     "strings"
     "arrays"
+    "fmt"
     "io"
 )
 

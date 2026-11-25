@@ -1,9 +1,9 @@
 package dump
 
 #use (
-    "fmt"
-    "strings"
     "compiler/ast"
+    "strings"
+    "fmt"
 )
 
 struct Node {

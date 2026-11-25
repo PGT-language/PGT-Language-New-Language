@@ -2,9 +2,9 @@
 package main
 
 #use (
-    "fmt"
-    "math"
     "pgt/std/strings"
+    "math"
+    "fmt"
 )
 
 fn main() {

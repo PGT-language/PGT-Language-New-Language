@@ -1,13 +1,13 @@
 package main
 
 #use (
-    "fmt"
     "strings"
     "arrays"
     "math"
     "conv"
     "rand"
     "time"
+    "fmt"
     "os"
 )
 

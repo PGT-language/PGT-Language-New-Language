@@ -1,9 +1,9 @@
 package main
 
 #use (
-    "fmt"
     "test/greet"
     "test/mathx"
+    "fmt"
 )
 
 fn main() {
