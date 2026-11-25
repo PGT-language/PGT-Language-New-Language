@@ -1,0 +1,74 @@
+package net
+
+#use "unsafe"
+
+extern fn read(fd int, buf *byte, n int64) int64
+extern fn send(fd int, data *byte, n int64, flags int) int64
+extern fn close(fd int) int
+
+const msgNoSignal = 0x4000
+const eIntr = 4
+
+struct Conn {
+    fd int
+    remote string
+}
+
+fn (c Conn) RemoteAddr() string {
+    return c.remote
+}
+
+fn (c Conn) Read(max int) (string, string) {
+    var* buf = make([]byte, max + 1)
+    var* p = unsafe.BytesData(buf)
+    var* n = read(c.fd, p, int64(max))
+    while n < 0 && errno() == eIntr {
+        n = read(c.fd, p, int64(max))
+    }
+    if n < 0 {
+        return "", strerror(errno())
+    }
+    if n == 0 {
+        return "", "eof"
+    }
+    unsafe.StoreByte(unsafe.Add(p, n), byte(0))
+    return unsafe.StringAt(p), ""
+}
+
+fn (c Conn) ReadAll() (string, string) {
+    var* out = ""
+    while true {
+        var* data, err = c.Read(4096)
+        if err == "eof" {
+            return out, ""
+        }
+        if err != "" {
+            return out, err
+        }
+        out = out + data
+    }
+    return out, ""
+}
+
+fn (c Conn) WriteBytes(p *byte, n int64) string {
+    var* done int64 = 0
+    while done < n {
+        var* sent = send(c.fd, unsafe.Add(p, done), n - done, msgNoSignal)
+        if sent < 0 {
+            if errno() != eIntr {
+                return strerror(errno())
+            }
+        } else {
+            done += sent
+        }
+    }
+    return ""
+}
+
+fn (c Conn) Write(s string) string {
+    return c.WriteBytes(unsafe.StringData(s), int64(len(s)))
+}
+
+fn (c Conn) Close() {
+    close(c.fd)
+}

@@ -1,0 +1,32 @@
+package main
+
+#use (
+    "net"
+    "fmt"
+)
+
+extern fn geteuid() int
+
+fn main() {
+    var* ip, err = net.ParseIP("10.0.20.255")
+    fmt.Println(ip, err)
+    var* lo, err2 = net.ParseIP("localhost")
+    fmt.Println(lo, err2)
+    var* _, err3 = net.ParseIP("1.2.3")
+    fmt.Println(err3)
+    var* _, err4 = net.ParseIP("1.2.3.999")
+    fmt.Println(err4)
+    var* sa = net.SockAddr(ip, 18080)
+    fmt.Println(len(sa), sa[0], sa[2], sa[3], sa[4], sa[7], net.FormatAddr(sa))
+    var* _, e0 = net.Listen("localhost", 0)
+    fmt.Println(e0)
+    var* _, e1 = net.Listen("localhost", 70000)
+    fmt.Println(e1)
+    var* _, e2 = net.Listen("localhost", 80)
+    if geteuid() == 0 {
+        fmt.Println("port 80 needs root: ports below 1024 are privileged, use 1024-65535")
+    } else {
+        fmt.Println(e2)
+    }
+}
+return 0

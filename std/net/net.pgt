@@ -1,0 +1,97 @@
+package net
+
+#use (
+    "strings"
+    "unsafe"
+    "conv"
+)
+
+extern fn __errno_location() *int
+extern fn strerror(code int) string
+extern fn geteuid() int
+
+const afInet = 2
+const sockStream = 1
+const solSocket = 1
+const soReuseAddr = 2
+const eAcces = 13
+const eAddrInUse = 98
+
+fn errno() int {
+    var* p = __errno_location()
+    return *p
+}
+
+fn errText(code int, port int) string {
+    if code == eAcces {
+        return privilegedText(port)
+    }
+    if code == eAddrInUse {
+        return "port " + port + " is already in use"
+    }
+    return strerror(code)
+}
+
+fn privilegedText(port int) string {
+    return "port " + port + " needs root: ports below 1024 are privileged, use 1024-65535"
+}
+
+fn checkPort(port int) string {
+    if port < 1 || port > 65535 {
+        return "invalid port " + port + ": must be 1-65535"
+    }
+    return ""
+}
+
+fn ParseIP(host string) ([]int, string) {
+    var* ip + {[]int} = []
+    if host == "" || host == "0.0.0.0" {
+        return [0, 0, 0, 0], ""
+    }
+    if host == "localhost" {
+        return [127, 0, 0, 1], ""
+    }
+    var* parts = strings.Split(host, ".")
+    if len(parts) != 4 {
+        return ip, "cannot resolve host " + host + " (use localhost or a dotted IPv4 address)"
+    }
+    for part in parts {
+        if !conv.IsInt(part) {
+            return ip, "cannot resolve host " + host + " (use localhost or a dotted IPv4 address)"
+        }
+        var* n = conv.Atoi(part)
+        if n < 0 || n > 255 {
+            return ip, "invalid IPv4 address " + host
+        }
+        ip = append(ip, n)
+    }
+    return ip, ""
+}
+
+fn SockAddr(ip []int, port int) []byte {
+    var* b = make([]byte, 16)
+    var* p = unsafe.BytesData(b)
+    for i in 0..16 {
+        unsafe.StoreByte(unsafe.Add(p, int64(i)), byte(0))
+    }
+    unsafe.StoreByte(p, byte(afInet))
+    unsafe.StoreByte(unsafe.Add(p, 2), byte(port / 256))
+    unsafe.StoreByte(unsafe.Add(p, 3), byte(port % 256))
+    for i in 0..4 {
+        unsafe.StoreByte(unsafe.Add(p, int64(4 + i)), byte(ip[i]))
+    }
+    return b
+}
+
+fn FormatAddr(sa []byte) string {
+    var* p = unsafe.BytesData(sa)
+    var* port = int(unsafe.LoadByte(unsafe.Add(p, 2))) * 256 + int(unsafe.LoadByte(unsafe.Add(p, 3)))
+    var* host = ""
+    for i in 0..4 {
+        if i > 0 {
+            host = host + "."
+        }
+        host = host + int(unsafe.LoadByte(unsafe.Add(p, int64(4 + i))))
+    }
+    return host + ":" + port
+}

@@ -1,0 +1,228 @@
+package http
+
+#use (
+    "strings"
+    "unsafe"
+    "net"
+    "os"
+)
+
+extern fn read(fd int, buf *byte, n int64) int64
+extern fn lseek(fd int, offset int64, whence int) int64
+extern fn close(fd int) int
+extern fn open(path string, flags int, mode int) int
+
+const kindFile = 1
+const kindDir = 2
+const kindBody = 3
+const maxHead = 65536
+const maxBody = 8388608
+
+struct Route {
+    Kind int
+    Method string
+    Path string
+    Value string
+    CType string
+}
+
+struct Server {
+    routes []Route
+    listener net.Listener
+    quiet bool
+    pending *Request
+}
+
+fn NewServer() *Server {
+    return &Server{}
+}
+
+fn (s *Server) Quiet() {
+    s.quiet = true
+}
+
+fn (s *Server) add(kind int, method string, path string, value string, ctype string) {
+    s.routes = append(s.routes, Route{Kind: kind, Method: method, Path: path, Value: value, CType: ctype})
+}
+
+fn (s *Server) File(path string, file string) {
+    s.add(kindFile, "", path, file, Mime(file))
+}
+
+fn (s *Server) Dir(prefix string, dir string) {
+    s.add(kindDir, "", prefix, dir, "")
+}
+
+fn (s *Server) Text(path string, body string) {
+    s.add(kindBody, "", path, body, "text/plain; charset=utf-8")
+}
+
+fn (s *Server) Html(path string, body string) {
+    s.add(kindBody, "", path, body, "text/html; charset=utf-8")
+}
+
+fn (s *Server) Json(path string, body string) {
+    s.add(kindBody, "", path, body, "application/json; charset=utf-8")
+}
+
+fn (s *Server) Route(method string, path string, ctype string, body string) {
+    s.add(kindBody, method, path, body, ctype)
+}
+
+fn (s *Server) Listen(host string, port int) string {
+    var* l, err = net.Listen(host, port)
+    if err != "" {
+        return err
+    }
+    s.listener = l
+    return ""
+}
+
+fn (s *Server) Close() {
+    s.listener.Close()
+}
+
+fn rawReply(conn net.Conn, status int, text string) {
+    conn.Write(buildHead(status, "text/plain; charset=utf-8", len(text), make(map[string]string)) + text)
+    conn.Close()
+}
+
+fn readRequest(conn net.Conn, quiet bool) (*Request, int) {
+    var* raw = ""
+    var* end = -1
+    while end < 0 {
+        var* data, err = conn.Read(4096)
+        if err != "" {
+            return nil, 0
+        }
+        raw = raw + data
+        end = strings.Index(raw, "\r\n\r\n")
+        if end < 0 && len(raw) > maxHead {
+            return nil, 400
+        }
+    }
+    var* req, perr = ParseHead(raw[:end])
+    if perr != "" {
+        return nil, 400
+    }
+    req.conn = conn
+    req.quiet = quiet
+    var* body = raw[end + 4:]
+    var* want = contentLength(req)
+    if want > maxBody {
+        return nil, 413
+    }
+    while len(body) < want {
+        var* data, err = conn.Read(want - len(body))
+        if err != "" {
+            return nil, 400
+        }
+        body = body + data
+    }
+    req.Body = body[:want]
+    return req, 0
+}
+
+fn hasDotDot(rel string) bool {
+    for part in strings.Split(rel, "/") {
+        if part == ".." {
+            return true
+        }
+    }
+    return strings.Contains(rel, "\\")
+}
+
+fn sendFile(req *Request, status int, file string, ctype string) {
+    var* fd = open(file, 0, 0)
+    if fd < 0 {
+        req.NotFound()
+        return
+    }
+    var* size = lseek(fd, 0, 2)
+    lseek(fd, 0, 0)
+    req.answered = true
+    req.conn.Write(buildHead(status, ctype, int(size), req.out))
+    if req.Method != "HEAD" {
+        var* buf = make([]byte, 32768)
+        var* p = unsafe.BytesData(buf)
+        var* n = read(fd, p, 32768)
+        while n > 0 {
+            if req.conn.WriteBytes(p, n) != "" {
+                break
+            }
+            n = read(fd, p, 32768)
+        }
+    }
+    close(fd)
+    req.conn.Close()
+    logRequest(req.quiet, req.Method, req.Path, status)
+}
+
+fn serveDir(req *Request, r Route) {
+    var* rel = req.Path[len(r.Path):]
+    if hasDotDot(rel) {
+        req.Text(403, "403 forbidden\n")
+        return
+    }
+    if rel == "" || strings.HasSuffix(rel, "/") {
+        rel = rel + "index.html"
+    }
+    var* file = r.Value + "/" + rel
+    if os.IsDir(file) {
+        file = file + "/index.html"
+    }
+    sendFile(req, 200, file, Mime(file))
+}
+
+fn (s *Server) handleStatic(req *Request) bool {
+    for r in s.routes {
+        var* match = false
+        if r.Kind == kindDir {
+            match = strings.HasPrefix(req.Path, r.Path)
+        } else {
+            match = req.Path == r.Path
+        }
+        if match && r.Method != "" && r.Method != req.Method && !(r.Method == "GET" && req.Method == "HEAD") {
+            match = false
+        }
+        if match {
+            if r.Method == "" && req.Method != "GET" && req.Method != "HEAD" {
+                req.SetHeader("Allow", "GET, HEAD")
+                req.Text(405, "405 method not allowed\n")
+            } else if r.Kind == kindDir {
+                serveDir(req, r)
+            } else if r.Kind == kindFile {
+                sendFile(req, 200, r.Value, r.CType)
+            } else {
+                req.Send(200, r.CType, r.Value)
+            }
+            return true
+        }
+    }
+    return false
+}
+
+fn (s *Server) Next() (*Request, string) {
+    if s.pending != nil {
+        s.pending.Send(500, "text/plain; charset=utf-8", "500 internal server error\n")
+        s.pending = nil
+    }
+    while true {
+        var* conn, err = s.listener.Accept()
+        if err != "" {
+            return nil, err
+        }
+        var* req, bad = readRequest(conn, s.quiet)
+        if req == nil {
+            if bad != 0 {
+                rawReply(conn, bad, "bad request\n")
+            } else {
+                conn.Close()
+            }
+        } else if !s.handleStatic(req) {
+            s.pending = req
+            return req, ""
+        }
+    }
+    return nil, ""
+}

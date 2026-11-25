@@ -1,0 +1,52 @@
+package main
+
+#use (
+    "strings"
+    "http"
+    "conv"
+    "fmt"
+    "os"
+)
+
+fn jsonString(s string) string {
+    var* out = strings.Replace(s, "\\", "\\\\")
+    out = strings.Replace(out, "\"", "\\\"")
+    out = strings.Replace(out, "\n", "\\n")
+    return "\"" + out + "\""
+}
+
+fn main() {
+    var* port = 8080
+    if os.NumArgs() >= 1 && conv.IsInt(os.Arg(1)) {
+        port = conv.Atoi(os.Arg(1))
+    }
+    var* s = http.NewServer()
+    s.File("/", "static/index.html")
+    s.Dir("/static/", "static")
+    s.Text("/ping", "pong\n")
+    var* err = s.Listen("127.0.0.1", port)
+    if err != "" {
+        fmt.Println("error: " + err)
+        os.Exit(1)
+    }
+    fmt.Println("listening on http://127.0.0.1:" + port)
+    while true {
+        var* req, nerr = s.Next()
+        if nerr != "" {
+            fmt.Println("error: " + nerr)
+            os.Exit(1)
+        }
+        if req.Path == "/api/hello" && req.Method == "GET" {
+            var* name = req.Query("name")
+            if name == "" {
+                name = "world"
+            }
+            req.Json(200, "{\"hello\": " + jsonString(name) + "}")
+        } else if req.Path == "/api/echo" && req.Method == "POST" {
+            req.Send(200, req.Header("Content-Type"), req.Body)
+        } else {
+            req.NotFound()
+        }
+    }
+}
+return 0

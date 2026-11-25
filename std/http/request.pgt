@@ -1,0 +1,96 @@
+package http
+
+#use (
+    "strings"
+    "conv"
+    "fmt"
+    "net"
+)
+
+struct Request {
+    Method string
+    Path string
+    RawQuery string
+    Body string
+    headers map[string]string
+    out map[string]string
+    conn net.Conn
+    answered bool
+    quiet bool
+}
+
+fn ParseHead(head string) (*Request, string) {
+    var* lines = strings.Split(head, "\r\n")
+    var* parts = strings.Split(lines[0], " ")
+    if len(parts) != 3 || !strings.HasPrefix(parts[2], "HTTP/") || !strings.HasPrefix(parts[1], "/") {
+        return nil, "malformed request line"
+    }
+    var* target = parts[1]
+    var* query = ""
+    var* at = strings.Index(target, "?")
+    if at >= 0 {
+        query = target[at + 1:]
+        target = target[:at]
+    }
+    var* req = &Request{Method: parts[0], Path: URLDecode(target, false), RawQuery: query}
+    req.headers = parseHeaders(lines, 1)
+    req.out = make(map[string]string)
+    return req, ""
+}
+
+fn (r *Request) Header(name string) string {
+    return r.headers[strings.Lower(name)]
+}
+
+fn (r *Request) Query(key string) string {
+    return ParseQuery(r.RawQuery)[key]
+}
+
+fn (r *Request) SetHeader(key string, value string) {
+    r.out[key] = value
+}
+
+fn (r *Request) Send(status int, ctype string, body string) {
+    if r.answered {
+        return
+    }
+    r.answered = true
+    var* head = buildHead(status, ctype, len(body), r.out)
+    if r.Method == "HEAD" {
+        r.conn.Write(head)
+    } else {
+        r.conn.Write(head + body)
+    }
+    r.conn.Close()
+    logRequest(r.quiet, r.Method, r.Path, status)
+}
+
+fn (r *Request) Text(status int, body string) {
+    r.Send(status, "text/plain; charset=utf-8", body)
+}
+
+fn (r *Request) Html(status int, body string) {
+    r.Send(status, "text/html; charset=utf-8", body)
+}
+
+fn (r *Request) Json(status int, body string) {
+    r.Send(status, "application/json; charset=utf-8", body)
+}
+
+fn (r *Request) NotFound() {
+    r.Text(404, "404 not found\n")
+}
+
+fn logRequest(quiet bool, method string, path string, status int) {
+    if !quiet {
+        fmt.Eprint(method + " " + path + " " + status + "\n")
+    }
+}
+
+fn contentLength(r *Request) int {
+    var* v = r.Header("content-length")
+    if v == "" || !conv.IsInt(v) {
+        return 0
+    }
+    return conv.Atoi(v)
+}

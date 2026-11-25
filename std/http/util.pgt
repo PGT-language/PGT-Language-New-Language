@@ -1,0 +1,138 @@
+package http
+
+#use (
+    "strings"
+    "unsafe"
+)
+
+fn hexVal(c char) int {
+    if c >= '0' && c <= '9' {
+        return int(c) - int('0')
+    }
+    if c >= 'a' && c <= 'f' {
+        return int(c) - int('a') + 10
+    }
+    if c >= 'A' && c <= 'F' {
+        return int(c) - int('A') + 10
+    }
+    return -1
+}
+
+fn URLDecode(s string, plus bool) string {
+    var* n = len(s)
+    var* buf = make([]byte, n + 1)
+    var* p = unsafe.BytesData(buf)
+    var* out = 0
+    var* i = 0
+    while i < n {
+        var* c = s[i]
+        var* hi = -1
+        var* lo = -1
+        if c == '%' && i + 2 < n {
+            hi = hexVal(s[i + 1])
+            lo = hexVal(s[i + 2])
+        }
+        if hi >= 0 && lo >= 0 {
+            unsafe.StoreByte(unsafe.Add(p, int64(out)), byte(hi * 16 + lo))
+            i += 3
+        } else if plus && c == '+' {
+            unsafe.StoreByte(unsafe.Add(p, int64(out)), byte(32))
+            i += 1
+        } else {
+            unsafe.StoreByte(unsafe.Add(p, int64(out)), byte(c))
+            i += 1
+        }
+        out += 1
+    }
+    unsafe.StoreByte(unsafe.Add(p, int64(out)), byte(0))
+    return unsafe.StringAt(p)
+}
+
+fn ParseQuery(raw string) map[string]string {
+    var* out = make(map[string]string)
+    if raw == "" {
+        return out
+    }
+    for pair in strings.Split(raw, "&") {
+        if pair == "" {
+            continue
+        }
+        var* at = strings.Index(pair, "=")
+        var* key = pair
+        var* val = ""
+        if at >= 0 {
+            key = pair[:at]
+            val = pair[at + 1:]
+        }
+        key = URLDecode(key, true)
+        if !has(out, key) {
+            out[key] = URLDecode(val, true)
+        }
+    }
+    return out
+}
+
+fn Mime(path string) string {
+    var* dot = strings.LastIndex(path, ".")
+    if dot < 0 {
+        return "application/octet-stream"
+    }
+    var* ext = strings.Lower(path[dot + 1:])
+    switch ext {
+        case "html" { return "text/html; charset=utf-8" }
+        case "htm" { return "text/html; charset=utf-8" }
+        case "css" { return "text/css; charset=utf-8" }
+        case "js" { return "application/javascript; charset=utf-8" }
+        case "json" { return "application/json; charset=utf-8" }
+        case "txt" { return "text/plain; charset=utf-8" }
+        case "png" { return "image/png" }
+        case "jpg" { return "image/jpeg" }
+        case "jpeg" { return "image/jpeg" }
+        case "svg" { return "image/svg+xml" }
+        case "ico" { return "image/x-icon" }
+        case "wasm" { return "application/wasm" }
+    }
+    return "application/octet-stream"
+}
+
+fn StatusText(code int) string {
+    switch code {
+        case 200 { return "OK" }
+        case 201 { return "Created" }
+        case 204 { return "No Content" }
+        case 301 { return "Moved Permanently" }
+        case 302 { return "Found" }
+        case 400 { return "Bad Request" }
+        case 403 { return "Forbidden" }
+        case 404 { return "Not Found" }
+        case 405 { return "Method Not Allowed" }
+        case 413 { return "Payload Too Large" }
+        case 500 { return "Internal Server Error" }
+    }
+    return "Status"
+}
+
+fn buildHead(status int, ctype string, length int, extra map[string]string) string {
+    var* head = "HTTP/1.1 " + status + " " + StatusText(status) + "\r\n"
+    head = head + "Content-Type: " + ctype + "\r\n"
+    head = head + "Content-Length: " + length + "\r\n"
+    head = head + "Connection: close\r\n"
+    for k, v in extra {
+        var* low = strings.Lower(k)
+        if low != "content-type" && low != "content-length" && low != "connection" {
+            head = head + k + ": " + v + "\r\n"
+        }
+    }
+    return head + "\r\n"
+}
+
+fn parseHeaders(lines []string, from int) map[string]string {
+    var* out = make(map[string]string)
+    for i in from..len(lines) {
+        var* at = strings.Index(lines[i], ":")
+        if at > 0 {
+            out[strings.Lower(strings.TrimSpace(lines[i][:at]))] = strings.TrimSpace(lines[i][at + 1:])
+        }
+    }
+    return out
+}

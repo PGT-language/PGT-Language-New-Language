@@ -1,0 +1,21 @@
+package main
+
+#use (
+    "http"
+    "conv"
+    "os"
+    "fmt"
+)
+
+fn main() {
+    var* base = "http://127.0.0.1:" + os.Arg(1)
+    var* r, err = http.Get(base + "/api/hello?name=PGT")
+    fmt.Println(err, "|", r.Status, "|", r.Header("Content-Type"), "|", r.Body)
+    var* p, perr = http.Post(base + "/api/echo", "text/plain", "client body")
+    fmt.Println(perr, "|", p.Status, "|", p.Body)
+    var* m, merr = http.Get(base + "/missing")
+    fmt.Println(merr, "|", m.Status)
+    var* _, serr = http.Get("https://example.com/")
+    fmt.Println(serr)
+}
+return 0

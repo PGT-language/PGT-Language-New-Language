@@ -1,0 +1,119 @@
+package http
+
+#use (
+    "strings"
+    "conv"
+    "net"
+)
+
+struct Response {
+    Status int
+    Headers map[string]string
+    Body string
+}
+
+fn (r Response) Header(name string) string {
+    return r.Headers[strings.Lower(name)]
+}
+
+fn ParseURL(url string) (string, int, string, string) {
+    if strings.HasPrefix(url, "https://") {
+        return "", 0, "", "https is not supported yet"
+    }
+    if !strings.HasPrefix(url, "http://") {
+        return "", 0, "", "unsupported url: " + url
+    }
+    var* rest = url[7:]
+    var* host = rest
+    var* path = "/"
+    var* at = strings.Index(rest, "/")
+    if at >= 0 {
+        host = rest[:at]
+        path = rest[at:]
+    }
+    var* port = 80
+    var* colon = strings.Index(host, ":")
+    if colon >= 0 {
+        var* text = host[colon + 1:]
+        if !conv.IsInt(text) {
+            return "", 0, "", "invalid port in url: " + url
+        }
+        port = conv.Atoi(text)
+        host = host[:colon]
+    }
+    if host == "" {
+        return "", 0, "", "missing host in url: " + url
+    }
+    return host, port, path, ""
+}
+
+fn decodeChunked(body string) string {
+    var* out = ""
+    var* rest = body
+    while true {
+        var* at = strings.Index(rest, "\r\n")
+        if at < 0 {
+            return out
+        }
+        var* size = int(conv.ParseIntBase(strings.TrimSpace(rest[:at]), 16))
+        if size <= 0 {
+            return out
+        }
+        out = out + rest[at + 2:at + 2 + size]
+        rest = rest[at + 2 + size + 2:]
+    }
+    return out
+}
+
+fn ParseResponse(raw string) (Response, string) {
+    var* none = Response{}
+    var* end = strings.Index(raw, "\r\n\r\n")
+    if end < 0 {
+        return none, "malformed response"
+    }
+    var* lines = strings.Split(raw[:end], "\r\n")
+    var* parts = strings.Split(lines[0], " ")
+    if len(parts) < 2 || !strings.HasPrefix(parts[0], "HTTP/") || !conv.IsInt(parts[1]) {
+        return none, "malformed status line"
+    }
+    var* res = Response{Status: conv.Atoi(parts[1]), Headers: parseHeaders(lines, 1), Body: raw[end + 4:]}
+    if res.Header("transfer-encoding") == "chunked" {
+        res.Body = decodeChunked(res.Body)
+    }
+    return res, ""
+}
+
+fn request(method string, url string, ctype string, body string) (Response, string) {
+    var* none = Response{}
+    var* host, port, path, perr = ParseURL(url)
+    if perr != "" {
+        return none, perr
+    }
+    var* conn, err = net.Dial(host, port)
+    if err != "" {
+        return none, err
+    }
+    var* head = method + " " + path + " HTTP/1.1\r\nHost: " + host + ":" + port + "\r\nConnection: close\r\n"
+    if method == "POST" {
+        head = head + "Content-Type: " + ctype + "\r\nContent-Length: " + len(body) + "\r\n"
+    }
+    err = conn.Write(head + "\r\n" + body)
+    if err != "" {
+        conn.Close()
+        return none, err
+    }
+    var* raw, rerr = conn.ReadAll()
+    conn.Close()
+    if rerr != "" {
+        return none, rerr
+    }
+    return ParseResponse(raw)
+}
+
+fn Get(url string) (Response, string) {
+    return request("GET", url, "", "")
+}
+
+fn Post(url string, ctype string, body string) (Response, string) {
+    return request("POST", url, ctype, body)
+}

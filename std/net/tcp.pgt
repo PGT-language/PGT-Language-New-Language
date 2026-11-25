@@ -1,0 +1,93 @@
+package net
+
+#use "unsafe"
+
+extern fn socket(domain int, kind int, proto int) int
+extern fn bind(fd int, addr *byte, n int) int
+extern fn listen(fd int, backlog int) int
+extern fn accept(fd int, addr *byte, n *byte) int
+extern fn connect(fd int, addr *byte, n int) int
+extern fn setsockopt(fd int, level int, name int, val *byte, n int) int
+
+struct Listener {
+    fd int
+    port int
+}
+
+fn Listen(host string, port int) (Listener, string) {
+    var* none = Listener{fd: -1}
+    var* bad = checkPort(port)
+    if bad != "" {
+        return none, bad
+    }
+    if port < 1024 && geteuid() != 0 {
+        return none, privilegedText(port)
+    }
+    var* ip, perr = ParseIP(host)
+    if perr != "" {
+        return none, perr
+    }
+    var* fd = socket(afInet, sockStream, 0)
+    if fd < 0 {
+        return none, strerror(errno())
+    }
+    var* one = make([]byte, 4)
+    unsafe.StoreInt(unsafe.BytesData(one), 1)
+    setsockopt(fd, solSocket, soReuseAddr, unsafe.BytesData(one), 4)
+    var* sa = SockAddr(ip, port)
+    if bind(fd, unsafe.BytesData(sa), 16) < 0 {
+        var* e = errText(errno(), port)
+        close(fd)
+        return none, e
+    }
+    if listen(fd, 128) < 0 {
+        var* e = strerror(errno())
+        close(fd)
+        return none, e
+    }
+    return Listener{fd: fd, port: port}, ""
+}
+
+fn (l Listener) Accept() (Conn, string) {
+    var* none = Conn{fd: -1}
+    var* sa = make([]byte, 16)
+    var* sl = make([]byte, 4)
+    while true {
+        unsafe.StoreInt(unsafe.BytesData(sl), 16)
+        var* fd = accept(l.fd, unsafe.BytesData(sa), unsafe.BytesData(sl))
+        if fd >= 0 {
+            return Conn{fd: fd, remote: FormatAddr(sa)}, ""
+        }
+        if errno() != eIntr {
+            return none, strerror(errno())
+        }
+    }
+    return none, ""
+}
+
+fn (l Listener) Close() {
+    close(l.fd)
+}
+
+fn Dial(host string, port int) (Conn, string) {
+    var* none = Conn{fd: -1}
+    var* bad = checkPort(port)
+    if bad != "" {
+        return none, bad
+    }
+    var* ip, perr = ParseIP(host)
+    if perr != "" {
+        return none, perr
+    }
+    var* fd = socket(afInet, sockStream, 0)
+    if fd < 0 {
+        return none, strerror(errno())
+    }
+    var* sa = SockAddr(ip, port)
+    if connect(fd, unsafe.BytesData(sa), 16) < 0 {
+        var* e = "connect " + host + ":" + port + ": " + strerror(errno())
+        close(fd)
+        return none, e
+    }
+    return Conn{fd: fd, remote: FormatAddr(sa)}, ""
+}
