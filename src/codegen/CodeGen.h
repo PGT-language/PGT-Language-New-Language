@@ -43,11 +43,26 @@ namespace pgt
             bool indirect = false;
             llvm::Value *countSlot = nullptr;
         };
+        using Wide = __int128;
         struct Global
         {
             llvm::GlobalVariable *gv = nullptr;
             TyP type = nullptr;
             bool isConst = false;
+            bool untyped = false;
+            Wide value = 0;
+        };
+        struct Override
+        {
+            llvm::Value *slot = nullptr;
+            TyP type = nullptr;
+            bool addr = false;
+        };
+        struct DeferSite
+        {
+            llvm::Value *flag = nullptr;
+            const Call *call = nullptr;
+            std::vector<std::pair<const Expr *, Override>> captures;
         };
         struct LoopTargets
         {
@@ -144,6 +159,16 @@ namespace pgt
         void genForIn(const ForIn &loop);
         void genSwitch(const Switch &sw);
         void genAsm(const AsmStmt &stmt);
+        void genDefer(const Defer &stmt);
+        void emitDefers();
+        llvm::AllocaInst *zeroedEntrySlot(llvm::Type *type, const std::string &name);
+        bool isConstExpr(const Expr &e);
+        bool isStatelessExpr(const Expr &e);
+        std::optional<Wide> constValue(const Expr &e);
+        const Global *untypedGlobal(const Expr &e);
+        Value untypedConst(Wide v, TyP hint, int line, int col);
+        Value genTernary(const Ternary &t, TyP hint);
+        std::optional<std::vector<Value>> genMapGetOk(const Index &idx);
         void genMultiVarDecl(const MultiVarDecl &decl);
         void genMultiAssign(const MultiAssign &assign);
         void genMultiReturn(const Return &ret);
@@ -256,6 +281,8 @@ namespace pgt
         std::map<TyP, bool> managed_;
         std::map<std::pair<TyP, int>, llvm::Function *> memFns_;
         std::vector<LoopTargets> loops_;
+        std::vector<DeferSite> defers_;
+        std::map<const Expr *, Override> overrides_;
         std::set<std::string> heapVars_;
         std::map<std::pair<TyP, TyP>, llvm::GlobalVariable *> vtables_;
         std::map<std::string, llvm::Function *> thunks_;

@@ -155,6 +155,10 @@ namespace pgt
             return "'||'";
         case Tok::Bang:
             return "'!'";
+        case Tok::Question:
+            return "'?'";
+        case Tok::KwDefer:
+            return "'defer'";
         }
         return "?";
     }
@@ -307,6 +311,10 @@ namespace pgt
             return "Shl";
         case Tok::Shr:
             return "Shr";
+        case Tok::Question:
+            return "Question";
+        case Tok::KwDefer:
+            return "KwDefer";
         }
         return "?";
     }
@@ -514,6 +522,25 @@ namespace pgt
         return make(Tok::String, std::move(out), line, col);
     }
 
+    Token Lexer::lexRawString()
+    {
+        int line = line_, col = col_;
+        advance();
+        std::string out;
+        while (true)
+        {
+            if (atEnd())
+                throw CompileError("unterminated raw string literal", line, col);
+            char c = advance();
+            if (c == '`')
+                break;
+            out += c;
+        }
+        Token t = make(Tok::String, std::move(out), line, col);
+        t.endLine = line_;
+        return t;
+    }
+
     Token Lexer::lexAsmBody(int line, int col)
     {
         std::string out;
@@ -634,6 +661,8 @@ namespace pgt
             return make(Tok::KwBreak, word, line, col);
         if (word == "continue")
             return make(Tok::KwContinue, word, line, col);
+        if (word == "defer")
+            return make(Tok::KwDefer, word, line, col);
         if (word == "true")
             return make(Tok::KwTrue, word, line, col);
         if (word == "false")
@@ -689,6 +718,10 @@ namespace pgt
             {
                 out.push_back(lexString());
             }
+            else if (c == '`')
+            {
+                out.push_back(lexRawString());
+            }
             else if (c == '#')
             {
                 advance();
@@ -739,6 +772,9 @@ namespace pgt
                     break;
                 case '^':
                     kind = Tok::Caret;
+                    break;
+                case '?':
+                    kind = Tok::Question;
                     break;
                 case '~':
                     kind = Tok::Tilde;

@@ -10,34 +10,6 @@ namespace pgt
     namespace
     {
 
-        bool isConstExpr(const Expr &e)
-        {
-            if (dynamic_cast<const IntLit *>(&e) || dynamic_cast<const FloatLit *>(&e))
-                return true;
-            if (auto *un = dynamic_cast<const Unary *>(&e))
-                return (un->op == UnOp::Neg || un->op == UnOp::BitNot) && isConstExpr(*un->operand);
-            if (auto *bin = dynamic_cast<const Binary *>(&e))
-            {
-                switch (bin->op)
-                {
-                case BinOp::Add:
-                case BinOp::Sub:
-                case BinOp::Mul:
-                case BinOp::Div:
-                case BinOp::Mod:
-                case BinOp::BitAnd:
-                case BinOp::BitOr:
-                case BinOp::BitXor:
-                case BinOp::Shl:
-                case BinOp::Shr:
-                    return isConstExpr(*bin->lhs) && isConstExpr(*bin->rhs);
-                default:
-                    return false;
-                }
-            }
-            return false;
-        }
-
         bool hasFloatLit(const Expr &e)
         {
             if (dynamic_cast<const FloatLit *>(&e))
@@ -49,6 +21,32 @@ namespace pgt
             return false;
         }
 
+        bool hasCharLit(const Expr &e)
+        {
+            if (dynamic_cast<const CharLit *>(&e))
+                return true;
+            if (auto *un = dynamic_cast<const Unary *>(&e))
+                return hasCharLit(*un->operand);
+            if (auto *bin = dynamic_cast<const Binary *>(&e))
+                return hasCharLit(*bin->lhs) || hasCharLit(*bin->rhs);
+            return false;
+        }
+
+        std::string wideText(__int128 x)
+        {
+            bool neg = x < 0;
+            unsigned __int128 u = neg ? -static_cast<unsigned __int128>(x) : static_cast<unsigned __int128>(x);
+            std::string s;
+            do
+            {
+                s += static_cast<char>('0' + static_cast<int>(u % 10));
+                u /= 10;
+            } while (u);
+            if (neg)
+                s += '-';
+            return std::string(s.rbegin(), s.rend());
+        }
+
         std::string ordinal(size_t i)
         {
             return std::to_string(i);
@@ -56,10 +54,168 @@ namespace pgt
 
     }
 
+    bool CodeGen::isConstExpr(const Expr &e)
+    {
+        if (dynamic_cast<const IntLit *>(&e) || dynamic_cast<const FloatLit *>(&e) ||
+            dynamic_cast<const CharLit *>(&e))
+            return true;
+        if (untypedGlobal(e))
+            return true;
+        if (auto *un = dynamic_cast<const Unary *>(&e))
+            return (un->op == UnOp::Neg || un->op == UnOp::BitNot) && isConstExpr(*un->operand);
+        if (auto *bin = dynamic_cast<const Binary *>(&e))
+        {
+            switch (bin->op)
+            {
+            case BinOp::Add:
+            case BinOp::Sub:
+            case BinOp::Mul:
+            case BinOp::Div:
+            case BinOp::Mod:
+            case BinOp::BitAnd:
+            case BinOp::BitOr:
+            case BinOp::BitXor:
+            case BinOp::Shl:
+            case BinOp::Shr:
+                return isConstExpr(*bin->lhs) && isConstExpr(*bin->rhs);
+            default:
+                return false;
+            }
+        }
+        return false;
+    }
+
+    const CodeGen::Global *CodeGen::untypedGlobal(const Expr &e)
+    {
+        if (auto *ref = dynamic_cast<const VarRef *>(&e))
+        {
+            if (lookupLocal(ref->name))
+                return nullptr;
+            auto g = pkg_->globals.find(ref->name);
+            return g != pkg_->globals.end() && g->second.untyped ? &g->second : nullptr;
+        }
+        if (auto *sel = dynamic_cast<const Selector *>(&e))
+        {
+            auto *ref = dynamic_cast<const VarRef *>(sel->base.get());
+            if (!ref || lookupLocal(ref->name) || pkg_->globals.count(ref->name) || !isPublic(sel->name))
+                return nullptr;
+            PackageSyms *p = lookupPackage(ref->name);
+            if (!p)
+                return nullptr;
+            auto g = p->globals.find(sel->name);
+            return g != p->globals.end() && g->second.untyped ? &g->second : nullptr;
+        }
+        return nullptr;
+    }
+
+    std::optional<CodeGen::Wide> CodeGen::constValue(const Expr &e)
+    {
+        if (auto *lit = dynamic_cast<const IntLit *>(&e))
+            return static_cast<Wide>(lit->value);
+        if (auto *g = untypedGlobal(e))
+            return g->value;
+        if (auto *un = dynamic_cast<const Unary *>(&e))
+        {
+            if (un->op != UnOp::Neg && un->op != UnOp::BitNot)
+                return std::nullopt;
+            auto v = constValue(*un->operand);
+            if (!v)
+                return std::nullopt;
+            return un->op == UnOp::Neg ? -*v : ~*v;
+        }
+        auto *bin = dynamic_cast<const Binary *>(&e);
+        if (!bin)
+            return std::nullopt;
+        auto l = constValue(*bin->lhs);
+        auto r = constValue(*bin->rhs);
+        if (!l || !r)
+            return std::nullopt;
+        Wide out = 0;
+        switch (bin->op)
+        {
+        case BinOp::Add:
+            if (__builtin_add_overflow(*l, *r, &out))
+                return std::nullopt;
+            return out;
+        case BinOp::Sub:
+            if (__builtin_sub_overflow(*l, *r, &out))
+                return std::nullopt;
+            return out;
+        case BinOp::Mul:
+            if (__builtin_mul_overflow(*l, *r, &out))
+                return std::nullopt;
+            return out;
+        case BinOp::Div:
+            return *r == 0 ? std::nullopt : std::optional<Wide>(*l / *r);
+        case BinOp::Mod:
+            return *r == 0 ? std::nullopt : std::optional<Wide>(*l % *r);
+        case BinOp::BitAnd:
+            return *l & *r;
+        case BinOp::BitOr:
+            return *l | *r;
+        case BinOp::BitXor:
+            return *l ^ *r;
+        case BinOp::Shl:
+            if (*r < 0 || *r > 63)
+                return std::nullopt;
+            if (__builtin_mul_overflow(*l, static_cast<Wide>(1) << static_cast<int>(*r), &out))
+                return std::nullopt;
+            return out;
+        case BinOp::Shr:
+            if (*r < 0 || *r > 126)
+                return std::nullopt;
+            return *l >> static_cast<int>(*r);
+        default:
+            return std::nullopt;
+        }
+    }
+
+    CodeGen::Value CodeGen::untypedConst(Wide v, TyP hint, int line, int col)
+    {
+        TyP t = types_.intT;
+        if (hint && (hint->is(Type::Kind::Int64) || hint->is(Type::Kind::Uint64) || hint->is(Type::Kind::Float) ||
+                     hint->is(Type::Kind::Char) || hint->is(Type::Kind::Byte)))
+            t = hint;
+        switch (t->kind)
+        {
+        case Type::Kind::Float:
+            return {llvm::ConstantFP::get(builder_.getDoubleTy(), static_cast<double>(v)), t};
+        case Type::Kind::Int64:
+            if (v < INT64_MIN || v > INT64_MAX)
+                fail("constant " + wideText(v) + " overflows int64", line, col);
+            return {builder_.getInt64(static_cast<uint64_t>(static_cast<int64_t>(v))), t};
+        case Type::Kind::Uint64:
+            if (v < 0 || v > static_cast<Wide>(UINT64_MAX))
+                fail("constant " + wideText(v) + " overflows uint64", line, col);
+            return {builder_.getInt64(static_cast<uint64_t>(v)), t};
+        case Type::Kind::Char:
+        case Type::Kind::Byte:
+            if (v < 0 || v > 255)
+                fail("constant " + wideText(v) + " overflows " + t->name(), line, col);
+            return {builder_.getInt8(static_cast<uint8_t>(v)), t};
+        default:
+            if (v < INT_MIN || v > INT_MAX)
+                fail("constant " + wideText(v) + " overflows int (32 bits); use it where an int64 is expected",
+                     line, col);
+            return {builder_.getInt32(static_cast<uint32_t>(static_cast<int32_t>(v))), types_.intT};
+        }
+    }
+
     CodeGen::Value CodeGen::genExpr(const Expr &expr, TyP hint)
     {
         if (hint && hint->is(Type::Kind::Any))
             hint = nullptr;
+        if (!overrides_.empty())
+            if (auto it = overrides_.find(&expr); it != overrides_.end())
+            {
+                const Override &o = it->second;
+                llvm::Value *p = o.addr ? builder_.CreateLoad(builder_.getPtrTy(), o.slot) : o.slot;
+                return {builder_.CreateLoad(llvmType(o.type), p), o.type};
+            }
+        if (auto *g = untypedGlobal(expr))
+            return untypedConst(g->value, hint, expr.line, expr.col);
+        if (auto *tern = dynamic_cast<const Ternary *>(&expr))
+            return genTernary(*tern, hint);
         if (auto *lit = dynamic_cast<const IntLit *>(&expr))
         {
             TyP t = types_.intT;
@@ -94,7 +250,13 @@ namespace pgt
         if (auto *lit = dynamic_cast<const FloatLit *>(&expr))
             return {llvm::ConstantFP::get(builder_.getDoubleTy(), lit->value), types_.floatT};
         if (auto *lit = dynamic_cast<const CharLit *>(&expr))
-            return {builder_.getInt8(static_cast<uint8_t>(lit->value)), types_.charT};
+        {
+            TyP t = types_.charT;
+            if (hint && (hint->is(Type::Kind::Int) || hint->is(Type::Kind::Int64) ||
+                         hint->is(Type::Kind::Uint64) || hint->is(Type::Kind::Byte)))
+                t = hint;
+            return {llvm::ConstantInt::get(llvmType(t), static_cast<uint8_t>(lit->value)), t};
+        }
         if (auto *lit = dynamic_cast<const BoolLit *>(&expr))
             return {builder_.getInt1(lit->value), types_.boolT};
         if (auto *lit = dynamic_cast<const StringLit *>(&expr))
@@ -249,6 +411,8 @@ namespace pgt
             TyP h = hint;
             if (!h && (hasFloatLit(lhs) || hasFloatLit(rhs)))
                 h = types_.floatT;
+            else if (!h && (hasCharLit(lhs) || hasCharLit(rhs)))
+                h = types_.charT;
             l = genExpr(lhs, h);
             r = genExpr(rhs, h);
         }

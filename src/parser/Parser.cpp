@@ -712,6 +712,16 @@ namespace pgt
             }
             return stmt;
         }
+        case Tok::KwDefer:
+        {
+            auto stmt = make<Defer>(cur());
+            advance();
+            const Token &callTok = cur();
+            stmt->call = parseExpr();
+            if (!dynamic_cast<Call *>(stmt->call.get()))
+                throw CompileError("'defer' needs a function call", callTok.line, callTok.col);
+            return stmt;
+        }
         case Tok::KwBreak:
         {
             auto stmt = make<Break>(cur());
@@ -913,7 +923,24 @@ namespace pgt
 
     ExprPtr Parser::parseExpr()
     {
-        return parseBinary(0);
+        return parseTernary();
+    }
+
+    ExprPtr Parser::parseTernary()
+    {
+        ExprPtr cond = parseBinary(0);
+        if (!check(Tok::Question) || atLineStart())
+            return cond;
+        auto node = make<Ternary>(cur());
+        advance();
+        node->cond = std::move(cond);
+        {
+            FlagGuard guard(noStructLit_, false);
+            node->thenExpr = parseTernary();
+        }
+        expect(Tok::Colon, "in the '?:' expression");
+        node->elseExpr = parseTernary();
+        return node;
     }
 
     ExprPtr Parser::parseBinary(int level)

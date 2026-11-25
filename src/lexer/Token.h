@@ -78,6 +78,8 @@ namespace pgt
         Tilde,
         Shl,
         Shr,
+        Question,
+        KwDefer,
     };
 
     struct Token
@@ -86,6 +88,7 @@ namespace pgt
         std::string text;
         int line = 1;
         int col = 1;
+        int endLine = 0;
     };
 
     const char *tokName(Tok kind);

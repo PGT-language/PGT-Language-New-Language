@@ -264,6 +264,11 @@ namespace pgt
         std::vector<ExprPtr> values;
     };
 
+    struct Ternary : Expr
+    {
+        ExprPtr cond, thenExpr, elseExpr;
+    };
+
     struct MallocExpr : Expr
     {
         TypeExpr elem;
@@ -373,6 +378,11 @@ namespace pgt
     {
         std::string text;
         std::vector<std::string> names;
+    };
+
+    struct Defer : Stmt
+    {
+        ExprPtr call;
     };
 
     struct Return : Stmt

@@ -2,6 +2,7 @@
 #include "ast/AST.h"
 #include "lexer/Token.h"
 
+#include <algorithm>
 #include <vector>
 
 namespace pgt
@@ -35,7 +36,10 @@ namespace pgt
         const Token &advance();
         bool atLineStart() const
         {
-            return pos_ > 0 && toks_[pos_ - 1].line < cur().line;
+            if (pos_ == 0)
+                return false;
+            const Token &prev = toks_[pos_ - 1];
+            return std::max(prev.line, prev.endLine) < cur().line;
         }
         const Token &expect(Tok k, const char *context);
         [[noreturn]] void errorHere(const std::string &msg) const;
@@ -72,6 +76,7 @@ namespace pgt
         ExprPtr parseHeaderExpr();
 
         ExprPtr parseExpr();
+        ExprPtr parseTernary();
         ExprPtr parseBinary(int level);
         ExprPtr parseUnary();
         ExprPtr parsePostfix();

@@ -144,6 +144,14 @@ namespace pgt
                 n.kids.push_back(expr(x->rhs.get()));
                 return n;
             }
+            if (auto *x = dynamic_cast<const Ternary *>(e))
+            {
+                Node n = node("Ternary", "?:", *x);
+                n.kids.push_back(expr(x->cond.get()));
+                n.kids.push_back(expr(x->thenExpr.get()));
+                n.kids.push_back(expr(x->elseExpr.get()));
+                return n;
+            }
             if (auto *x = dynamic_cast<const Call *>(e))
             {
                 Node n = node("Call", "call", *x);
@@ -338,6 +346,12 @@ namespace pgt
                     n.kids.push_back(expr(x->value.get()));
                 for (const ExprPtr &r : x->rest)
                     n.kids.push_back(expr(r.get()));
+                return n;
+            }
+            if (auto *x = dynamic_cast<const Defer *>(s))
+            {
+                Node n = node("Defer", "defer", *x);
+                n.kids.push_back(expr(x->call.get()));
                 return n;
             }
             if (auto *x = dynamic_cast<const AsmStmt *>(s))

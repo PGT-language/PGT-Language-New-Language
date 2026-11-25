@@ -28,6 +28,7 @@ namespace pgt
         Token make(Tok kind, std::string text, int line, int col) const;
         Token lexNumber();
         Token lexString();
+        Token lexRawString();
         Token lexChar();
         Token lexWord();
         int hexEscape(int line, int col);
