@@ -1,0 +1,8 @@
+// error: cannot infer the type of an empty array
+package main
+
+fn main() {
+    var* a = [[], []]
+}
+
+return 0

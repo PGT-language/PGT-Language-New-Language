@@ -1,0 +1,13 @@
+// error: 'defer' cannot be used inside a loop
+package main
+
+fn show(n int) {
+}
+
+fn main() {
+    for i in 0..3 {
+        defer show(i)
+    }
+}
+
+return 0

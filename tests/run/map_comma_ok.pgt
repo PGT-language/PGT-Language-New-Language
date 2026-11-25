@@ -1,0 +1,60 @@
+// memstats
+package main
+
+#use "fmt"
+
+struct Item {
+    name string
+    qty int
+}
+
+fn lookup(m map[string]int, key string) string {
+    var* v, ok = m[key]
+    if !ok {
+        return key + " missing"
+    }
+    return key + "=" + str(v)
+}
+
+fn main() {
+    var* counts = map[string]int{"a": 1, "b": 0}
+    var* v, ok = counts["a"]
+    fmt.Println(v, " ", ok)
+    var* z, present = counts["b"]
+    var* none, absent = counts["zzz"]
+    fmt.Println(z, " ", present, " ", none, " ", absent)
+    v, ok = counts["zzz"]
+    fmt.Println(v, " ", ok)
+    v, ok = counts["a"]
+    fmt.Println(v, " ", ok)
+    fmt.Println(lookup(counts, "a"), " ", lookup(counts, "q"))
+    var* names = map[int]string{1: "one"}
+    var* nm, found = names[1]
+    var* nm2, found2 = names[2]
+    fmt.Println(nm, " ", found, " ", len(nm2), " ", found2)
+    var* items = map[string]Item{"x": Item{name: "xx", qty: 2}}
+    var* it, has = items["x"]
+    var* it2, has2 = items["y"]
+    fmt.Println(it.name, " ", it.qty, " ", has, " ", it2.qty, " ", has2)
+    var* lists = map[string][]int{"l": [1, 2, 3]}
+    var* l1, ok1 = lists["l"]
+    var* l2, ok2 = lists["m"]
+    fmt.Println(len(l1), " ", ok1, " ", len(l2), " ", ok2)
+    var* _, only = counts["a"]
+    var* val, _ = counts["a"]
+    fmt.Println(only, " ", val)
+    var* label = ""
+    var* flag = false
+    label, flag = names[1]
+    fmt.Println(label, " ", flag)
+    var* total = 0
+    for k in ["a", "b", "c"] {
+        var* n, hit = counts[k]
+        if hit {
+            total += n + 1
+        }
+    }
+    fmt.Println(total)
+}
+
+return 0

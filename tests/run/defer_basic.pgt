@@ -1,0 +1,103 @@
+// memstats
+package main
+
+#use "fmt"
+
+struct Res {
+    name string
+    log []string
+}
+
+fn (r *Res) Close(tag string) {
+    fmt.Println("close ", r.name, " ", tag)
+}
+
+fn show(s string, n int) {
+    fmt.Println("show ", s, " ", n)
+}
+
+fn simple() {
+    defer fmt.Println("deferred 1")
+    defer fmt.Println("deferred 2")
+    fmt.Println("body")
+}
+
+fn argsNow() int {
+    var* x = 1
+    defer show("x=" + str(x), x)
+    x = 2
+    return x * 10
+}
+
+fn early(n int) string {
+    var* r = Res{name: "r" + str(n), log: []}
+    defer r.Close("early")
+    for i in 0..10 {
+        if i == n {
+            return "found " + str(i)
+        }
+    }
+    if n < 0 {
+        defer show("negative", n)
+        return "neg"
+    }
+    return "none"
+}
+
+fn multi() (string, int) {
+    var* s = "multi" + str(1)
+    defer show(s, 7)
+    return s + "!", 3
+}
+
+fn viaPtr(r *Res) {
+    defer r.Close("ptr")
+    r.name = r.name + "+"
+}
+
+fn forget(m map[string]int, key string) {
+    defer delete(m, key)
+    fmt.Println("has before: ", has(m, key))
+}
+
+fn inSwitch(n int) int {
+    switch n {
+        case 1 {
+            defer show("one", n)
+            return 100
+        }
+        default {
+            defer show("many", n)
+        }
+    }
+    return 200
+}
+
+fn nestedBlock() {
+    var* tag = "outer"
+    if tag == "outer" {
+        defer show("block " + tag, 1)
+        tag = "changed"
+    }
+    fmt.Println("after block")
+}
+
+fn main() {
+    simple()
+    fmt.Println(argsNow())
+    fmt.Println(early(3))
+    fmt.Println(early(-1))
+    fmt.Println(early(50))
+    var* a, b = multi()
+    fmt.Println(a, " ", b)
+    var* r = Res{name: "p", log: []}
+    viaPtr(&r)
+    fmt.Println(r.name)
+    var* m = map[string]int{"k": 1}
+    forget(m, "k")
+    fmt.Println("has after: ", has(m, "k"))
+    fmt.Println(inSwitch(1), " ", inSwitch(2))
+    nestedBlock()
+}
+
+return 0

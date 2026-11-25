@@ -1,0 +1,24 @@
+body
+deferred 2
+deferred 1
+show x=1 1
+20
+close r3 early
+found 3
+show negative -1
+close r-1 early
+neg
+close r50 early
+none
+show multi1 7
+multi1! 3
+close p+ ptr
+p+
+has before: true
+has after: false
+show one 1
+show many 2
+100 200
+after block
+show block outer 1
+pgt: live blocks: 0

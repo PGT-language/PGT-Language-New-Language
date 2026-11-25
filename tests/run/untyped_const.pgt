@@ -1,0 +1,64 @@
+package main
+
+#use "fmt"
+
+const Limit = 128
+const Big = 3000000000
+const Shifted = 1 << 40
+const Neg = -5
+const Sum = Limit + 2
+
+const (
+    First = iota
+    Second
+)
+
+struct Box {
+    wide int64
+    small byte
+    ratio float
+}
+
+fn widen(n int64) int64 {
+    return n + Limit
+}
+
+fn narrow(b byte) int {
+    return int(b)
+}
+
+fn retWide() int64 {
+    return Big
+}
+
+fn retUnsigned() uint64 {
+    return Shifted
+}
+
+fn main() {
+    var* b byte = Limit
+    var* w int64 = Big
+    var* u uint64 = Shifted
+    var* i = Limit
+    var* f float = Sum
+    var* box = Box{wide: Big, small: Limit, ratio: Limit}
+    fmt.Println(b, " ", w, " ", u, " ", i, " ", f)
+    fmt.Println(box.wide, " ", box.small, " ", box.ratio)
+    fmt.Println(widen(1), " ", narrow(Limit), " ", retWide(), " ", retUnsigned())
+    fmt.Println(Limit + w, " ", w + Limit, " ", w > Limit, " ", Limit < w)
+    var* n int64 = Neg
+    var* arr []int64 = []
+    arr = append(arr, Limit)
+    arr = append(arr, Big)
+    fmt.Println(n, " ", arr[0], " ", arr[1], " ", Second, " ", Sum)
+    switch b {
+        case Limit {
+            fmt.Println("limit")
+        }
+        default {
+            fmt.Println("other")
+        }
+    }
+}
+
+return 0

@@ -1,0 +1,66 @@
+// memstats
+package main
+
+#use "fmt"
+
+struct Pt {
+    x int
+    y int
+}
+
+fn abs(n int) int {
+    return n < 0 ? -n : n
+}
+
+fn label(n int) string {
+    return n < 0 ? "negative" : n == 0 ? "zero" : "positive"
+}
+
+fn pickWide(flag bool, a int64) int64 {
+    return flag ? a : 5000000000
+}
+
+fn firstOr(items []int, fallback int) int {
+    return len(items) > 0 ? items[0] : fallback
+}
+
+fn pickPt(flag bool, a Pt, b Pt) Pt {
+    return flag ? a : b
+}
+
+fn maybe(flag bool, p *Pt) *Pt {
+    return flag ? p : nil
+}
+
+fn main() {
+    var* a = 3
+    var* b = 4
+    fmt.Println(abs(-7), " ", abs(7), " ", a < b ? a : b, " ", a > b ? a : b)
+    fmt.Println(label(-1), " ", label(0), " ", label(9))
+    fmt.Println(pickWide(true, 1), " ", pickWide(false, 1))
+    fmt.Println(firstOr([], 9), " ", firstOr([4, 5], 9))
+    var* word = a == 3 || b == 0 ? "yes" : "no"
+    var* joined = (a > 1 ? "big" : "small") + "-" + (b > 10 ? "big" : "small")
+    fmt.Println(word, " ", joined)
+    var* p = pickPt(a > b, Pt{x: 1, y: 2}, Pt{x: 3, y: 4})
+    fmt.Println(p.x, " ", p.y)
+    var* q = Pt{x: 8, y: 9}
+    var* r = maybe(true, &q)
+    var* s = maybe(false, &q)
+    fmt.Println(r.x, " ", s == nil)
+    var* list []int = a > b ? [1, 2] : []
+    fmt.Println(len(list))
+    var* c = b > 100 ? 1 : 2.5
+    var* total = 0
+    for i in 0..6 {
+        total += i % 2 == 0 ? i : -1
+    }
+    fmt.Println(c, " ", total)
+    var* text = ""
+    for i in 0..3 {
+        text = text + (i == 1 ? str(i * 10) + "!" : str(i))
+    }
+    fmt.Println(text)
+}
+
+return 0

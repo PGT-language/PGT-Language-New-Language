@@ -1,0 +1,17 @@
+// error: missing return at the end of function 'f'
+package main
+
+fn f(n int) int {
+    while true {
+        if n > 0 {
+            break
+        }
+        return 1
+    }
+}
+
+fn main() {
+    var* x = f(1)
+}
+
+return 0

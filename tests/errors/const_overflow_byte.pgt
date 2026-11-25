@@ -1,0 +1,10 @@
+// error: constant 300 overflows byte
+package main
+
+const Wide = 300
+
+fn main() {
+    var* b byte = Wide
+}
+
+return 0

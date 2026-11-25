@@ -1,0 +1,12 @@
+// error: cannot use []int as string
+package main
+
+fn take(s string) {
+}
+
+fn main() {
+    var* a []int = []
+    take(a)
+}
+
+return 0

@@ -1658,6 +1658,13 @@ namespace pgt
             return a && a->elems.empty();
         };
         bool swap = lazy(*t.thenExpr) && !lazy(*t.elseExpr);
+        if (!hint && lazy(*t.thenExpr) && lazy(*t.elseExpr))
+        {
+            if (hasFloatLit(*t.thenExpr) || hasFloatLit(*t.elseExpr))
+                hint = types_.floatT;
+            else if (hasCharLit(*t.thenExpr) || hasCharLit(*t.elseExpr))
+                hint = types_.charT;
+        }
         const Expr &firstExpr = swap ? *t.elseExpr : *t.thenExpr;
         const Expr &secondExpr = swap ? *t.thenExpr : *t.elseExpr;
         if (swap)

@@ -1,0 +1,9 @@
+// error: assignment mismatch: 2 variables but 1 value
+package main
+
+fn main() {
+    var* a = [1, 2]
+    var* v, ok = a[0]
+}
+
+return 0

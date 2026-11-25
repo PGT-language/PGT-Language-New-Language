@@ -1,0 +1,10 @@
+// error: constant -1 overflows uint64
+package main
+
+const Minus = -1
+
+fn main() {
+    var* x uint64 = Minus
+}
+
+return 0

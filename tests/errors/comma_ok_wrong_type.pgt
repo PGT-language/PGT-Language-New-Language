@@ -1,0 +1,11 @@
+// error: cannot use bool as int in assignment
+package main
+
+fn main() {
+    var* m = map[string]int{"a": 1}
+    var* v = 0
+    var* n = 0
+    v, n = m["a"]
+}
+
+return 0

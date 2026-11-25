@@ -1,0 +1,9 @@
+// error: the branches of '?:' have different types
+package main
+
+fn main() {
+    var* flag = true
+    var* x = flag ? 1 : "one"
+}
+
+return 0

@@ -1,0 +1,10 @@
+// error: constant 9223372036854775808 overflows int64
+package main
+
+const Huge = 9223372036854775808
+
+fn main() {
+    var* x int64 = Huge
+}
+
+return 0

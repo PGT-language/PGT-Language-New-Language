@@ -1,0 +1,8 @@
+// error: unterminated raw string literal
+package main
+
+fn main() {
+    var* s = `never closed
+}
+
+return 0

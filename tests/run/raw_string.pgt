@@ -1,0 +1,23 @@
+package main
+
+#use "fmt"
+
+const Banner = `+--+
+|\n|
++--+`
+
+fn main() {
+    var* plain = `no \n escape, "quotes" and 'single'`
+    fmt.Println(plain)
+    fmt.Println(Banner)
+    var* joined = `a` + `
+b` + "c"
+    fmt.Println(joined)
+    fmt.Println(len(`x
+y`), " ", len(`\t`), " ", `\x41` == "\\x41")
+    var* empty = ``
+    fmt.Println(len(empty))
+    fmt.Println(`tab	inside`)
+}
+
+return 0

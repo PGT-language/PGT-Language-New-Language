@@ -1,0 +1,11 @@
+// error: cannot compare int with char
+package main
+
+fn main() {
+    var* n = 1
+    var* c = 'a'
+    if n == c {
+    }
+}
+
+return 0

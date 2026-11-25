@@ -1,0 +1,48 @@
+package main
+
+#use "fmt"
+
+fn classify(n int) string {
+    switch n {
+        case 'w', 'W' {
+            return "up"
+        }
+        case 's' {
+            return "down"
+        }
+        case ' ' {
+            return "space"
+        }
+        default {
+            return "other"
+        }
+    }
+}
+
+fn byteKind(b byte) int {
+    switch b {
+        case 'a' {
+            return 1
+        }
+        case 'z' {
+            return 26
+        }
+        default {
+            return 0
+        }
+    }
+}
+
+fn main() {
+    var* key = 119
+    fmt.Println(classify(key), " ", classify(115), " ", classify(32), " ", classify(0))
+    fmt.Println(byteKind(97), " ", byteKind(122), " ", byteKind(1))
+    var* ch = 'w'
+    var* big int64 = 100
+    fmt.Println(key == 'w', " ", 'w' == key, " ", ch == 119, " ", key != 'x', " ", key > 'a', " ", 'z' > key)
+    fmt.Println(big < 'e', " ", big + 'a', " ", key - 'a', " ", 'a' + 1)
+    var* digit = 7
+    fmt.Println(str(digit + '0'), " ", digit + '0')
+}
+
+return 0

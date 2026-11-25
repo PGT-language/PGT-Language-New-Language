@@ -1,0 +1,9 @@
+// error: 'defer' needs a function call
+package main
+
+fn main() {
+    var* x = 1
+    defer x
+}
+
+return 0

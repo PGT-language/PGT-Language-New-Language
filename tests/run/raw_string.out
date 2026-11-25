@@ -1,0 +1,9 @@
+no \n escape, "quotes" and 'single'
++--+
+|\n|
++--+
+a
+bc
+3 2 true
+0
+tab	inside

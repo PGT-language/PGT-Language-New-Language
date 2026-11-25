@@ -1,0 +1,62 @@
+package main
+
+#use "fmt"
+
+interface Sink {
+    Put(items []int)
+}
+
+struct Bag {
+    items []int
+    names []string
+}
+
+fn (b *Bag) Put(items []int) {
+    b.items = items
+}
+
+var* shared []int = []
+
+fn count(items []int) int {
+    return len(items)
+}
+
+fn nothing() []string {
+    return []
+}
+
+fn pair() ([]int, int, []string) {
+    return [], 1, []
+}
+
+fn variadic(groups ...[]int) int {
+    return len(groups)
+}
+
+fn main() {
+    var* bag = Bag{items: [1, 2], names: []}
+    bag.items = []
+    bag.Put([1])
+    bag.Put([])
+    var* sink Sink = &bag
+    sink.Put([])
+    var* local []string = ["a"]
+    local = []
+    var* numbers []int = [5]
+    var* flag = 0
+    numbers, flag = [], 9
+    var* m = map[string][]int{}
+    m["k"] = []
+    var* nested [][]int = [[], [1], []]
+    var* inferred = [[], [1, 2]]
+    var* grid [][]int = [[]]
+    var* p = &bag.items
+    *p = [3]
+    *p = []
+    var* x, y, z = pair()
+    fmt.Println(len(bag.items), " ", len(bag.names), " ", len(shared), " ", len(local), " ", len(numbers), " ", flag)
+    fmt.Println(len(m["k"]), " ", len(nested), " ", len(inferred), " ", len(grid), " ", len(x), " ", y, " ", len(z))
+    fmt.Println(count([]), " ", len(nothing()), " ", variadic([], [], [1]))
+}
+
+return 0

@@ -1,0 +1,10 @@
+// error: overflows int (32 bits)
+package main
+
+const Big = 3000000000
+
+fn main() {
+    var* x = Big
+}
+
+return 0

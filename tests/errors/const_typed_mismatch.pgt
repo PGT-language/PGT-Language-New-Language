@@ -1,0 +1,10 @@
+// error: cannot use int64 as int
+package main
+
+const Wide int64 = 5
+
+fn main() {
+    var* x int = Wide
+}
+
+return 0
