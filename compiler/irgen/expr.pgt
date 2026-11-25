@@ -86,6 +86,10 @@ fn (g *Gen) genExpr(e *ast.Expr, hint *Type) Value {
         return g.untypedConst(ug.Val, h, e.Line, e.Col)
     }
     switch e.Kind {
+        case ast.ExprFuncLit {
+            g.fail("function values are not supported yet", e.Line, e.Col)
+            return g.dummy()
+        }
         case ast.ExprTernary { return g.genTernary(e, h) }
         case ast.ExprIntLit { return g.genIntLit(e, h) }
         case ast.ExprFloatLit { return Value{V: floatText(e.FloatVal), T: g.tt.floatT} }

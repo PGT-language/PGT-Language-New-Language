@@ -424,6 +424,10 @@ fn (g *Gen) resolveType(t *ast.TypeExpr, allowVoid bool) *Type {
             }
             return g.tt.mapOf(k, g.resolveType(t.Elem, false))
         }
+        case ast.TypeFunc {
+            g.fail("function values are not supported yet", t.Line, t.Col)
+            return g.tt.intT
+        }
         case ast.TypeTuple {
             var* elems + {[]*Type} = []
             for e in t.Elems {

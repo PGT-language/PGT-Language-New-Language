@@ -469,7 +469,7 @@ fn (p *Parser) parseExtern() *ast.Function {
     p.expect(token.KwFn, "after 'extern'")
     fun.Name = p.expect(token.Ident, "as the name of the external function").Text
     fun.Params = p.parseParams(false)
-    if p.atTypeStart() || p.check(token.LParen) {
+    if !p.atLineStart() && (p.atTypeStart() || p.check(token.LParen)) {
         fun.Ret = p.parseResult()
     }
     return fun
@@ -1282,6 +1282,22 @@ fn (p *Parser) parsePrimary() *ast.Expr {
             p.expect(token.RParen, "to close the parenthesized expression")
             p.noStructLit = saved
             return inner
+        }
+        case token.KwFn {
+            var* lit = p.expr(ast.ExprFuncLit, t)
+            p.advance()
+            lit.Params = p.parseParams(false)
+            if p.atTypeStart() || p.check(token.LParen) {
+                lit.Ret = p.parseResult()
+            }
+            var* saved = p.noStructLit
+            p.noStructLit = false
+            lit.Body = p.parseBlock("before the function body")
+            p.noStructLit = saved
+            if lit.Ret == nil && ast.HasValueReturn(lit.Body) {
+                lit.Ret = ast.NamedType("int", lit.Line, lit.Col)
+            }
+            return lit
         }
         case token.KwMap {
             var* lit = p.expr(ast.ExprMapLit, t)

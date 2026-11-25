@@ -231,6 +231,17 @@ fn expr(e *ast.Expr) *Node {
             }
             return n
         }
+        case ast.ExprFuncLit {
+            var* label = "fn(" + params(e.Params) + ")"
+            if e.Ret != nil {
+                label = label + " " + e.Ret.Text()
+            }
+            var* n = newNode("FuncLit", label, e.Line, e.Col)
+            for st in e.Body {
+                n.Kids = append(n.Kids, stmt(st))
+            }
+            return n
+        }
         case ast.ExprTypeAssert {
             var* label = ".(type)"
             if !e.IsTypeKeyword {
