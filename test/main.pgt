@@ -1,50 +1,24 @@
 package main
 
 #use (
-    "test/greet"
-    "test/mathx"
-    "fmt"
+    "std/memory"
+    "std/fmt"
+    "std/asm"
 )
 
 fn main() {
-    greet.Hello()
-
-    greet.Banner("Types")
-    demoTypes()
-
-    greet.Banner("Operators")
-    demoOperators()
-
-    greet.Banner("Control flow")
-    demoControl()
-
-    greet.Banner("Functions")
-    demoFunctions()
-
-    greet.Banner("Packages")
-    fmt.Println("mathx.Max(3, 9)      = ", mathx.Max(3, 9))
-    fmt.Println("mathx.Abs(-12)       = ", mathx.Abs(-12))
-    fmt.Println("mathx.Gcd(84, 36)    = ", mathx.Gcd(84, 36))
-    fmt.Println("mathx.Clamp(150, 0, 100) = ", mathx.Clamp(150, 0, 100))
-    fmt.Println("mathx.Factorial(15)  = ", mathx.Factorial(15))
-    fmt.Println("mathx.Average(1.5, 4) = ", mathx.Average(1.5, 4))
-    for i in 1..16 {
-        if mathx.IsPrime(i) {
-            fmt.Print(i, " ")
-        }
+    var* a int64 = 7
+    var* b int64 = 100
+    asm {
+        mov rax, {a}
+        mov {a}, rax
+        add rax, {b}
+        mov {a}, rax
     }
-    fmt.Println("<- primes below 16")
+    var& := a = malloc(free[byte] 1024)
+    var& := n = malloc(free[byte] 1024)
 
-    greet.Banner("Input")
-    var* answer char
-    fmt.Input("Run the interactive demo? (y/n): ", &answer)
-    if answer == 'y' {
-        demoInput()
-    } else {
-        fmt.Println("Skipped")
-    }
-
-    greet.Goodbye()
+    fmt.Println(n)
 }
 
 return 0
