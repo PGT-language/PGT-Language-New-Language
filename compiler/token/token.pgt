@@ -75,6 +75,7 @@ const (
     Shr
     Question
     KwDefer
+    KwC
 )
 
 struct Token {
@@ -161,6 +162,7 @@ fn Name(kind int) string {
         case Shr { return "'>>'" }
         case Question { return "'?'" }
         case KwDefer { return "'defer'" }
+        case KwC { return "'c'" }
     }
     return "?"
 }
@@ -241,6 +243,7 @@ fn KindName(kind int) string {
         case Shr { return "Shr" }
         case Question { return "Question" }
         case KwDefer { return "KwDefer" }
+        case KwC { return "KwC" }
     }
     return "?"
 }

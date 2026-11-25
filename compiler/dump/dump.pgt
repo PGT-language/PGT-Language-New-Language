@@ -401,6 +401,13 @@ fn stmt(s *ast.Stmt) *Node {
             }
             return n
         }
+        case ast.StmtC {
+            var* n = newNode("CStmt", quote(s.Text, '"'), s.Line, s.Col)
+            for name in s.Names {
+                n.Kids = append(n.Kids, newNode("Placeholder", name, s.Line, s.Col))
+            }
+            return n
+        }
         case ast.StmtBreak {
             return newNode("Break", "break", s.Line, s.Col)
         }
@@ -474,6 +481,13 @@ fn program(p *ast.Program) *Node {
             }
         }
         kids = append(kids, n)
+    }
+    for b in p.Blocks {
+        var* kind = "AsmDecl"
+        if b.IsC {
+            kind = "CDecl"
+        }
+        kids = append(kids, newNode(kind, quote(b.Text, '"'), b.Line, b.Col))
     }
     var* i = 1
     while i < len(kids) {

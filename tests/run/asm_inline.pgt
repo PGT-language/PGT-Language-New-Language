@@ -1,0 +1,100 @@
+package main
+
+#use (
+    "fmt"
+    "asm"
+)
+
+asm {
+    .text
+    .global pgt_triple
+pgt_triple:
+    lea eax, [rdi + rdi * 2]
+    ret
+    .global pgt_sum_to
+pgt_sum_to:
+    xor eax, eax
+    mov rcx, rdi
+again:
+    test rcx, rcx
+    jz done
+    add rax, rcx
+    dec rcx
+    jmp again
+done:
+    ret
+}
+
+extern fn pgt_triple(x int) int
+extern fn pgt_sum_to(n int64) int64
+
+fn countdown(n int) int {
+    var* steps = 0
+    var* left = n
+    asm {
+    top:
+        cmp {left}, 0
+        jle out
+        dec {left}
+        inc {steps}
+        jmp top
+    out:
+    }
+    return steps
+}
+
+fn countdown2(n int) int {
+    var* steps = 0
+    var* left = n
+    asm {
+    top:
+        cmp {left}, 0
+        jle out
+        sub {left}, 2
+        inc {steps}
+        jmp top
+    out:
+    }
+    return steps
+}
+
+fn main() {
+    fmt.Println(pgt_triple(14), " ", pgt_sum_to(100))
+    fmt.Println(countdown(7), " ", countdown2(7))
+
+    var* hi int64 = 0
+    var* lo int64 = 0
+    asm {
+        mov r15, 7
+        rdtsc
+        mov {lo}, rax
+        mov r15, rdx
+        mov {hi}, r15
+        pushfq
+        pop rax
+        cli_free_check:
+        nop
+    }
+    fmt.Println(lo != 0 || hi != 0)
+
+    var* v uint64 = 0x1122334455667788
+    asm {
+        mov rax, {v}
+        bswap rax
+        mov {v}, rax
+    }
+    fmt.Println(v == 0x8877665544332211)
+
+    var* total int64 = 0
+    for i in 0..5 {
+        var* k int64 = int64(i)
+        asm {
+            mov rax, {k}
+            imul rax, rax
+            add {total}, rax
+        }
+    }
+    fmt.Println(total)
+}
+
+return 0

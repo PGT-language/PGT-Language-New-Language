@@ -1,0 +1,78 @@
+package main
+
+#use (
+    "fmt"
+    "c"
+)
+
+c {
+    #include <string.h>
+    #include <stdlib.h>
+    typedef struct { int a; int b; } Pair;
+    static const char *names[] = {"zero", "one", "two"};
+    int pair_sum(int a, int b)
+    {
+        Pair p = {a, b};
+        return p.a + p.b;
+    }
+    const char *name_of(int i)
+    {
+        return names[i];
+    }
+    int64_t fact(int n)
+    {
+        return n <= 1 ? 1 : n * fact(n - 1);
+    }
+}
+
+extern fn pair_sum(a int, b int) int
+extern fn name_of(i int) string
+extern fn fact(n int) int64
+
+fn bump(n int) int {
+    var* x = n
+    c {
+        {x} += 100;
+    }
+    return x
+}
+
+fn main() {
+    fmt.Println(pair_sum(3, 4), " ", name_of(2), " ", fact(10))
+    var* n = 5
+    var* big int64 = 1
+    var* u uint64 = 7
+    var* f = 2.5
+    var* ch char = 'a'
+    var* by byte = 200
+    var* ok = false
+    var* s = "hello"
+    var* len = 0
+    c {
+        char buf[16] = "x{y}";
+        {n} = {n} * 2 + (int)strlen(buf);
+        {big} = (int64_t)1 << 40;
+        {u} += 1;
+        {f} *= 2;
+        {ch} = {ch} + 1;
+        {by} += 100;
+        {ok} = true;
+        {len} = (int)strlen({s});
+        for (int i = 0; i < 3; i++) { {n} += i; }
+    }
+    fmt.Println(n, " ", big, " ", u, " ", f, " ", ch, " ", by, " ", ok, " ", len)
+    fmt.Println(bump(1), " ", bump(2))
+    var* p = c.CString("copy")
+    fmt.Println(c.Strlen(p), " ", c.GoString(p))
+    c.Free(p)
+    var* total = 0
+    for i in 0..4 {
+        var* k = i
+        c {
+            {total} += {k} * {k};
+        }
+    }
+    fmt.Println(total)
+}
+
+return 0

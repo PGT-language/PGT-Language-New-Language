@@ -81,6 +81,7 @@ const (
     StmtBreak
     StmtContinue
     StmtAsm
+    StmtC
     StmtReturn
     StmtDefer
 )
@@ -325,7 +326,15 @@ struct Import {
     Col int
 }
 
+struct TopBlock {
+    IsC bool
+    Text string
+    Line int
+    Col int
+}
+
 struct Program {
+    Blocks []*TopBlock
     File string
     Package string
     Imports []*Import
@@ -338,4 +347,5 @@ struct Program {
     UsesMalloc bool
     UsesMaps bool
     UsesAsm bool
+    UsesC bool
 }

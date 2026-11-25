@@ -243,7 +243,70 @@ fn (l *Lexer) lexAsmBody(line int, col int) token.Token {
             return token.Token{Kind: token.KwAsm, Text: "", Line: line, Col: col}
         }
     }
-    return token.Token{Kind: token.KwAsm, Text: l.src[start:l.pos - 1], Line: line, Col: col}
+    return token.Token{Kind: token.KwAsm, Text: l.src[start:l.pos - 1], Line: line, Col: col, EndLine: l.line}
+}
+
+fn (l *Lexer) lexCBody(line int, col int) token.Token {
+    var* start = l.pos
+    var* depth = 1
+    while true {
+        if l.atEnd() {
+            l.fail("unterminated c block", line, col)
+            return token.Token{Kind: token.KwC, Text: "", Line: line, Col: col}
+        }
+        var* c = l.advance()
+        if c == '"' || c == '\'' {
+            while !l.atEnd() && l.peek(0) != c && l.peek(0) != '\n' {
+                if l.peek(0) == '\\' {
+                    l.advance()
+                }
+                if !l.atEnd() {
+                    l.advance()
+                }
+            }
+            if !l.atEnd() && l.peek(0) == c {
+                l.advance()
+            }
+        } else if c == '/' && l.peek(0) == '/' {
+            while !l.atEnd() && l.peek(0) != '\n' {
+                l.advance()
+            }
+        } else if c == '/' && l.peek(0) == '*' {
+            l.advance()
+            while !l.atEnd() && !(l.peek(0) == '*' && l.peek(1) == '/') {
+                l.advance()
+            }
+            if l.atEnd() {
+                l.fail("unterminated c block", line, col)
+                return token.Token{Kind: token.KwC, Text: "", Line: line, Col: col}
+            }
+            l.advance()
+            l.advance()
+        } else if c == '{' {
+            depth++
+        } else if c == '}' {
+            depth--
+            if depth == 0 {
+                break
+            }
+        }
+    }
+    return token.Token{Kind: token.KwC, Text: l.src[start:l.pos - 1], Line: line, Col: col, EndLine: l.line}
+}
+
+fn cStartsStatement(kind int) bool {
+    switch kind {
+        case token.RBrace, token.LBrace, token.Semi, token.Ident, token.Int, token.Float, token.Char, token.String {
+            return true
+        }
+        case token.RParen, token.RBracket, token.KwTrue, token.KwFalse, token.KwNil, token.KwBreak {
+            return true
+        }
+        case token.KwContinue, token.PlusPlus, token.MinusMinus, token.KwAsm, token.KwC {
+            return true
+        }
+    }
+    return false
 }
 
 fn (l *Lexer) lexWord() token.Token {
@@ -261,6 +324,22 @@ fn (l *Lexer) lexWord() token.Token {
     if word == "var" && l.peek(0) == '&' {
         l.advance()
         return token.Token{Kind: token.KwVarManual, Text: "var&", Line: line, Col: col}
+    }
+    if word == "c" && (!l.hasPrev || l.prevEnd < line) {
+        var* stmtStart = true
+        if l.hasPrev {
+            stmtStart = cStartsStatement(l.prevKind)
+        }
+        var* p = l.pos
+        while p < len(l.src) && (l.src[p] == ' ' || l.src[p] == '\t') {
+            p++
+        }
+        if stmtStart && p < len(l.src) && l.src[p] == '{' {
+            while l.pos <= p {
+                l.advance()
+            }
+            return l.lexCBody(line, col)
+        }
     }
     if word == "asm" {
         var* p = l.pos
@@ -344,4 +423,56 @@ fn (l *Lexer) hexEscape(line int, col int) int {
         value = value * 16 + d
     }
     return value
+}
+
+fn CPlaceholders(text string) []string {
+    var* names + {[]string} = []
+    var* i = 0
+    var* n = len(text)
+    while i < n {
+        var* c = text[i]
+        if c == '"' || c == '\'' {
+            i++
+            while i < n && text[i] != c && text[i] != '\n' {
+                if text[i] == '\\' {
+                    i++
+                }
+                i++
+            }
+            i++
+        } else if c == '/' && i + 1 < n && text[i + 1] == '/' {
+            while i < n && text[i] != '\n' {
+                i++
+            }
+        } else if c == '/' && i + 1 < n && text[i + 1] == '*' {
+            i += 2
+            while i + 1 < n && !(text[i] == '*' && text[i + 1] == '/') {
+                i++
+            }
+            i += 2
+        } else if c == '{' && i + 1 < n && (isAlpha(text[i + 1]) || text[i + 1] == '_') {
+            var* p = i + 1
+            while p < n && (isAlnum(text[p]) || text[p] == '_') {
+                p++
+            }
+            if p < n && text[p] == '}' {
+                var* name = text[i + 1:p]
+                var* seen = false
+                for x in names {
+                    if x == name {
+                        seen = true
+                    }
+                }
+                if !seen {
+                    names = append(names, name)
+                }
+                i = p + 1
+            } else {
+                i++
+            }
+        } else {
+            i++
+        }
+    }
+    return names
 }

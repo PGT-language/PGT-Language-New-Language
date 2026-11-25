@@ -15,6 +15,9 @@ struct Lexer {
     col int
     err Error
     failed bool
+    prevKind int
+    prevEnd int
+    hasPrev bool
 }
 
 var* keywords = buildKeywords()
@@ -275,6 +278,15 @@ fn Tokenize(src string) ([]token.Token, Error) {
         l.skipTrivia()
         if l.failed || l.atEnd() {
             break
+        }
+        if len(out) > 0 {
+            var* last = out[len(out) - 1]
+            l.hasPrev = true
+            l.prevKind = last.Kind
+            l.prevEnd = last.Line
+            if last.EndLine > l.prevEnd {
+                l.prevEnd = last.EndLine
+            }
         }
         var* c = l.peek(0)
         if isDigit(c) {

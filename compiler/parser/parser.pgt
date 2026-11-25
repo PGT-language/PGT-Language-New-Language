@@ -209,6 +209,10 @@ fn (p *Parser) parseProgram() *ast.Program {
             case token.KwExtern {
                 prog.Functions = append(prog.Functions, p.parseExtern())
             }
+            case token.KwAsm, token.KwC {
+                prog.Blocks = append(prog.Blocks, &ast.TopBlock{IsC: p.kind() == token.KwC, Text: p.cur().Text, Line: p.cur().Line, Col: p.cur().Col})
+                p.advance()
+            }
             case token.KwStruct {
                 prog.Structs = append(prog.Structs, p.parseStruct())
             }
@@ -259,6 +263,9 @@ fn (p *Parser) parseProgram() *ast.Program {
         }
         if k == token.KwAsm {
             prog.UsesAsm = true
+        }
+        if k == token.KwC {
+            prog.UsesC = true
         }
         var* afterDot = i > 0 && toks[i - 1].Kind == token.Dot
         if k == token.KwMap {
@@ -798,6 +805,13 @@ fn (p *Parser) parseStatement() *ast.Stmt {
             var* st = p.stmt(ast.StmtAsm, p.cur())
             st.Text = p.cur().Text
             st.Names = lexer.AsmPlaceholders(st.Text)
+            p.advance()
+            return st
+        }
+        case token.KwC {
+            var* st = p.stmt(ast.StmtC, p.cur())
+            st.Text = p.cur().Text
+            st.Names = lexer.CPlaceholders(st.Text)
             p.advance()
             return st
         }
