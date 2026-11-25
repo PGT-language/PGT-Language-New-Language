@@ -1,0 +1,193 @@
+package game
+
+#use "rand"
+
+const (
+    DirUp = 0
+    DirRight = 1
+    DirDown = 2
+    DirLeft = 3
+)
+
+const (
+    StatusOk = 0
+    StatusAte = 1
+    StatusWall = 2
+    StatusSelf = 3
+    StatusWon = 4
+)
+
+const (
+    BaseDelay = 150
+    MinDelay = 45
+    DelayStep = 5
+    FoodPerLevel = 3
+    FoodScore = 10
+)
+
+struct Point {
+    X int
+    Y int
+}
+
+struct Game {
+    W int
+    H int
+    Snake []Point
+    Dir int
+    Queue []int
+    Food Point
+    Score int
+    Eaten int
+    Status int
+    Paused bool
+}
+
+fn New(w int, h int) *Game {
+    var* g = new(Game)
+    g.W = w
+    g.H = h
+    g.Reset()
+    return g
+}
+
+fn (g *Game) Reset() {
+    var* cx = g.W / 2
+    var* cy = g.H / 2
+    g.Snake = [Point{X: cx - 2, Y: cy}, Point{X: cx - 1, Y: cy}, Point{X: cx, Y: cy}]
+    g.Dir = DirRight
+    g.Queue = []
+    g.Score = 0
+    g.Eaten = 0
+    g.Status = StatusOk
+    g.Paused = false
+    g.PlaceFood()
+}
+
+fn (g *Game) Head() Point {
+    return g.Snake[len(g.Snake) - 1]
+}
+
+fn (g *Game) Length() int {
+    return len(g.Snake)
+}
+
+fn (g *Game) Over() bool {
+    return g.Status == StatusWall || g.Status == StatusSelf || g.Status == StatusWon
+}
+
+fn (g *Game) OnSnake(x int, y int) bool {
+    for p in g.Snake {
+        if p.X == x && p.Y == y {
+            return true
+        }
+    }
+    return false
+}
+
+fn (g *Game) FreeCells() []Point {
+    var* cells []Point = []
+    for y in 0..g.H {
+        for x in 0..g.W {
+            if !g.OnSnake(x, y) {
+                cells = append(cells, Point{X: x, Y: y})
+            }
+        }
+    }
+    return cells
+}
+
+fn (g *Game) PlaceFood() bool {
+    var* cells = g.FreeCells()
+    if len(cells) == 0 {
+        return false
+    }
+    g.Food = cells[rand.IntN(len(cells))]
+    return true
+}
+
+fn (g *Game) lastDir() int {
+    if len(g.Queue) > 0 {
+        return g.Queue[len(g.Queue) - 1]
+    }
+    return g.Dir
+}
+
+fn Opposite(d int) int {
+    return (d + 2) % 4
+}
+
+fn (g *Game) Turn(d int) bool {
+    var* last = g.lastDir()
+    if d == last || d == Opposite(last) {
+        return false
+    }
+    if len(g.Queue) >= 2 {
+        return false
+    }
+    g.Queue = append(g.Queue, d)
+    return true
+}
+
+fn (g *Game) Step() int {
+    if g.Over() {
+        return g.Status
+    }
+    if len(g.Queue) > 0 {
+        g.Dir = g.Queue[0]
+        g.Queue = g.Queue[1:]
+    }
+    var* h = g.Head()
+    var* nx = h.X
+    var* ny = h.Y
+    switch g.Dir {
+        case DirUp { ny-- }
+        case DirDown { ny++ }
+        case DirLeft { nx-- }
+        default { nx++ }
+    }
+    if nx < 0 || ny < 0 || nx >= g.W || ny >= g.H {
+        g.Status = StatusWall
+        return g.Status
+    }
+    var* eating = nx == g.Food.X && ny == g.Food.Y
+    var* body = g.Snake
+    if !eating {
+        body = g.Snake[1:]
+    }
+    for p in body {
+        if p.X == nx && p.Y == ny {
+            g.Status = StatusSelf
+            return g.Status
+        }
+    }
+    g.Snake = append(body, Point{X: nx, Y: ny})
+    if eating {
+        g.Eaten++
+        g.Score += FoodScore + g.Level() * 2
+        if !g.PlaceFood() {
+            g.Status = StatusWon
+            return g.Status
+        }
+        g.Status = StatusAte
+        return g.Status
+    }
+    g.Status = StatusOk
+    return g.Status
+}
+
+fn (g *Game) Level() int {
+    return g.Eaten / FoodPerLevel
+}
+
+fn (g *Game) Delay() int {
+    var* d = BaseDelay - g.Level() * DelayStep
+    if d < MinDelay {
+        d = MinDelay
+    }
+    return d
+}
+
+fn (g *Game) Speed() int {
+    return g.Level() + 1
+}

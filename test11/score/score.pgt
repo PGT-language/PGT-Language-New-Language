@@ -1,0 +1,37 @@
+package score
+
+#use "os"
+#use "conv"
+#use "strings"
+
+fn Path() string {
+    var* home = os.Getenv("HOME")
+    if home == "" {
+        return ".pgt_snake_best"
+    }
+    return home + "/.pgt_snake_best"
+}
+
+fn Load() int {
+    var* data = strings.TrimSpace(os.ReadFile(Path()))
+    if data == "" || !conv.IsInt(data) {
+        return 0
+    }
+    var* v = conv.Atoi(data)
+    if v < 0 {
+        return 0
+    }
+    return v
+}
+
+fn Save(v int) bool {
+    return os.WriteFile(Path(), conv.Itoa(v) + "\n")
+}
+
+fn Update(best int, current int) int {
+    if current > best {
+        Save(current)
+        return current
+    }
+    return best
+}
