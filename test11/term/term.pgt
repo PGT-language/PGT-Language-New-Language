@@ -18,16 +18,16 @@ const (
     KeyRight = 1003
     KeyLeft = 1004
     KeyEsc = 27
-    TermiosSize = 128
+    TermiosSize int64 = 128
     TCSANOW = 0
-    TIOCGWINSZ = 21523
+    TIOCGWINSZ int64 = 21523
 )
 
 var* saved *byte = nil
 var* work *byte = nil
 var* active = false
 var* inbuf *byte = nil
-var* pending = []
+var* pending []int = []
 
 fn Active() bool {
     return active
@@ -46,7 +46,7 @@ fn Init() bool {
     }
     saved = unsafe.Alloc(TermiosSize, nil)
     work = unsafe.Alloc(TermiosSize, nil)
-    inbuf = unsafe.Alloc(64, nil)
+    inbuf = unsafe.Alloc(int64(64), nil)
     if tcgetattr(0, saved) != 0 {
         return false
     }
@@ -74,7 +74,7 @@ fn Write(s string) {
 }
 
 fn Size() (int, int) {
-    var* buf = unsafe.Alloc(16, nil)
+    var* buf = unsafe.Alloc(int64(16), nil)
     var* cols = 0
     var* rows = 0
     if ioctl(1, TIOCGWINSZ, buf) == 0 {
@@ -88,7 +88,7 @@ fn Size() (int, int) {
 }
 
 fn fill() {
-    var* fds = unsafe.Alloc(8, nil)
+    var* fds = unsafe.Alloc(int64(8), nil)
     unsafe.StoreInt(fds, 0)
     unsafe.StoreByte(unsafe.Add(fds, 4), 1)
     unsafe.StoreByte(unsafe.Add(fds, 5), 0)
