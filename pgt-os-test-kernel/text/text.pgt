@@ -1,0 +1,26 @@
+package text
+
+#use (
+    "pgt-os-test-kernel/console"
+    "pgt-os-test-kernel/serial"
+)
+
+fn Hex(v uint64) string {
+    var* digits = "0123456789abcdef"
+    var* out = ""
+    var* shift = 60
+    while shift >= 0 {
+        out = out + string(digits[int((v >> uint64(shift)) & 15)])
+        shift -= 4
+    }
+    return "0x" + out
+}
+
+fn Print(s string) {
+    serial.Write(s)
+    console.Write(s)
+}
+
+fn Println(s string) {
+    Print(s + "\n")
+}

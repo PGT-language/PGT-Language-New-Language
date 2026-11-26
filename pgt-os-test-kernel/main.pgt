@@ -1,0 +1,95 @@
+package main
+
+#use (
+    "pgt-os-test-kernel/keyboard"
+    "pgt-os-test-kernel/console"
+    "pgt-os-test-kernel/serial"
+    "pgt-os-test-kernel/limine"
+    "pgt-os-test-kernel/text"
+    "pgt-os-test-kernel/gdt"
+    "pgt-os-test-kernel/idt"
+    "pgt-os-test-kernel/cpu"
+    "pgt-os-test-kernel/pic"
+    "pgt-os-test-kernel/pit"
+    "pgt-os-test-kernel/pmm"
+)
+
+const Banner = "PGT OS 0.1 - a kernel written in PGT"
+
+fn showMemory() {
+    var* count = limine.MemmapCount()
+    text.Println("memory map: " + count + " entries, hhdm " + text.Hex(limine.HhdmOffset()))
+    for i in 0..count {
+        text.Println("  " + text.Hex(limine.MemmapBase(i)) + " +" + text.Hex(limine.MemmapLength(i)) + " " + limine.MemmapTypeName(limine.MemmapType(i)))
+    }
+    pmm.Init()
+    var* mib = pmm.UsableBytes() / 1048576
+    text.Println("usable memory: " + mib + " MiB")
+    var* frame = pmm.Alloc()
+    text.Println("first free frame: " + text.Hex(frame))
+}
+
+fn showTicks(lastShown int64) int64 {
+    var* now = pit.Ticks()
+    if now == lastShown {
+        return lastShown
+    }
+    if console.Ready() {
+        var* x = console.CursorX()
+        var* y = console.CursorY()
+        console.SetColor(console.Yellow, console.Black)
+        console.WriteAt(0, console.Rows() - 1, "ticks: " + now + "  uptime ms: " + pit.UptimeMs() + "          ")
+        console.SetColor(console.Gray, console.Black)
+        console.SetCursor(x, y)
+    }
+    if now == 100 {
+        serial.WriteLn("timer: 100 ticks elapsed")
+    }
+    return now
+}
+
+fn kmain() {
+    serial.Init()
+    serial.WriteLn(Banner)
+    if console.Init() {
+        console.SetColor(console.Cyan, console.Black)
+        console.Write(Banner + "\n")
+        console.SetColor(console.Gray, console.Black)
+    } else {
+        serial.WriteLn("no framebuffer, console disabled")
+    }
+    if !limine.OK() {
+        text.Println("warning: limine base revision not supported")
+    }
+    if limine.FramebufferAvailable() {
+        text.Println("framebuffer: " + limine.FramebufferWidth() + "x" + limine.FramebufferHeight() + "x" + limine.FramebufferBpp())
+    }
+    showMemory()
+
+    gdt.Init()
+    text.Println("gdt loaded")
+    idt.Init()
+    text.Println("idt loaded")
+    pic.Remap(32, 40)
+    pic.MaskAll()
+    pit.Init(100)
+    pic.Unmask(0)
+    keyboard.Init()
+    text.Println("pic remapped, pit at 100 Hz, keyboard ready")
+    cpu.Sti()
+
+    cpu.Int3()
+    text.Println("breakpoint handled, count=" + idt.Breakpoints())
+    text.Println("type on the keyboard; the keys are echoed below")
+
+    var* shown int64 = -1
+    while true {
+        shown = showTicks(shown)
+        var* key = keyboard.Read()
+        if key >= 0 {
+            text.Print(string(char(key)))
+        } else {
+            cpu.Hlt()
+        }
+    }
+}

@@ -1,0 +1,206 @@
+package limine
+
+#use "c"
+
+c {
+    #include <stdint.h>
+    #include <stddef.h>
+
+    #define PGT_LIMINE_MAGIC_0 0xc7b1dd30df4c8b88ULL
+    #define PGT_LIMINE_MAGIC_1 0x0a82e883a194f07bULL
+
+    struct pgt_limine_request
+    {
+        uint64_t id[4];
+        uint64_t revision;
+        void *response;
+    };
+
+    struct pgt_limine_framebuffer
+    {
+        void *address;
+        uint64_t width;
+        uint64_t height;
+        uint64_t pitch;
+        uint16_t bpp;
+        uint8_t memory_model;
+        uint8_t red_mask_size;
+        uint8_t red_mask_shift;
+        uint8_t green_mask_size;
+        uint8_t green_mask_shift;
+        uint8_t blue_mask_size;
+        uint8_t blue_mask_shift;
+    };
+
+    struct pgt_limine_framebuffer_response
+    {
+        uint64_t revision;
+        uint64_t count;
+        struct pgt_limine_framebuffer **framebuffers;
+    };
+
+    struct pgt_limine_hhdm_response
+    {
+        uint64_t revision;
+        uint64_t offset;
+    };
+
+    struct pgt_limine_memmap_entry
+    {
+        uint64_t base;
+        uint64_t length;
+        uint64_t type;
+    };
+
+    struct pgt_limine_memmap_response
+    {
+        uint64_t revision;
+        uint64_t count;
+        struct pgt_limine_memmap_entry **entries;
+    };
+
+    __attribute__((used, section(".limine_requests_start")))
+    static volatile uint64_t pgt_limine_start_marker[4] = {
+        0xf6b8f4b39de7d1aeULL, 0xfab91a6940fcb9cfULL, 0x785c6ed015d3e316ULL, 0x181e920a7852b9d9ULL};
+
+    __attribute__((used, section(".limine_requests")))
+    static volatile uint64_t pgt_limine_base_revision[3] = {0xf9562b2d5c95a6c8ULL, 0x6a7b384944536bdcULL, 3};
+
+    __attribute__((used, section(".limine_requests")))
+    static volatile struct pgt_limine_request pgt_limine_fb_request = {
+        {PGT_LIMINE_MAGIC_0, PGT_LIMINE_MAGIC_1, 0x9d5827dcd881dd75ULL, 0xa3148604f6fab11bULL}, 0, NULL};
+
+    __attribute__((used, section(".limine_requests")))
+    static volatile struct pgt_limine_request pgt_limine_hhdm_request = {
+        {PGT_LIMINE_MAGIC_0, PGT_LIMINE_MAGIC_1, 0x48dcf1cb8ad2b852ULL, 0x63984e959a98244bULL}, 0, NULL};
+
+    __attribute__((used, section(".limine_requests")))
+    static volatile struct pgt_limine_request pgt_limine_memmap_request = {
+        {PGT_LIMINE_MAGIC_0, PGT_LIMINE_MAGIC_1, 0x67cf3d9d378a806fULL, 0xe304acdfc50c3c62ULL}, 0, NULL};
+
+    __attribute__((used, section(".limine_requests_end")))
+    static volatile uint64_t pgt_limine_end_marker[2] = {0xadc0e0531bb10d03ULL, 0x9572709f31764c62ULL};
+
+    static struct pgt_limine_framebuffer *pgt_fb(void)
+    {
+        struct pgt_limine_framebuffer_response *r = pgt_limine_fb_request.response;
+        if (!r || r->count == 0)
+            return NULL;
+        return r->framebuffers[0];
+    }
+
+    int32_t pgt_limine_ok(void) { return pgt_limine_base_revision[2] == 0; }
+    int32_t pgt_fb_present(void) { return pgt_fb() != NULL; }
+    uint64_t pgt_fb_addr(void) { return (uint64_t)pgt_fb()->address; }
+    int32_t pgt_fb_width(void) { return (int32_t)pgt_fb()->width; }
+    int32_t pgt_fb_height(void) { return (int32_t)pgt_fb()->height; }
+    int32_t pgt_fb_pitch(void) { return (int32_t)pgt_fb()->pitch; }
+    int32_t pgt_fb_bpp(void) { return (int32_t)pgt_fb()->bpp; }
+
+    uint64_t pgt_hhdm_offset(void)
+    {
+        struct pgt_limine_hhdm_response *r = pgt_limine_hhdm_request.response;
+        return r ? r->offset : 0;
+    }
+
+    int32_t pgt_mm_count(void)
+    {
+        struct pgt_limine_memmap_response *r = pgt_limine_memmap_request.response;
+        return r ? (int32_t)r->count : 0;
+    }
+
+    uint64_t pgt_mm_base(int32_t i) { return ((struct pgt_limine_memmap_response *)pgt_limine_memmap_request.response)->entries[i]->base; }
+    uint64_t pgt_mm_length(int32_t i) { return ((struct pgt_limine_memmap_response *)pgt_limine_memmap_request.response)->entries[i]->length; }
+    int32_t pgt_mm_type(int32_t i) { return (int32_t)((struct pgt_limine_memmap_response *)pgt_limine_memmap_request.response)->entries[i]->type; }
+}
+
+extern fn pgt_limine_ok() int
+extern fn pgt_fb_present() int
+extern fn pgt_fb_addr() uint64
+extern fn pgt_fb_width() int
+extern fn pgt_fb_height() int
+extern fn pgt_fb_pitch() int
+extern fn pgt_fb_bpp() int
+extern fn pgt_hhdm_offset() uint64
+extern fn pgt_mm_count() int
+extern fn pgt_mm_base(i int) uint64
+extern fn pgt_mm_length(i int) uint64
+extern fn pgt_mm_type(i int) int
+
+fn OK() bool {
+    return pgt_limine_ok() != 0
+}
+
+fn FramebufferAvailable() bool {
+    return pgt_fb_present() != 0
+}
+
+fn FramebufferAddr() uint64 {
+    return pgt_fb_addr()
+}
+
+fn FramebufferWidth() int {
+    return pgt_fb_width()
+}
+
+fn FramebufferHeight() int {
+    return pgt_fb_height()
+}
+
+fn FramebufferPitch() int {
+    return pgt_fb_pitch()
+}
+
+fn FramebufferBpp() int {
+    return pgt_fb_bpp()
+}
+
+fn HhdmOffset() uint64 {
+    return pgt_hhdm_offset()
+}
+
+fn MemmapCount() int {
+    return pgt_mm_count()
+}
+
+fn MemmapBase(i int) uint64 {
+    return pgt_mm_base(i)
+}
+
+fn MemmapLength(i int) uint64 {
+    return pgt_mm_length(i)
+}
+
+fn MemmapType(i int) int {
+    return pgt_mm_type(i)
+}
+
+fn MemmapTypeName(t int) string {
+    switch t {
+        case 0 {
+            return "usable"
+        }
+        case 1 {
+            return "reserved"
+        }
+        case 2 {
+            return "acpi reclaimable"
+        }
+        case 3 {
+            return "acpi nvs"
+        }
+        case 4 {
+            return "bad"
+        }
+        case 5 {
+            return "bootloader reclaimable"
+        }
+        case 6 {
+            return "kernel and modules"
+        }
+        case 7 {
+            return "framebuffer"
+        }
+    }
+    return "unknown"
+}

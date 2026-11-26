@@ -1,0 +1,216 @@
+package idt
+
+#use (
+    "pgt-os-test-kernel/keyboard"
+    "pgt-os-test-kernel/text"
+    "pgt-os-test-kernel/cpu"
+    "pgt-os-test-kernel/pic"
+    "pgt-os-test-kernel/pit"
+    "asm"
+    "c"
+)
+
+asm {
+    .text
+    .macro PGT_ISR n
+    .pushsection .data.pgt_isr_table, "aw"
+    .quad pgt_isr_stub_\n
+    .popsection
+    .text
+    .p2align 4
+pgt_isr_stub_\n:
+    .if (\n == 8) || (\n == 10) || (\n == 11) || (\n == 12) || (\n == 13) || (\n == 14) || (\n == 17) || (\n == 21) || (\n == 29) || (\n == 30)
+    .else
+    push 0
+    .endif
+    push \n
+    jmp pgt_isr_common
+    .endm
+
+    .pushsection .data.pgt_isr_table, "aw"
+    .p2align 3
+    .global pgt_isr_table
+pgt_isr_table:
+    .popsection
+
+    .irp n, 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31
+    PGT_ISR \n
+    .endr
+    .irp n, 32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47
+    PGT_ISR \n
+    .endr
+
+pgt_isr_common:
+    push rax
+    push rcx
+    push rdx
+    push rbx
+    push rbp
+    push rsi
+    push rdi
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+    mov rdi, rsp
+    mov rbp, rsp
+    and rsp, -16
+    cld
+    call pgt_isr_dispatch
+    mov rsp, rbp
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdi
+    pop rsi
+    pop rbp
+    pop rbx
+    pop rdx
+    pop rcx
+    pop rax
+    add rsp, 16
+    iretq
+}
+
+c {
+    #include <stdint.h>
+
+    struct pgt_gate
+    {
+        uint16_t low;
+        uint16_t selector;
+        uint8_t ist;
+        uint8_t flags;
+        uint16_t mid;
+        uint32_t high;
+        uint32_t zero;
+    } __attribute__((packed));
+
+    struct pgt_idtr
+    {
+        uint16_t limit;
+        uint64_t base;
+    } __attribute__((packed));
+
+    struct pgt_frame
+    {
+        uint64_t r15, r14, r13, r12, r11, r10, r9, r8, rdi, rsi, rbp, rbx, rdx, rcx, rax;
+        uint64_t vector, error, rip, cs, rflags, rsp, ss;
+    };
+
+    extern uint64_t pgt_isr_table[48];
+    extern void pgt_on_interrupt(int32_t vector, int64_t error, int64_t rip) __asm__("pgt.pgt-os-test-kernel/idt.OnInterrupt");
+
+    static struct pgt_gate pgt_idt[256];
+    static struct pgt_idtr pgt_idtr;
+
+    void pgt_idt_build(void)
+    {
+        for (int i = 0; i < 48; i++)
+        {
+            uint64_t h = pgt_isr_table[i];
+            pgt_idt[i].low = (uint16_t)h;
+            pgt_idt[i].selector = 0x08;
+            pgt_idt[i].ist = i == 8 ? 1 : 0;
+            pgt_idt[i].flags = 0x8E;
+            pgt_idt[i].mid = (uint16_t)(h >> 16);
+            pgt_idt[i].high = (uint32_t)(h >> 32);
+            pgt_idt[i].zero = 0;
+        }
+        pgt_idtr.limit = sizeof pgt_idt - 1;
+        pgt_idtr.base = (uint64_t)pgt_idt;
+    }
+
+    uint64_t pgt_idt_desc_addr(void)
+    {
+        return (uint64_t)&pgt_idtr;
+    }
+
+    void pgt_isr_dispatch(struct pgt_frame *f)
+    {
+        pgt_on_interrupt((int32_t)f->vector, (int64_t)f->error, (int64_t)f->rip);
+    }
+}
+
+extern fn pgt_idt_build()
+extern fn pgt_idt_desc_addr() uint64
+
+fn Init() {
+    pgt_idt_build()
+    var* desc = pgt_idt_desc_addr()
+    asm {
+        mov rax, {desc}
+        lidt [rax]
+    }
+}
+
+var* breakpoints = 0
+var* lastException = -1
+var* irqCount = 0
+
+fn Breakpoints() int {
+    return breakpoints
+}
+
+fn LastException() int {
+    return lastException
+}
+
+fn IrqCount() int {
+    return irqCount
+}
+
+fn ExceptionName(vec int) string {
+    switch vec {
+        case 0 {
+            return "divide error"
+        }
+        case 3 {
+            return "breakpoint"
+        }
+        case 6 {
+            return "invalid opcode"
+        }
+        case 8 {
+            return "double fault"
+        }
+        case 13 {
+            return "general protection fault"
+        }
+        case 14 {
+            return "page fault"
+        }
+    }
+    return "exception"
+}
+
+fn OnInterrupt(vec int, err int64, rip int64) {
+    if vec < 32 {
+        lastException = vec
+        if vec == 3 {
+            breakpoints++
+            return
+        }
+        text.Println("EXCEPTION " + vec + " (" + ExceptionName(vec) + ") err=" + err + " rip=" + text.Hex(uint64(rip)) + " cr2=" + text.Hex(cpu.ReadCR2()))
+        cpu.Halt()
+        return
+    }
+    irqCount++
+    var* irq = vec - 32
+    if irq == 0 {
+        pit.Tick()
+    }
+    if irq == 1 {
+        keyboard.Irq()
+    }
+    pic.EOI(irq)
+}

@@ -1,0 +1,125 @@
+package cpu
+
+#use "asm"
+
+fn Cli() {
+    asm {
+        cli
+    }
+}
+
+fn Sti() {
+    asm {
+        sti
+    }
+}
+
+fn Hlt() {
+    asm {
+        hlt
+    }
+}
+
+fn Halt() {
+    while true {
+        asm {
+            cli
+            hlt
+        }
+    }
+}
+
+fn Int3() {
+    asm {
+        int3
+    }
+}
+
+fn Pause() {
+    asm {
+        pause
+    }
+}
+
+fn ReadCR0() uint64 {
+    var* v uint64 = 0
+    asm {
+        mov rax, cr0
+        mov {v}, rax
+    }
+    return v
+}
+
+fn ReadCR2() uint64 {
+    var* v uint64 = 0
+    asm {
+        mov rax, cr2
+        mov {v}, rax
+    }
+    return v
+}
+
+fn ReadCR3() uint64 {
+    var* v uint64 = 0
+    asm {
+        mov rax, cr3
+        mov {v}, rax
+    }
+    return v
+}
+
+fn ReadCR4() uint64 {
+    var* v uint64 = 0
+    asm {
+        mov rax, cr4
+        mov {v}, rax
+    }
+    return v
+}
+
+fn WriteCR3(value uint64) {
+    asm {
+        mov rax, {value}
+        mov cr3, rax
+    }
+}
+
+fn Rdmsr(msr int) uint64 {
+    var* v uint64 = 0
+    asm {
+        mov ecx, {msr}
+        rdmsr
+        shl rdx, 32
+        or rax, rdx
+        mov {v}, rax
+    }
+    return v
+}
+
+fn Wrmsr(msr int, value uint64) {
+    asm {
+        mov ecx, {msr}
+        mov rax, {value}
+        mov rdx, rax
+        shr rdx, 32
+        wrmsr
+    }
+}
+
+fn Rdtsc() uint64 {
+    var* v uint64 = 0
+    asm {
+        rdtsc
+        shl rdx, 32
+        or rax, rdx
+        mov {v}, rax
+    }
+    return v
+}
+
+fn Invlpg(addr uint64) {
+    asm {
+        mov rax, {addr}
+        invlpg [rax]
+    }
+}

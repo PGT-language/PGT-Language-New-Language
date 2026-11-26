@@ -1,0 +1,69 @@
+package pmm
+
+#use "pgt-os-test-kernel/limine"
+
+var* pmmRegion = 0
+var* pmmNext uint64 = 0
+var* pmmEnd uint64 = 0
+var* pmmUsed = 0
+var* pmmTotal uint64 = 0
+
+fn pmmAdvance() bool {
+    while pmmRegion < limine.MemmapCount() {
+        var* i = pmmRegion
+        pmmRegion++
+        if limine.MemmapType(i) == 0 {
+            var* base = limine.MemmapBase(i)
+            var* end = base + limine.MemmapLength(i)
+            if base < 0x100000 {
+                base = 0x100000
+            }
+            base = (base + 4095) & ~uint64(4095)
+            end = end & ~uint64(4095)
+            if end > base {
+                pmmNext = base
+                pmmEnd = end
+                return true
+            }
+        }
+    }
+    return false
+}
+
+fn Init() {
+    pmmRegion = 0
+    pmmNext = 0
+    pmmEnd = 0
+    pmmUsed = 0
+    pmmTotal = 0
+    for i in 0..limine.MemmapCount() {
+        if limine.MemmapType(i) == 0 {
+            pmmTotal += limine.MemmapLength(i)
+        }
+    }
+    pmmAdvance()
+}
+
+fn UsableBytes() uint64 {
+    return pmmTotal
+}
+
+fn Allocated() int {
+    return pmmUsed
+}
+
+fn Alloc() uint64 {
+    if pmmNext >= pmmEnd {
+        if !pmmAdvance() {
+            return 0
+        }
+    }
+    var* frame = pmmNext
+    pmmNext += 4096
+    pmmUsed++
+    return frame
+}
+
+fn Virt(phys uint64) uint64 {
+    return phys + limine.HhdmOffset()
+}

@@ -1,0 +1,84 @@
+package keyboard
+
+#use (
+    "pgt-os-test-kernel/ports"
+    "pgt-os-test-kernel/pic"
+    "c"
+)
+
+c {
+    #include <stdint.h>
+
+    static const char pgt_sc_plain[58] = {
+        0, 27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', 8, 9,
+        'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', 10, 0, 'a', 's',
+        'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`', 0, '\\', 'z', 'x', 'c', 'v',
+        'b', 'n', 'm', ',', '.', '/', 0, '*', 0, ' '};
+
+    static const char pgt_sc_shift[58] = {
+        0, 27, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', 8, 9,
+        'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', 10, 0, 'A', 'S',
+        'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~', 0, '|', 'Z', 'X', 'C', 'V',
+        'B', 'N', 'M', '<', '>', '?', 0, '*', 0, ' '};
+
+    int32_t pgt_scancode_ascii(int32_t code, int32_t shift)
+    {
+        if (code < 0 || code >= 58)
+            return 0;
+        return shift ? pgt_sc_shift[code] : pgt_sc_plain[code];
+    }
+}
+
+extern fn pgt_scancode_ascii(code int, shift int) int
+
+var* kbShift = false
+var* kbBuf = make([]int, 64)
+var* kbHead = 0
+var* kbTail = 0
+
+fn Init() {
+    kbHead = 0
+    kbTail = 0
+    pic.Unmask(1)
+}
+
+fn Irq() {
+    var* code = ports.Inb(0x60)
+    if code == 0x2A || code == 0x36 {
+        kbShift = true
+        return
+    }
+    if code == 0xAA || code == 0xB6 {
+        kbShift = false
+        return
+    }
+    if code >= 0x80 {
+        return
+    }
+    var* shift = 0
+    if kbShift {
+        shift = 1
+    }
+    var* ch = pgt_scancode_ascii(code, shift)
+    if ch == 0 {
+        return
+    }
+    var* next = (kbHead + 1) % 64
+    if next != kbTail {
+        kbBuf[kbHead] = ch
+        kbHead = next
+    }
+}
+
+fn Available() bool {
+    return kbHead != kbTail
+}
+
+fn Read() int {
+    if kbHead == kbTail {
+        return -1
+    }
+    var* ch = kbBuf[kbTail]
+    kbTail = (kbTail + 1) % 64
+    return ch
+}

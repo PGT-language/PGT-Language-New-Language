@@ -1,0 +1,152 @@
+package console
+
+#use "pgt-os-test-kernel/limine"
+
+const Black = 0x000000
+const White = 0xFFFFFF
+const Gray = 0xAAAAAA
+const Red = 0xFF5555
+const Green = 0x55FF55
+const Blue = 0x5555FF
+const Yellow = 0xFFFF55
+const Cyan = 0x55FFFF
+const Magenta = 0xFF55FF
+
+var* conReady = false
+var* conBase uint64 = 0
+var* conPitch uint64 = 0
+var* conWidth = 0
+var* conHeight = 0
+var* conCols = 0
+var* conRows = 0
+var* conX = 0
+var* conY = 0
+var* conFg = 0xAAAAAA
+var* conBg = 0
+
+fn Init() bool {
+    if !limine.FramebufferAvailable() {
+        return false
+    }
+    if limine.FramebufferBpp() != 32 {
+        return false
+    }
+    conBase = limine.FramebufferAddr()
+    conPitch = uint64(limine.FramebufferPitch())
+    conWidth = limine.FramebufferWidth()
+    conHeight = limine.FramebufferHeight()
+    conCols = conWidth / 8
+    conRows = conHeight / 16
+    conX = 0
+    conY = 0
+    conReady = true
+    Clear()
+    return true
+}
+
+fn Ready() bool {
+    return conReady
+}
+
+fn Cols() int {
+    return conCols
+}
+
+fn Rows() int {
+    return conRows
+}
+
+fn Width() int {
+    return conWidth
+}
+
+fn Height() int {
+    return conHeight
+}
+
+fn SetColor(fg int, bg int) {
+    conFg = fg
+    conBg = bg
+}
+
+fn SetCursor(col int, row int) {
+    conX = col
+    conY = row
+}
+
+fn Clear() {
+    if !conReady {
+        return
+    }
+    pgt_fb_fill(conBase, conPitch, 0, 0, conWidth, conHeight, conBg)
+    conX = 0
+    conY = 0
+}
+
+fn consoleNewline() {
+    conX = 0
+    conY++
+    if conY >= conRows {
+        pgt_fb_scroll(conBase, conPitch, conRows * 16, 16, conBg)
+        conY = conRows - 1
+    }
+}
+
+fn PutChar(c int) {
+    if !conReady {
+        return
+    }
+    if c == 10 {
+        consoleNewline()
+        return
+    }
+    if c == 13 {
+        conX = 0
+        return
+    }
+    if c == 8 {
+        if conX > 0 {
+            conX--
+            pgt_fb_glyph(conBase, conPitch, conX * 8, conY * 16, 32, conFg, conBg)
+        }
+        return
+    }
+    if c == 9 {
+        var* next = (conX / 4 + 1) * 4
+        while conX < next {
+            PutChar(32)
+        }
+        return
+    }
+    if conX >= conCols {
+        consoleNewline()
+    }
+    pgt_fb_glyph(conBase, conPitch, conX * 8, conY * 16, c, conFg, conBg)
+    conX++
+}
+
+fn Write(s string) {
+    for i in 0..len(s) {
+        PutChar(int(s[i]))
+    }
+}
+
+fn WriteAt(col int, row int, s string) {
+    conX = col
+    conY = row
+    Write(s)
+}
+
+fn FillRect(x int, y int, w int, h int, color int) {
+    if conReady {
+        pgt_fb_fill(conBase, conPitch, x, y, w, h, color)
+    }
+}
+
+fn CursorX() int {
+    return conX
+}
+
+fn CursorY() int {
+    return conY
+}

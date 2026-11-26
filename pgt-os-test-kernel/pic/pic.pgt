@@ -1,0 +1,65 @@
+package pic
+
+#use "pgt-os-test-kernel/ports"
+
+const PIC1 = 0x20
+const PIC2 = 0xA0
+
+fn ioWait() {
+    ports.Outb(0x80, 0)
+}
+
+fn Remap(offset1 int, offset2 int) {
+    var* m1 = ports.Inb(PIC1 + 1)
+    var* m2 = ports.Inb(PIC2 + 1)
+    ports.Outb(PIC1, 0x11)
+    ioWait()
+    ports.Outb(PIC2, 0x11)
+    ioWait()
+    ports.Outb(PIC1 + 1, offset1)
+    ioWait()
+    ports.Outb(PIC2 + 1, offset2)
+    ioWait()
+    ports.Outb(PIC1 + 1, 4)
+    ioWait()
+    ports.Outb(PIC2 + 1, 2)
+    ioWait()
+    ports.Outb(PIC1 + 1, 1)
+    ioWait()
+    ports.Outb(PIC2 + 1, 1)
+    ioWait()
+    ports.Outb(PIC1 + 1, m1)
+    ports.Outb(PIC2 + 1, m2)
+}
+
+fn EOI(irq int) {
+    if irq >= 8 {
+        ports.Outb(PIC2, 0x20)
+    }
+    ports.Outb(PIC1, 0x20)
+}
+
+fn MaskAll() {
+    ports.Outb(PIC1 + 1, 0xFF)
+    ports.Outb(PIC2 + 1, 0xFF)
+}
+
+fn Mask(irq int) {
+    var* port = PIC1 + 1
+    var* line = irq
+    if irq >= 8 {
+        port = PIC2 + 1
+        line = irq - 8
+    }
+    ports.Outb(port, ports.Inb(port) | (1 << line))
+}
+
+fn Unmask(irq int) {
+    var* port = PIC1 + 1
+    var* line = irq
+    if irq >= 8 {
+        port = PIC2 + 1
+        line = irq - 8
+    }
+    ports.Outb(port, ports.Inb(port) & ~(1 << line))
+}

@@ -1,0 +1,75 @@
+package gdt
+
+#use (
+    "asm"
+    "c"
+)
+
+c {
+    #include <stdint.h>
+
+    struct pgt_gdt_desc
+    {
+        uint16_t limit;
+        uint64_t base;
+    } __attribute__((packed));
+
+    static uint64_t pgt_gdt[7];
+    static uint8_t pgt_tss[104] __attribute__((aligned(16)));
+    static uint8_t pgt_df_stack[16384] __attribute__((aligned(16)));
+    static uint8_t pgt_rsp0_stack[16384] __attribute__((aligned(16)));
+    static struct pgt_gdt_desc pgt_gdtr;
+
+    void pgt_gdt_build(void)
+    {
+        uint64_t tss = (uint64_t)pgt_tss;
+        uint64_t rsp0 = (uint64_t)pgt_rsp0_stack + sizeof pgt_rsp0_stack;
+        uint64_t ist1 = (uint64_t)pgt_df_stack + sizeof pgt_df_stack;
+        for (int i = 0; i < 104; i++)
+            pgt_tss[i] = 0;
+        *(uint64_t *)(pgt_tss + 4) = rsp0;
+        *(uint64_t *)(pgt_tss + 36) = ist1;
+        *(uint16_t *)(pgt_tss + 102) = 104;
+        pgt_gdt[0] = 0;
+        pgt_gdt[1] = 0x00AF9A000000FFFFULL;
+        pgt_gdt[2] = 0x00CF92000000FFFFULL;
+        pgt_gdt[3] = 0x00CFF2000000FFFFULL;
+        pgt_gdt[4] = 0x00AFFA000000FFFFULL;
+        uint64_t limit = 103;
+        pgt_gdt[5] = (limit & 0xFFFF) | ((tss & 0xFFFFFF) << 16) | (0x89ULL << 40) | (((limit >> 16) & 0xF) << 48) |
+                     (((tss >> 24) & 0xFF) << 56);
+        pgt_gdt[6] = tss >> 32;
+        pgt_gdtr.limit = sizeof pgt_gdt - 1;
+        pgt_gdtr.base = (uint64_t)pgt_gdt;
+    }
+
+    uint64_t pgt_gdt_desc_addr(void)
+    {
+        return (uint64_t)&pgt_gdtr;
+    }
+}
+
+extern fn pgt_gdt_build()
+extern fn pgt_gdt_desc_addr() uint64
+
+fn Init() {
+    pgt_gdt_build()
+    var* desc = pgt_gdt_desc_addr()
+    asm {
+        mov rax, {desc}
+        lgdt [rax]
+        mov ax, 0x10
+        mov ds, ax
+        mov es, ax
+        mov fs, ax
+        mov gs, ax
+        mov ss, ax
+        lea rcx, [rip + reload]
+        push 0x08
+        push rcx
+        retfq
+    reload:
+        mov ax, 0x28
+        ltr ax
+    }
+}

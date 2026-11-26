@@ -1,0 +1,59 @@
+package ports
+
+#use "asm"
+
+fn Outb(port int, value int) {
+    asm {
+        mov edx, {port}
+        mov eax, {value}
+        out dx, al
+    }
+}
+
+fn Outw(port int, value int) {
+    asm {
+        mov edx, {port}
+        mov eax, {value}
+        out dx, ax
+    }
+}
+
+fn Outl(port int, value int) {
+    asm {
+        mov edx, {port}
+        mov eax, {value}
+        out dx, eax
+    }
+}
+
+fn Inb(port int) int {
+    var* v = 0
+    asm {
+        mov edx, {port}
+        xor eax, eax
+        in al, dx
+        mov {v}, eax
+    }
+    return v
+}
+
+fn Inw(port int) int {
+    var* v = 0
+    asm {
+        mov edx, {port}
+        xor eax, eax
+        in ax, dx
+        mov {v}, eax
+    }
+    return v
+}
+
+fn Inl(port int) int {
+    var* v = 0
+    asm {
+        mov edx, {port}
+        in eax, dx
+        mov {v}, eax
+    }
+    return v
+}

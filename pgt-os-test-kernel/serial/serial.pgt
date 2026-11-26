@@ -1,0 +1,40 @@
+package serial
+
+#use "pgt-os-test-kernel/ports"
+
+const COM1 = 0x3F8
+
+var* serialReady = false
+
+fn Init() {
+    ports.Outb(COM1 + 1, 0)
+    ports.Outb(COM1 + 3, 0x80)
+    ports.Outb(COM1, 1)
+    ports.Outb(COM1 + 1, 0)
+    ports.Outb(COM1 + 3, 3)
+    ports.Outb(COM1 + 2, 0xC7)
+    ports.Outb(COM1 + 4, 0x0B)
+    serialReady = true
+}
+
+fn WriteByte(b int) {
+    if !serialReady {
+        Init()
+    }
+    var* tries = 0
+    while (ports.Inb(COM1 + 5) & 0x20) == 0 && tries < 100000 {
+        tries++
+    }
+    ports.Outb(COM1, b)
+}
+
+fn Write(s string) {
+    for i in 0..len(s) {
+        WriteByte(int(s[i]))
+    }
+}
+
+fn WriteLn(s string) {
+    Write(s)
+    WriteByte(10)
+}

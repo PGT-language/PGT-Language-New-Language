@@ -285,7 +285,6 @@ namespace pgt::lsp
                 result["capabilities"] = caps;
                 Json info = Json::object();
                 info["name"] = "pgt-lsp";
-                info["version"] = PGT_VERSION;
                 result["serverInfo"] = info;
                 return result;
             }
